@@ -426,6 +426,9 @@ void json_flag::load( const JsonObject &jo, std::string_view )
     optional( jo, was_loaded, "name", name_ );
     optional( jo, was_loaded, "item_prefix", item_prefix_ );
     optional( jo, was_loaded, "item_suffix", item_suffix_ );
+    optional( jo, was_loaded, "user_mark", user_mark_, false );
+    optional( jo, was_loaded, "sort_priority", sort_priority_, 0 );
+    optional( jo, was_loaded, "protect_from_drop", protect_from_drop_, false );
 }
 
 void json_flag::check_consistency()

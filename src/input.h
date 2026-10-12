@@ -9,6 +9,7 @@
 #include "input_enums.h"
 #include "translation.h"
 
+class JsonArray;
 class cata_path;
 
 // Curses key constants
@@ -224,6 +225,15 @@ class input_manager
          * Initializes the input manager, aka loads the input mapping configuration JSON.
          */
         void init();
+
+        /**
+         * Register an action defined by a mod (JSON type "mod_action").  Default bindings are only
+         * installed if the player has no bindings for this action yet, so keys the player
+         * customised (loaded from the user's keybindings file) are kept.
+         * @param bindings array of objects in the same format as data/raw/keybindings.json
+         */
+        void register_mod_action( const std::string &action_id, const std::string &context,
+                                  const translation &name, const JsonArray &bindings );
         /**
          * Opposite of @ref init, save the data that has been loaded by @ref init,
          * and possibly been modified.

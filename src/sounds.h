@@ -10,6 +10,8 @@
 #include "coords_fwd.h"
 #include "units_fwd.h"
 
+class cata_path;
+
 class Character;
 class Creature;
 class JsonObject;
@@ -140,6 +142,11 @@ enum class group : int {
 void load_sound_effects( const JsonObject &jsobj );
 void load_sound_effect_preload( const JsonObject &jsobj );
 void load_playlist( const JsonObject &jsobj );
+/** Load a mod-defined "music_playlist" (files are relative to the folder of the JSON file). */
+void load_mod_playlist( const JsonObject &jsobj, const std::string &src, const cata_path &base_path,
+                        const cata_path &full_path );
+/** Forget playlists and music overrides that came from mods (called when mods are unloaded). */
+void unload_mod_music();
 void play_variant_sound( const std::string &id, const std::string &variant, int volume,
                          units::angle angle, double pitch_min = -1.0, double pitch_max = -1.0 );
 void play_variant_sound( const std::string &id, const std::string &variant,

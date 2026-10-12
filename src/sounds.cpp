@@ -2002,6 +2002,9 @@ bool sfx::has_variant_sound( const std::string &id, const std::string &variant )
 void sfx::load_sound_effects( const JsonObject & ) { }
 void sfx::load_sound_effect_preload( const JsonObject & ) { }
 void sfx::load_playlist( const JsonObject & ) { }
+void sfx::load_mod_playlist( const JsonObject &, const std::string &, const cata_path &,
+                             const cata_path & ) { }
+void sfx::unload_mod_music() { }
 void sfx::play_variant_sound( const std::string &, const std::string &, int, units::angle, double,
                               double ) { }
 void sfx::play_variant_sound( const std::string &, const std::string &, int ) { }

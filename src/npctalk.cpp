@@ -120,6 +120,7 @@
 #include "rng.h"
 #include "simple_pathfinding.h"
 #include "skill.h"
+#include "sdlsound.h"
 #include "sounds.h"
 #include "string_formatter.h"
 #include "string_input_popup.h"
@@ -5563,6 +5564,42 @@ talk_effect_fun_t::func f_sound_effect( const JsonObject &jo, std::string_view m
     };
 }
 
+talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan", "playlist": "<id>" }
+    str_or_var command = get_str_or_var( jo.get_member( member ), member, true );
+    str_or_var playlist;
+    if( jo.has_member( "playlist" ) ) {
+        playlist = get_str_or_var( jo.get_member( "playlist" ), "playlist", false );
+    }
+    return [command, playlist]( dialogue & d ) {
+        const std::string cmd = command.evaluate( d );
+        if( cmd == "next" || cmd == "previous" ) {
+            const std::string track = music_skip( cmd == "next" ? 1 : -1 );
+            if( !track.empty() ) {
+                add_msg( m_info, _( "Now playing: %s" ), track );
+            }
+        } else if( cmd == "info" ) {
+            const std::string track = music_current_track();
+            if( track.empty() ) {
+                add_msg( m_info, _( "No music is playing." ) );
+            } else {
+                add_msg( m_info, _( "Now playing: %s" ), track );
+            }
+        } else if( cmd == "play" ) {
+            music_force_playlist( playlist.evaluate( d ) );
+        } else if( cmd == "auto" ) {
+            music_force_playlist( std::string() );
+        } else if( cmd == "rescan" ) {
+            music_rescan_user_folder();
+        } else {
+            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto or rescan)",
+                      cmd );
+        }
+    };
+}
+
 talk_effect_fun_t::func f_give_achievment( const JsonObject &jo, std::string_view member,
         std::string_view )
 {
@@ -8104,6 +8141,7 @@ parsers = {
     { "u_add_faction_trust", jarg::member | jarg::array, &talk_effect_fun::f_add_faction_trust },
     { "npc_first_topic", jarg::member, &talk_effect_fun::f_npc_first_topic },
     { "sound_effect", jarg::member, &talk_effect_fun::f_sound_effect },
+    { "music_control", jarg::member, &talk_effect_fun::f_music_control },
     { "give_achievement", jarg::member, &talk_effect_fun::f_give_achievment },
     { "assign_mission", jarg::member, &talk_effect_fun::f_assign_mission },
     { "finish_mission", jarg::member, &talk_effect_fun::f_finish_mission },

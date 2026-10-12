@@ -17,6 +17,8 @@
 #include "contents_change_handler.h"
 #include "debug.h"
 #include "enums.h"
+#include "event.h"
+#include "event_bus.h"
 #include "flexbuffer_json.h"
 #include "game.h"
 #include "game_constants.h"
@@ -320,6 +322,8 @@ static bool pick_one_up( item_location &loc, int quantity, bool &got_water, bool
     }
 
     if( picked_up ) {
+        get_event_bus().send<event_type::character_picks_up_item>( player_character.getID(),
+                newit.typeId() );
         info.set_src( loc );
         info.total_bulk_volume += loc->volume( false, false, quantity );
         if( !is_bulk_load( pre_info, info ) ) {

@@ -11,8 +11,10 @@
 #include <vector>
 
 #include "coords_fwd.h"
+#include "translation.h"
 
 class input_context;
+class item_location;
 class map;
 struct input_event;
 
@@ -671,5 +673,39 @@ bool can_move_vertical_at( const map &here, const tripoint_bub_ms &p, int movez 
  * @returns true if the examine action is possible at this point, otherwise false
  */
 bool can_examine_at( map &here,  const tripoint_bub_ms &p, bool with_pickup = false );
+
+/**
+ * Actions defined by mods (JSON type "mod_action").  Each one is a hotkey in the main game
+ * view that runs an effect_on_condition, so mods can add their own commands.
+ *
+ * {
+ *   "type": "mod_action",
+ *   "id": "MYMOD_SORT_LOOT",
+ *   "name": "Sort loot",
+ *   "eoc": "EOC_MYMOD_SORT_LOOT",     // an effect_on_condition id, or an inline EOC object
+ *   "context": "DEFAULTMODE",         // optional: "DEFAULTMODE" (main view, default) or "INVENTORY"
+ *                                     // (inventory menus; the highlighted item is the EOC's beta talker)
+ *   "bindings": [ { "input_method": "keyboard_char", "key": "F5" } ]   // optional defaults
+ * }
+ */
+class JsonObject;
+namespace mod_actions
+{
+/** Load one "mod_action" definition from JSON. */
+void load( const JsonObject &jo, const std::string &src );
+/** Forget all loaded mod actions (called when the loaded mods change). */
+void reset();
+/** Ids and display names of the loaded mod actions of one context ("DEFAULTMODE" or "INVENTORY"). */
+std::vector<std::pair<std::string, translation>> list_actions( const std::string &context =
+            "DEFAULTMODE" );
+/** If the given main-view action string is a mod action, run its effect and return true. */
+bool try_run( const std::string &action );
+/**
+ * If the given inventory-menu action string is a mod action ("context": "INVENTORY"), run its effect
+ * with the player as alpha talker and the highlighted item as beta talker, and return true.
+ * The effect should only change the item (flags, variables, ...) and must not delete or move it.
+ */
+bool try_run_on_item( const std::string &action, item_location &loc );
+} // namespace mod_actions
 
 #endif // CATA_SRC_ACTION_H

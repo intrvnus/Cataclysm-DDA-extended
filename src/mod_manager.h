@@ -28,6 +28,14 @@ const std::map<std::string, std::string> &get_mod_list_cat_tab();
 
 mod_id get_mod_base_id_from_src( mod_id src );
 
+/**
+ * Feature level of the "moddable engine" patch.  A mod can write "requires_engine": <number> in its
+ * MOD_INFO; if that is higher than this number the mod is not loaded and a message says why.
+ * Level 1: item marks, mod_action hotkeys.  Level 2: music playlists / music_control, new events,
+ * inventory hotkeys.
+ */
+constexpr int moddable_engine_level = 2;
+
 struct MOD_INFORMATION {
     private:
         friend mod_manager;
@@ -61,6 +69,9 @@ struct MOD_INFORMATION {
 
         /** What other mods are incompatible with this one? */
         std::vector<mod_id> conflicts;
+
+        /** Minimum moddable-engine feature level this mod needs (0 = works on any build) */
+        int requires_engine = 0;
 
         /** Core mods are loaded before any other mods */
         bool core = false;

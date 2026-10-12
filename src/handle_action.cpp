@@ -3144,6 +3144,13 @@ bool game::handle_action()
     if( act == ACTION_NULL ) {
         act = look_up_action( action );
 
+        if( act == ACTION_NULL && mod_actions::try_run( action ) ) {
+            // A hotkey defined by a mod; its effect_on_condition has been run.
+            player_character.clear_destination();
+            destination_preview.clear();
+            return false;
+        }
+
         if( act == ACTION_KEYBINDINGS ) {
             // already handled by input context
             return false;
@@ -3263,6 +3270,11 @@ bool game::handle_action()
             }
         }
         return false;
+    }
+
+    if( act != ACTION_TIMEOUT ) {
+        get_event_bus().send<event_type::character_performs_action>( player_character.getID(),
+                action_ident( act ) );
     }
 
     // This has no action unless we're in a special game mode.

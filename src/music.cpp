@@ -90,4 +90,9 @@ void update_music_id_is_empty_flag( const std::string &data, bool update )
 {
     music_id_list[io::string_to_enum<music_id>( data )].first = update;
 }
+
+bool is_known_music_id( const std::string &data )
+{
+    return data == "mp3" || data == "instrument" || data == "sound" || data == "title";
+}
 } // namespace music

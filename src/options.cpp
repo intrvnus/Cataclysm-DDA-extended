@@ -2194,6 +2194,11 @@ void options_manager::add_options_interface()
         },
         "favorites" );
 
+        add( "INV_FAVORITES_FIRST", page_id, to_translation( "Sort favorites first" ),
+             to_translation( "If true, favorited items are sorted to the top of inventory menus.  If false, favorites sort like any other item (mod-defined item marks with a sort priority still sort first)." ),
+             true
+           );
+
         add( "ITEM_HEALTH", "interface", to_translation( "Show item health" ),
              // NOLINTNEXTLINE(cata-text-style): one space after "etc."
         to_translation( "Show item health bars, descriptions like reinforced, scratched etc. or both." ), {

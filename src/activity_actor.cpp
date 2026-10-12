@@ -4722,9 +4722,13 @@ void drop_activity_actor::do_turn( player_activity &, Character &who )
 {
     map &here = get_map();
     const tripoint_bub_ms pos = placement + who.pos_bub();
-    put_into_vehicle_or_drop( who, item_drop_reason::deliberate,
-                              obtain_activity_items( items, handler, who, current_bulk_unload ),
-                              &here, pos, force_ground );
+    const std::list<item> dropped_items = obtain_activity_items( items, handler, who,
+                                          current_bulk_unload );
+    put_into_vehicle_or_drop( who, item_drop_reason::deliberate, dropped_items, &here, pos,
+                              force_ground );
+    for( const item &dropped : dropped_items ) {
+        get_event_bus().send<event_type::character_drops_item>( who.getID(), dropped.typeId() );
+    }
     // Cancel activity if items is empty. Otherwise, we modified in place and we will continue
     // to resolve the drop next turn. This is different from the pickup logic which creates
     // a brand new activity every turn and cancels the old activity

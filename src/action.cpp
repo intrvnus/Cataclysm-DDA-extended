@@ -17,9 +17,13 @@
 #include "creature.h"
 #include "creature_tracker.h"
 #include "debug.h"
+#include "dialogue.h"
+#include "effect_on_condition.h"
 #include "flag.h"
+#include "flexbuffer_json.h"
 #include "game.h"
 #include "game_constants.h"
+#include "input.h"
 #include "input_context.h"
 #include "input_enums.h"
 #include "inventory.h"
@@ -38,6 +42,7 @@
 #include "popup.h"
 #include "ret_val.h"
 #include "string_formatter.h"
+#include "talker.h"
 #include "translations.h"
 #include "type_id.h"
 #include "uilist.h"
@@ -1257,3 +1262,106 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripo
 
     return std::nullopt;
 }
+
+namespace mod_actions
+{
+namespace
+{
+struct mod_action {
+    std::string id;
+    translation name;
+    effect_on_condition_id eoc;
+    std::string context = "DEFAULTMODE";
+};
+
+std::vector<mod_action> &registry()
+{
+    static std::vector<mod_action> actions;
+    return actions;
+}
+} // namespace
+
+void load( const JsonObject &jo, const std::string &src )
+{
+    mod_action act;
+    act.id = jo.get_string( "id" );
+    if( act.id.empty() ) {
+        jo.throw_error_at( "id", "mod_action needs a non-empty id" );
+    }
+    jo.read( "name", act.name );
+    act.context = jo.get_string( "context", "DEFAULTMODE" );
+    if( act.context != "DEFAULTMODE" && act.context != "INVENTORY" ) {
+        jo.throw_error_at( "context", "mod_action context must be \"DEFAULTMODE\" or \"INVENTORY\"" );
+    }
+    if( !jo.has_member( "eoc" ) ) {
+        jo.throw_error( "mod_action needs an \"eoc\" (an effect_on_condition id or an inline effect_on_condition)" );
+    }
+    act.eoc = effect_on_conditions::load_inline_eoc( jo.get_member( "eoc" ), src );
+    // Register default keys right away (the input manager already exists when mods load).
+    // Keys the player already configured for this action are kept.
+    JsonArray bindings = jo.has_array( "bindings" ) ? jo.get_array( "bindings" ) : JsonArray();
+    inp_mngr.register_mod_action( act.id, act.context, act.name, bindings );
+
+    // A later definition with the same id replaces the earlier one (mod override rules).
+    std::vector<mod_action> &all = registry();
+    auto it = std::find_if( all.begin(), all.end(), [&act]( const mod_action & m ) {
+        return m.id == act.id;
+    } );
+    if( it != all.end() ) {
+        *it = act;
+    } else {
+        all.push_back( act );
+    }
+}
+
+void reset()
+{
+    registry().clear();
+}
+
+std::vector<std::pair<std::string, translation>> list_actions( const std::string &context )
+{
+    std::vector<std::pair<std::string, translation>> out;
+    for( const mod_action &act : registry() ) {
+        if( act.context == context ) {
+            out.emplace_back( act.id, act.name );
+        }
+    }
+    return out;
+}
+
+bool try_run( const std::string &action )
+{
+    for( const mod_action &act : registry() ) {
+        if( act.id == action && act.context == "DEFAULTMODE" ) {
+            if( !act.eoc.is_valid() ) {
+                debugmsg( "mod_action %s refers to unknown effect_on_condition %s", act.id, act.eoc.str() );
+                return true;
+            }
+            dialogue d( get_talker_for( get_avatar() ), nullptr );
+            act.eoc->activate( d );
+            return true;
+        }
+    }
+    return false;
+}
+
+bool try_run_on_item( const std::string &action, item_location &loc )
+{
+    for( const mod_action &act : registry() ) {
+        if( act.id == action && act.context == "INVENTORY" ) {
+            if( !act.eoc.is_valid() ) {
+                debugmsg( "mod_action %s refers to unknown effect_on_condition %s", act.id, act.eoc.str() );
+                return true;
+            }
+            if( !loc ) {
+                return true;
+            }
+            dialogue d( get_talker_for( get_avatar() ), get_talker_for( loc ) );
+            act.eoc->activate( d );
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace mod_actions

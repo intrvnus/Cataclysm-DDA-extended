@@ -1673,6 +1673,9 @@ Every event EOC passes context vars with each of their key value pairs that the 
 | character_attempt_to_fall_asleep | triggers in the moment character tries to fall asleep, after confirming and setting an alarm, but before "you lie down" | { "character", `character_id` }, | character / NONE |
 | character_falls_asleep | triggers in the moment character actually falls asleep; trigger includes cases where character sleep for a short time because of sleepiness or drugs; duration of the sleep can be changed mid sleep because of hurt/noise/light/pain thresholds and another factors | { "character", `character_id` }, { "duration", `int_` (in seconds) } | character / NONE |
 | character_wields_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item to wield |
+| character_picks_up_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item picked up (moved from the map or a container into the inventory) |
+| character_drops_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item dropped on purpose (drop command, multidrop) |
+| character_performs_action | | { "character", `character_id` },<br/> { "action", `string` }, | character / name of the game action (for example `"pickup"`, `"sleep"`, `"inventory"`); idle ticks are not reported |
 | character_wears_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item to wear |
 | character_armor_destroyed | triggers when a worn armor is set to be destroyed from damage. The armor still exists but will be destroyed immediately after the EOCs finish running. | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item to wear |
 | consumes_marloss_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / NONE |

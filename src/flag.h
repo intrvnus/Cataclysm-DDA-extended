@@ -464,6 +464,21 @@ class json_flag
             return taste_mod_;
         }
 
+        /** Can the player toggle this flag on items from the inventory menu? (moddable item mark) */
+        bool user_mark() const {
+            return user_mark_;
+        }
+
+        /** Items carrying this flag are listed higher in inventory menus (larger = higher). */
+        int sort_priority() const {
+            return sort_priority_;
+        }
+
+        /** Items carrying this flag are protected from "select all non-favorite" in multi-select menus. */
+        bool protect_from_drop() const {
+            return protect_from_drop_;
+        }
+
         /** Is this a valid (non-null) flag */
         explicit operator bool() const;
 
@@ -485,6 +500,9 @@ class json_flag
         bool craft_inherit_ = false;
         std::string requires_flag_;
         int taste_mod_ = 0;
+        bool user_mark_ = false;
+        int sort_priority_ = 0;
+        bool protect_from_drop_ = false;
 
         /** Load flag definition from JSON */
         void load( const JsonObject &jo, std::string_view src );

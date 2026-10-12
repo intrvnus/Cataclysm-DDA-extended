@@ -232,6 +232,58 @@ void input_manager::init()
     }
 }
 
+void input_manager::register_mod_action( const std::string &action_id, const std::string &context,
+        const translation &name, const JsonArray &bindings )
+{
+    t_actions &actions = action_contexts[context];
+    const bool known = actions.count( action_id ) > 0;
+    action_attributes &attributes = actions[action_id];
+    // Always refresh the display name; it comes from the mod, not from the player.
+    attributes.name = name;
+
+    t_input_event_list events;
+    for( const JsonObject keybinding : bindings ) {
+        const std::string input_method = keybinding.get_string( "input_method", "keyboard_char" );
+        input_event ev;
+        if( input_method == "keyboard_char" || input_method == "keyboard" ) {
+            ev.type = input_event_t::keyboard_char;
+        } else if( input_method == "keyboard_code" ) {
+            ev.type = input_event_t::keyboard_code;
+        } else {
+            keybinding.throw_error_at( "input_method",
+                                       "mod actions only support keyboard_char and keyboard_code" );
+        }
+        if( keybinding.has_member( "mod" ) ) {
+            for( const JsonValue val : keybinding.get_array( "mod" ) ) {
+                const std::string str = val;
+                if( str == "ctrl" ) {
+                    ev.modifiers.emplace( keymod_t::ctrl );
+                } else if( str == "alt" ) {
+                    ev.modifiers.emplace( keymod_t::alt );
+                } else if( str == "shift" ) {
+                    ev.modifiers.emplace( keymod_t::shift );
+                } else {
+                    val.throw_error( "unknown modifier name" );
+                }
+            }
+        }
+        ev.sequence.push_back( get_keycode( ev.type, keybinding.get_string( "key" ) ) );
+        if( std::find( events.begin(), events.end(), ev ) == events.end() ) {
+            events.emplace_back( ev );
+        }
+    }
+
+    // Keep whatever the player already configured.  Only a brand new action
+    // (or one the player left with no keys at all) gets the mod's defaults.
+    if( !known || attributes.input_events.empty() ) {
+        attributes.input_events = events;
+    }
+    // Make sure "reset to defaults" in the keybinding menu restores the mod's default keys too.
+    action_attributes &basic = basic_action_contexts[context][action_id];
+    basic.name = name;
+    basic.input_events = events;
+}
+
 static constexpr int current_keybinding_version = 2;
 
 void input_manager::load( const cata_path &file_name, bool is_user_preferences )

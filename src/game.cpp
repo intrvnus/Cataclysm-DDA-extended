@@ -2681,6 +2681,10 @@ input_context get_default_mode_input_context()
     // Because those keys move the character, they don't pan, as their original name says
     ctxt.set_iso( true );
     ctxt.register_action( "UP", to_translation( "Move north" ) );
+    // Hotkeys defined by mods ("mod_action" JSON type)
+    for( const std::pair<std::string, translation> &ma : mod_actions::list_actions() ) {
+        ctxt.register_action( ma.first, ma.second );
+    }
     ctxt.register_action( "RIGHTUP", to_translation( "Move northeast" ) );
     ctxt.register_action( "RIGHT", to_translation( "Move east" ) );
     ctxt.register_action( "RIGHTDOWN", to_translation( "Move southeast" ) );
@@ -3439,6 +3443,11 @@ void game::load_packs( const std::string &msg, const std::vector<mod_id> &packs 
         if( !mod.is_valid() ) {
             continue;
         }
+        if( mod->requires_engine > moddable_engine_level ) {
+            debugmsg( "The mod '%s' needs moddable-engine level %d, but this build only has level %d.  "
+                      "The mod was not loaded.", mod->name(), mod->requires_engine, moddable_engine_level );
+            continue;
+        }
         loading_ui::show( msg, mod->name() );
         restore_on_out_of_scope restore_check_plural( check_plural );
         if( mod.str() == "test_data" ) {
@@ -3448,7 +3457,7 @@ void game::load_packs( const std::string &msg, const std::vector<mod_id> &packs 
     }
 
     for( const auto &mod : packs ) {
-        if( !mod.is_valid() ) {
+        if( !mod.is_valid() || mod->requires_engine > moddable_engine_level ) {
             continue;
         }
         loading_ui::show( msg, mod->name() );

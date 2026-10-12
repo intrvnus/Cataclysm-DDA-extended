@@ -27,6 +27,8 @@ void deactivate_music_id( const std::string &data );
 void deactivate_music_id_all();
 void update_music_id_is_empty_flag( music_id data, bool update );
 void update_music_id_is_empty_flag( const std::string &data, bool update );
+/** True if the string is one of the built-in playlist ids (mp3, instrument, sound, title). */
+bool is_known_music_id( const std::string &data );
 } // namespace music
 
 // Use enum_traits for generic iteration over music_id, and string (de-)serialization.

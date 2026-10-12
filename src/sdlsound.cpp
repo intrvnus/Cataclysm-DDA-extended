@@ -3,6 +3,8 @@
 #include "sdlsound.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -29,6 +31,7 @@
 
 #include "cached_options.h"
 #include "cata_path.h"
+#include "cata_utility.h"
 #include "debug.h"
 #include "flexbuffer_json.h"
 #include "init.h"
@@ -279,6 +282,8 @@ struct music_playlist {
     struct entry {
         std::string file;
         int volume;
+        // true: "file" is a full path (user/mod music); false: relative to the soundpack
+        bool absolute = false;
     };
     std::vector<entry> entries;
     bool shuffle;
@@ -295,7 +300,36 @@ static size_t absolute_playlist_at = 0;
 static std::vector<std::size_t> playlist_indexes;
 bool sound_init_success = false;
 static std::map<std::string, music_playlist> playlists;
+// Playlists from mods ("music_playlist" JSON type) and from the user's "music" folder.
+// Lookup order: user folder, then mods, then the soundpack.
+static std::map<std::string, music_playlist> mod_playlists;
+static std::map<std::string, music_playlist> user_playlists;
+// When not empty, this playlist plays regardless of the automatic choice.
+static std::string forced_playlist;
+// File name (without folder and extension) of the track that is playing, for display.
+static std::string current_track_name;
+// Set while we replace the current track ourselves, so the "music finished" hook doesn't advance too.
+static std::atomic<bool> suppress_music_finished( false );
 static cata_path current_soundpack_path;
+
+static const music_playlist *find_playlist( const std::string &id )
+{
+    for( const std::map<std::string, music_playlist> *source : { &user_playlists, &mod_playlists, &playlists } ) {
+        const auto it = source->find( id );
+        if( it != source->end() && !it->second.entries.empty() ) {
+            return &it->second;
+        }
+    }
+    return nullptr;
+}
+
+/** Make the built-in ids (mp3/instrument/sound) active or inactive according to what's available. */
+static void refresh_builtin_playlist_flags()
+{
+    for( const char *id : { "mp3", "instrument", "sound" } ) {
+        music::update_music_id_is_empty_flag( std::string( id ), find_playlist( id ) != nullptr );
+    }
+}
 
 static std::unordered_map<std::string, int> unique_paths;
 static sfx_resources_t sfx_resources;
@@ -359,12 +393,14 @@ void shutdown_sound()
     sfx_resources.sound_effects.clear();
 
     playlists.clear();
+    mod_playlists.clear();
+    user_playlists.clear();
     Mix_CloseAudio();
 }
 
 static void musicFinished();
 
-static void play_music_file( const std::string &filename, int volume )
+static void play_music_file( const std::string &filename, int volume, bool absolute = false )
 {
     if( test_mode ) {
         return;
@@ -374,13 +410,15 @@ static void play_music_file( const std::string &filename, int volume )
         return;
     }
 
-    const std::string path = ( current_soundpack_path / filename ).get_unrelative_path().u8string();
+    const std::string path = absolute ? filename :
+                             ( current_soundpack_path / filename ).get_unrelative_path().u8string();
     current_music = Mix_LoadMUS( path.c_str() );
     if( current_music == nullptr ) {
         dbg( D_ERROR ) << "Failed to load audio file " << path << ": " << Mix_GetError();
         return;
     }
     Mix_VolumeMusic( volume * get_option<int>( "MUSIC_VOLUME" ) / 100 );
+    current_track_name = std::filesystem::u8path( path ).stem().u8string();
 
     if( Mix_PlayMusic( current_music, 0 ) != 0 ) {
         dbg( D_ERROR ) << "Starting playlist " << path << " failed: " << Mix_GetError();
@@ -392,7 +430,7 @@ static void play_music_file( const std::string &filename, int volume )
 /** Callback called when we finish playing music. */
 void musicFinished()
 {
-    if( test_mode ) {
+    if( test_mode || suppress_music_finished ) {
         return;
     }
 
@@ -400,21 +438,19 @@ void musicFinished()
     Mix_FreeMusic( current_music );
     current_music = nullptr;
 
-    std::string new_playlist = music::get_music_id_string();
+    const std::string new_playlist = forced_playlist.empty() ? music::get_music_id_string() :
+                                     forced_playlist;
 
     if( current_playlist != new_playlist ) {
         play_music( new_playlist );
         return;
     }
 
-    const auto iter = playlists.find( current_playlist );
-    if( iter == playlists.end() ) {
+    const music_playlist *found = find_playlist( current_playlist );
+    if( found == nullptr ) {
         return;
     }
-    const music_playlist &list = iter->second;
-    if( list.entries.empty() ) {
-        return;
-    }
+    const music_playlist &list = *found;
 
     // Load the next file to play.
     absolute_playlist_at++;
@@ -427,11 +463,14 @@ void musicFinished()
     current_playlist_at = playlist_indexes.at( absolute_playlist_at );
 
     const music_playlist::entry &next = list.entries[current_playlist_at];
-    play_music_file( next.file, next.volume );
+    current_music_track_volume = next.volume;
+    play_music_file( next.file, next.volume, next.absolute );
 }
 
-void play_music( const std::string &playlist )
+void play_music( const std::string &requested_playlist )
 {
+    // A playlist forced by a mod/EOC beats the automatic choice.
+    const std::string &playlist = forced_playlist.empty() ? requested_playlist : forced_playlist;
     // Don't interrupt playlist that's already playing.
     if( playlist == current_playlist ) {
         return;
@@ -439,14 +478,11 @@ void play_music( const std::string &playlist )
         stop_music();
     }
 
-    const auto iter = playlists.find( playlist );
-    if( iter == playlists.end() ) {
+    const music_playlist *found = find_playlist( playlist );
+    if( found == nullptr ) {
         return;
     }
-    const music_playlist &list = iter->second;
-    if( list.entries.empty() ) {
-        return;
-    }
+    const music_playlist &list = *found;
 
     for( size_t i = 0; i < list.entries.size(); i++ ) {
         playlist_indexes.push_back( i );
@@ -465,7 +501,7 @@ void play_music( const std::string &playlist )
 
     const music_playlist::entry &next = list.entries[current_playlist_at];
     current_music_track_volume = next.volume;
-    play_music_file( next.file, next.volume );
+    play_music_file( next.file, next.volume, next.absolute );
 }
 
 void stop_music()
@@ -479,6 +515,7 @@ void stop_music()
     current_music = nullptr;
 
     playlist_indexes.clear();
+    current_track_name.clear();
     current_playlist.clear();
     current_playlist_at = 0;
     absolute_playlist_at = 0;
@@ -650,6 +687,183 @@ void sfx::load_playlist( const JsonObject &jsobj )
 
         music::update_music_id_is_empty_flag( playlist_id, true );
     }
+}
+
+static bool is_audio_file( const std::filesystem::path &path )
+{
+    std::string ext = path.extension().u8string();
+    std::transform( ext.begin(), ext.end(), ext.begin(), []( unsigned char c ) {
+        return static_cast<char>( std::tolower( c ) );
+    } );
+    return ext == ".mp3" || ext == ".ogg" || ext == ".flac" || ext == ".wav" || ext == ".opus";
+}
+
+/** All audio files directly in (or, if recursive, below) a folder, sorted by name. */
+static std::vector<std::string> list_audio_files( const std::filesystem::path &folder, bool recursive )
+{
+    std::vector<std::string> files;
+    std::error_code ec;
+    if( !std::filesystem::is_directory( folder, ec ) ) {
+        return files;
+    }
+    const auto visit = [&files]( const std::filesystem::directory_entry & de ) {
+        std::error_code ec2;
+        if( de.is_regular_file( ec2 ) && is_audio_file( de.path() ) ) {
+            files.push_back( de.path().generic_u8string() );
+        }
+    };
+    if( recursive ) {
+        for( std::filesystem::recursive_directory_iterator it( folder, ec ), end; !ec && it != end;
+             it.increment( ec ) ) {
+            visit( *it );
+        }
+    } else {
+        for( std::filesystem::directory_iterator it( folder, ec ), end; !ec && it != end;
+             it.increment( ec ) ) {
+            visit( *it );
+        }
+    }
+    std::sort( files.begin(), files.end() );
+    return files;
+}
+
+void sfx::load_mod_playlist( const JsonObject &jo, const std::string &/*src*/,
+                             const cata_path &/*base_path*/, const cata_path &full_path )
+{
+    if( !sound_init_success ) {
+        return;
+    }
+    const std::string id = jo.get_string( "id" );
+    const bool extend = jo.get_bool( "extend", false );
+    music_playlist list;
+    if( extend ) {
+        const auto old = mod_playlists.find( id );
+        if( old != mod_playlists.end() ) {
+            list = old->second;
+        }
+    }
+    list.shuffle = jo.get_bool( "shuffle", extend ? list.shuffle : false );
+    const int default_volume = jo.get_int( "volume", 100 );
+    // File names are relative to the folder the JSON file lives in.
+    const std::filesystem::path dir = full_path.get_unrelative_path().parent_path();
+
+    if( jo.has_array( "files" ) ) {
+        for( const JsonValue v : jo.get_array( "files" ) ) {
+            std::string file;
+            int volume = default_volume;
+            if( v.test_string() ) {
+                file = v.get_string();
+            } else {
+                JsonObject entry = v.get_object();
+                file = entry.get_string( "file" );
+                volume = entry.get_int( "volume", default_volume );
+            }
+            list.entries.push_back( { ( dir / std::filesystem::u8path( file ) ).generic_u8string(), volume, true } );
+        }
+    }
+    if( jo.has_string( "folder" ) ) {
+        const std::filesystem::path folder = dir / std::filesystem::u8path( jo.get_string( "folder" ) );
+        for( const std::string &file : list_audio_files( folder, true ) ) {
+            list.entries.push_back( { file, default_volume, true } );
+        }
+    }
+    if( list.entries.empty() ) {
+        jo.throw_error( "music_playlist needs a non-empty \"files\" list or a \"folder\" that contains audio files" );
+    }
+    mod_playlists[id] = std::move( list );
+    refresh_builtin_playlist_flags();
+}
+
+void sfx::unload_mod_music()
+{
+    mod_playlists.clear();
+    forced_playlist.clear();
+    refresh_builtin_playlist_flags();
+}
+
+void music_rescan_user_folder()
+{
+    if( !sound_init_success ) {
+        return;
+    }
+    user_playlists.clear();
+    // <user directory>/music/ : audio files lying directly in it form the "mp3" playlist,
+    // every sub folder <name>/ forms a playlist called <name> (mp3, title, sound, instrument
+    // or any custom name a mod can start with a music_control effect).
+    // Playlists are shuffled unless the folder contains a file called noshuffle.txt.
+    const std::filesystem::path root = ( PATH_INFO::user_dir_path() / "music" ).get_unrelative_path();
+    std::error_code ec;
+    if( !std::filesystem::is_directory( root, ec ) ) {
+        refresh_builtin_playlist_flags();
+        return;
+    }
+    const auto add_folder = [&]( const std::string & id, const std::filesystem::path & folder,
+    bool recursive ) {
+        music_playlist list;
+        list.shuffle = !std::filesystem::exists( folder / "noshuffle.txt", ec );
+        for( const std::string &file : list_audio_files( folder, recursive ) ) {
+            list.entries.push_back( { file, 100, true } );
+        }
+        if( !list.entries.empty() ) {
+            user_playlists[id] = std::move( list );
+        }
+    };
+    add_folder( "mp3", root, false );
+    for( std::filesystem::directory_iterator it( root, ec ), end; !ec && it != end; it.increment( ec ) ) {
+        std::error_code ec2;
+        if( it->is_directory( ec2 ) ) {
+            add_folder( it->path().filename().u8string(), it->path(), true );
+        }
+    }
+    refresh_builtin_playlist_flags();
+}
+
+void music_force_playlist( const std::string &playlist )
+{
+    if( test_mode ) {
+        return;
+    }
+    if( !playlist.empty() && find_playlist( playlist ) == nullptr ) {
+        dbg( D_WARNING ) << "music_control: no playlist called \"" << playlist << "\"";
+        return;
+    }
+    forced_playlist = playlist;
+    // Switch right away (play_music ignores a request for the playlist that already plays).
+    play_music( music::get_music_id_string() );
+}
+
+std::string music_current_playlist()
+{
+    return current_playlist;
+}
+
+std::string music_current_track()
+{
+    return current_music == nullptr ? std::string() : current_track_name;
+}
+
+std::string music_skip( const int direction )
+{
+    if( test_mode || current_playlist.empty() || current_music == nullptr ) {
+        return std::string();
+    }
+    const music_playlist *list = find_playlist( current_playlist );
+    if( list == nullptr || playlist_indexes.empty() ) {
+        return std::string();
+    }
+    suppress_music_finished = true;
+    Mix_HaltMusic();
+    Mix_FreeMusic( current_music );
+    current_music = nullptr;
+
+    const size_t count = playlist_indexes.size();
+    absolute_playlist_at = ( absolute_playlist_at + ( direction >= 0 ? 1 : count - 1 ) ) % count;
+    current_playlist_at = playlist_indexes.at( absolute_playlist_at );
+    const music_playlist::entry &next = list->entries[current_playlist_at];
+    current_music_track_volume = next.volume;
+    play_music_file( next.file, next.volume, next.absolute );
+    suppress_music_finished = false;
+    return current_track_name;
 }
 
 // Returns a random sound effect matching given id and variant, but with fallback to "default" variants.
@@ -1101,6 +1315,9 @@ void load_soundset()
         std::vector<sfx_args> t_swap;
         sfx_preload.swap( t_swap );
     }
+
+    // Drop-in music from the user's "music" folder
+    music_rescan_user_folder();
 }
 
 // capitalized to mirror cata_tiles::InitSDL()

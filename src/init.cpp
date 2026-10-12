@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "achievement.h"
+#include "action.h"
 #include "activity_type.h"
 #include "addiction.h"
 #include "ammo.h"
@@ -264,6 +265,7 @@ void DynamicDataLoader::initialize()
     add( "EXTERNAL_OPTION", &load_external_option );
     add( "option_slider", &option_slider::load_option_sliders );
     add( "json_flag", &json_flag::load_all );
+    add( "mod_action", &mod_actions::load );
     add( "jmath_function", &jmath_func::load_func );
     add( "var_migration", &global_variables::load_migrations );
     add( "connect_group", &connect_group::load );
@@ -429,6 +431,7 @@ void DynamicDataLoader::initialize()
     add( "sound_effect", &sfx::load_sound_effects );
     add( "sound_effect_preload", &sfx::load_sound_effect_preload );
     add( "playlist", &sfx::load_playlist );
+    add( "music_playlist", &sfx::load_mod_playlist );
 
     add( "gate", &gates::load );
     add( "overlay_order", &load_overlay_ordering );
@@ -638,6 +641,8 @@ void DynamicDataLoader::unload_data()
     items::reset();
     jmath_func::reset();
     json_flag::reset();
+    mod_actions::reset();
+    sfx::unload_mod_music();
     connect_group::reset();
     limb_score::reset();
     mapgen_palette::reset();

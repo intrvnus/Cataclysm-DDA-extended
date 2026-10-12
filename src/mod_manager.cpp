@@ -292,6 +292,7 @@ void mod_manager::load_modfile( const JsonObject &jo, const cata_path &path )
     assign( jo, "conflicts", modfile.conflicts );
     assign( jo, "core", modfile.core );
     assign( jo, "obsolete", modfile.obsolete );
+    assign( jo, "requires_engine", modfile.requires_engine );
     assign( jo, "loading_images", modfile.loading_images );
 
     if( std::find( modfile.dependencies.begin(), modfile.dependencies.end(),

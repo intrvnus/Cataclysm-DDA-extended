@@ -6,6 +6,7 @@
 #include <tuple>
 #include <unordered_set>
 
+#include "action.h"
 #include "activity_actor_definitions.h"
 #include "avatar_action.h"
 #include "basecamp.h"
@@ -1260,6 +1261,8 @@ void inventory_column::set_collapsed( inventory_entry &entry, const bool collaps
     }
 }
 
+static bool toggle_user_mark_menu( inventory_entry &entry );
+
 void inventory_column::on_input( const inventory_input &input )
 {
     if( !empty() && active ) {
@@ -1282,13 +1285,18 @@ void inventory_column::on_input( const inventory_input &input )
         } else if( input.action == "TOGGLE_FAVORITE" ) {
             inventory_entry &selected = get_highlighted();
             set_stack_favorite( selected, !selected.any_item()->is_favorite );
+        } else if( input.action == "TOGGLE_ITEM_MARK" ) {
+            inventory_entry &selected = get_highlighted();
+            if( selected.is_item() && toggle_user_mark_menu( selected ) ) {
+                selected.make_entry_cell_cache( preset );
+            }
         } else if( input.action == "SHOW_HIDE_CONTENTS" ) {
             inventory_entry &selected = get_highlighted();
             selected.collapsed ? set_collapsed( selected, false ) : set_collapsed( selected, true );
         }
     }
 
-    if( input.action == "TOGGLE_FAVORITE" ) {
+    if( input.action == "TOGGLE_FAVORITE" || input.action == "TOGGLE_ITEM_MARK" ) {
         // Favoriting items in one column may change item names in another column
         // if that column contains an item that contains the favorited item. So
         // we invalidate every column on TOGGLE_FAVORITE action.
@@ -1351,6 +1359,90 @@ void inventory_column::move_entries_to( inventory_column &dest )
     clear();
 }
 
+// Is this input action a hotkey a mod registered with "context": "INVENTORY"?
+static bool is_inventory_mod_action( const std::string &action )
+{
+    for( const std::pair<std::string, translation> &ma : mod_actions::list_actions( "INVENTORY" ) ) {
+        if( ma.first == action ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Highest json_flag "sort_priority" among the flags on an item (0 if none).
+static int mark_sort_priority( const item &it )
+{
+    int best = 0;
+    for( const flag_id &f : it.get_flags() ) {
+        if( f.is_valid() ) {
+            best = std::max( best, f->sort_priority() );
+        }
+    }
+    return best;
+}
+
+// True if the item carries any json_flag with "protect_from_drop".
+static bool mark_protects_from_drop( const item &it )
+{
+    for( const flag_id &f : it.get_flags() ) {
+        if( f.is_valid() && f->protect_from_drop() ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Favorited or protected by a mod-defined mark.
+static bool is_protected_item( const item &it )
+{
+    return it.is_favorite || mark_protects_from_drop( it );
+}
+
+// Let the player toggle a mod-defined mark (json_flag with "user_mark": true) on a stack.
+static bool toggle_user_mark_menu( inventory_entry &entry )
+{
+    std::vector<const json_flag *> marks;
+    for( const json_flag &jf : json_flag::get_all() ) {
+        if( jf.user_mark() ) {
+            marks.push_back( &jf );
+        }
+    }
+    if( marks.empty() ) {
+        popup( _( "No item marks are available.  A mod can add them by defining a json_flag with \"user_mark\": true." ) );
+        return false;
+    }
+    std::sort( marks.begin(), marks.end(), []( const json_flag * a, const json_flag * b ) {
+        return a->id.str() < b->id.str();
+    } );
+
+    uilist menu;
+    menu.title = _( "Toggle item mark" );
+    int idx = 0;
+    for( const json_flag *jf : marks ) {
+        const bool on = entry.any_item()->has_own_flag( jf->id );
+        std::string label = jf->name();
+        if( label.empty() ) {
+            label = jf->id.str();
+        }
+        menu.addentry( idx++, true, MENU_AUTOASSIGN, string_format( "%s %s", on ? "[x]" : "[ ]", label ) );
+    }
+    menu.query();
+    if( menu.ret < 0 || menu.ret >= static_cast<int>( marks.size() ) ) {
+        return false;
+    }
+    const flag_id chosen = marks[menu.ret]->id;
+    const bool turn_on = !entry.any_item()->has_own_flag( chosen );
+    for( item_location &loc : entry.locations ) {
+        if( turn_on ) {
+            loc->set_flag( chosen );
+        } else {
+            loc->unset_flag( chosen );
+        }
+    }
+    return true;
+}
+
 bool inventory_column::sort_compare( inventory_entry const &lhs, inventory_entry const &rhs )
 {
     if( lhs.is_selectable() != rhs.is_selectable() ) {
@@ -1366,10 +1458,18 @@ bool inventory_column::sort_compare( inventory_entry const &lhs, inventory_entry
     if( left_has_invlet != right_has_invlet ) {
         return left_has_invlet;
     }
-    const bool left_fav = lhs.any_item()->is_favorite;
-    const bool right_fav = rhs.any_item()->is_favorite;
-    if( left_fav != right_fav ) {
-        return left_fav;
+    // Mod-defined marks with a sort priority (higher first)
+    const int left_prio = mark_sort_priority( *lhs.any_item() );
+    const int right_prio = mark_sort_priority( *rhs.any_item() );
+    if( left_prio != right_prio ) {
+        return left_prio > right_prio;
+    }
+    if( get_option<bool>( "INV_FAVORITES_FIRST" ) ) {
+        const bool left_fav = lhs.any_item()->is_favorite;
+        const bool right_fav = rhs.any_item()->is_favorite;
+        if( left_fav != right_fav ) {
+            return left_fav;
+        }
     }
 
     return preset.sort_compare( lhs, rhs );
@@ -2900,6 +3000,11 @@ inventory_selector::inventory_selector( Character &u, const inventory_selector_p
     ctxt.register_action( "QUIT", to_translation( "Cancel" ) );
     ctxt.register_action( "CATEGORY_SELECTION", to_translation( "Switch category selection mode" ) );
     ctxt.register_action( "TOGGLE_FAVORITE", to_translation( "Toggle favorite" ) );
+    ctxt.register_action( "TOGGLE_ITEM_MARK", to_translation( "Toggle item mark" ) );
+    // Hotkeys defined by mods with "context": "INVENTORY"
+    for( const std::pair<std::string, translation> &ma : mod_actions::list_actions( "INVENTORY" ) ) {
+        ctxt.register_action( ma.first, ma.second );
+    }
     ctxt.register_action( "HOME", to_translation( "Home" ) );
     ctxt.register_action( "END", to_translation( "End" ) );
     ctxt.register_action( "CLICK_AND_DRAG" );
@@ -3110,6 +3215,17 @@ void inventory_selector::on_input( const inventory_input &input )
         ui.lock()->mark_resize();
     } else if( input.action == "TOGGLE_SKIP_UNSELECTABLE" ) {
         toggle_skip_unselectable();
+    } else if( is_inventory_mod_action( input.action ) ) {
+        inventory_entry &selected = get_active_column().get_highlighted();
+        if( selected.is_item() ) {
+            item_location target = selected.any_item();
+            mod_actions::try_run_on_item( input.action, target );
+            // The effect may have changed names, flags or values of items
+            for( inventory_column *elem : columns ) {
+                elem->invalidate_paging();
+            }
+            selected.make_entry_cell_cache( preset );
+        }
     } else {
         for( inventory_column *elem : columns ) {
             elem->on_input( input );
@@ -3698,7 +3814,7 @@ void inventory_multiselector::toggle_entries( int &count, const toggle_mode mode
         case toggle_mode::NON_FAVORITE_NON_WORN: {
             const auto filter_to_nonfavorite_and_nonworn = [this]( const inventory_entry & entry ) {
                 return entry.is_selectable() &&
-                       !entry.any_item()->is_favorite &&
+                       !is_protected_item( *entry.any_item() ) &&
                        !u.is_worn( *entry.any_item() );
             };
 
