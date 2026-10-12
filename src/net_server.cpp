@@ -119,7 +119,7 @@ std::string message( const std::function<void( JsonOut & )> &body )
 
 void send_text( remote_player &rp, const std::string &text )
 {
-    detail::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+    impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "msg" );
         jo.member( "text", text );
     } ) );
@@ -212,7 +212,7 @@ void send_submaps( remote_player &rp, const std::vector<tripoint_abs_sm> &list )
         payload += json;
     }
     if( !payload.empty() ) {
-        detail::send_json( rp.peer, R"({"t":"submaps","list":[)" + payload + "]}" );
+        impl::send_json( rp.peer, R"({"t":"submaps","list":[)" + payload + "]}" );
     }
 }
 
@@ -280,7 +280,7 @@ void send_state( remote_player &rp, const npc &guy )
         }
         jo.end_array();
     } );
-    detail::send_json( rp.peer, json );
+    impl::send_json( rp.peer, json );
 }
 
 // ---- executing client commands ----
@@ -342,7 +342,7 @@ void execute( npc &guy, const command &cmd )
 
 // ---- connection events ----
 
-namespace detail
+namespace impl
 {
 
 void server_on_connect( ENetPeer *peer )
@@ -403,7 +403,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
     }
 }
 
-} // namespace detail
+} // namespace impl
 
 // ---- hooks called by the game ----
 
@@ -460,7 +460,7 @@ void host_end_of_turn()
             }
             rp.npc_id = guy->getID();
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
-            detail::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+            impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
                 jo.member( "t", "welcome" );
                 jo.member( "v", protocol_version );
                 jo.member( "id", guy->getID().get_value() );

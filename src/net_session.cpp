@@ -19,7 +19,7 @@
 
 namespace net
 {
-namespace detail
+namespace impl
 {
 
 session_state &state()
@@ -73,9 +73,9 @@ static void handle_packet( ENetPeer *peer, const ENetPacket *packet )
     }
 }
 
-} // namespace detail
+} // namespace impl
 
-using namespace detail;
+using namespace impl;
 
 void request_host( int port )
 {

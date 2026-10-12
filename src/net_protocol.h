@@ -32,7 +32,7 @@ namespace net
 constexpr int protocol_version = 1;
 constexpr int max_clients = 4;
 
-namespace detail
+namespace impl
 {
 
 struct session_state {
@@ -58,7 +58,7 @@ void client_on_connect();
 void client_on_disconnect();
 void client_on_message( const JsonObject &msg );
 
-} // namespace detail
+} // namespace impl
 } // namespace net
 
 #endif // CATA_SRC_NET_PROTOCOL_H

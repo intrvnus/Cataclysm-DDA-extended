@@ -80,7 +80,7 @@ std::string message( const std::function<void( JsonOut & )> &body )
 
 void send_action( const std::string &action, const point_rel_ms &delta = point_rel_ms::zero )
 {
-    detail::send_json( detail::state().server_peer, message( [&]( JsonOut & jo ) {
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "act" );
         jo.member( "a", action );
         if( delta != point_rel_ms::zero ) {
@@ -251,7 +251,7 @@ bool handle_input()
 
 } // namespace
 
-namespace detail
+namespace impl
 {
 
 void client_on_connect()
@@ -296,7 +296,7 @@ void client_on_message( const JsonObject &msg )
     }
 }
 
-} // namespace detail
+} // namespace impl
 
 bool client_do_turn()
 {
