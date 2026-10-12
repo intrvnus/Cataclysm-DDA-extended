@@ -7,7 +7,8 @@ the Windows tiles build, more than one client.
 
 ## How to start
 
-Both players need the same game build and the same mods.
+Both players need the same game build, and the host's and the client's worlds must have
+the same mods enabled (the client gets map data with the host's mod items in it).
 
 Host (plays normally, owns the world):
 
@@ -52,3 +53,9 @@ The default port is 7777 (UDP). After loading, the host's message log says
 - Monsters on the client are recreated every update (no animations/effects shown).
 - Parts of the client's map outside the host's reality bubble come from the client's
   own world.
+
+## Planned (wished for by Noah)
+
+- Mod features for clients: each player can use their own mod items and windows, e.g.
+  their own mp3 player with the Own Music Player window and album choice, mod hotkeys,
+  item marks menus. Needs client menus/item use forwarded to the host first.
