@@ -770,8 +770,12 @@ int main( int argc, const char *argv[] )
             return 1;
         }
     } else if( cli.check_mods ) {
+#if defined(TILES)
+        // Curses builds already initialized the options above; doing it twice
+        // re-adds option groups and fails with a debug message.
         get_options().init();
         get_options().load();
+#endif
     }
 
     set_language_from_options();
