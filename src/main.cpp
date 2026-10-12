@@ -896,6 +896,8 @@ int main( int argc, const char *argv[] )
         shared_ptr_fast<ui_adaptor> ui = g->create_or_get_main_ui_adaptor();
         get_event_bus().send<event_type::game_begin>( getVersionString() );
         while( !do_turn() ) {}
+        // Experimental multiplayer: leaving the game ends the session.
+        net::shutdown();
     }
 
     exit_handler( -999 );

@@ -109,14 +109,25 @@ void place_avatar( const tripoint_abs_ms &p )
     g->update_map( u );
 }
 
-void apply_submaps( const JsonArray &list )
+void reload_map()
 {
-    MAPBUFFER.net_replace_submaps( list );
-    // The map still points at the replaced submaps: load it again.
     map &here = get_map();
     here.load( here.get_abs_sub(), true );
     g->load_npcs();
     g->invalidate_main_ui_adaptor();
+}
+
+void apply_submaps( const JsonArray &list )
+{
+    try {
+        MAPBUFFER.net_replace_submaps( list );
+    } catch( ... ) {
+        // Some submaps may already be replaced: never keep pointers to the old ones.
+        reload_map();
+        throw;
+    }
+    // The map still points at the replaced submaps: load it again.
+    reload_map();
 }
 
 npc *shadow_for( int host_id, const std::string &name, const tripoint_abs_ms &p )
