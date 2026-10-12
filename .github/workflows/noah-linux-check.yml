@@ -40,9 +40,11 @@ jobs:
           ccache --show-stats
 
       - name: Install custom mods into data/mods
+        if: hashFiles('noah_mods/**/modinfo.json') != ''
         run: cp -r noah_mods/* data/mods/
 
       - name: Check custom mods load
+        if: hashFiles('noah_mods/**/modinfo.json') != ''
         run: |
           mods=""
           for d in noah_mods/*/; do mods="$mods $(basename "$d")"; done
