@@ -432,6 +432,38 @@ submap *mapbuffer::unserialize_submaps( const tripoint_abs_sm &p )
     return submaps[ p ].get();
 }
 
+bool mapbuffer::net_store_submap( const tripoint_abs_sm &p, JsonOut &jsout )
+{
+    const auto iter = submaps.find( p );
+    if( iter == submaps.end() || iter->second == nullptr ) {
+        return false;
+    }
+    jsout.start_object();
+    jsout.member( "version", savegame_version );
+    jsout.member( "coordinates" );
+    jsout.start_array();
+    jsout.write( p.x() );
+    jsout.write( p.y() );
+    jsout.write( p.z() );
+    jsout.end_array();
+    iter->second->store( jsout );
+    jsout.end_object();
+    return true;
+}
+
+void mapbuffer::net_replace_submaps( const JsonArray &ja )
+{
+    for( JsonObject submap_json : ja ) {
+        submap_json.allow_omitted_members();
+        JsonArray coords_array = submap_json.get_array( "coordinates" );
+        const tripoint_abs_sm loc{ coords_array.next_int(), coords_array.next_int(), coords_array.next_int() };
+        if( submaps.count( loc ) != 0 ) {
+            remove_submap( loc );
+        }
+    }
+    deserialize( ja );
+}
+
 void mapbuffer::deserialize( const JsonArray &ja )
 {
     for( JsonObject submap_json : ja ) {

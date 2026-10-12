@@ -904,7 +904,7 @@ endif
 
 # Global settings for Windows targets (at end)
 ifeq ($(TARGETSYSTEM),WINDOWS)
-  LDFLAGS += -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion
+  LDFLAGS += -lgdi32 -lwinmm -limm32 -lole32 -loleaut32 -lversion -lws2_32
   ifeq ($(BACKTRACE),1)
     LDFLAGS += -ldbghelp
   endif
@@ -968,6 +968,8 @@ else
 endif
 THIRD_PARTY_SOURCES := $(wildcard $(SRC_DIR)/third-party/flatbuffers/*.cpp)
 THIRD_PARTY_C_SOURCES := $(wildcard $(SRC_DIR)/third-party/zstd/common/*.c $(SRC_DIR)/third-party/zstd/compress/*.c $(SRC_DIR)/third-party/zstd/decompress/*.c)
+# ENet (multiplayer networking)
+THIRD_PARTY_C_SOURCES += $(wildcard $(SRC_DIR)/third-party/enet/*.c)
 HEADERS := $(wildcard $(SRC_DIR)/*.h)
 OBJECT_CREATOR_SOURCES := $(wildcard $object_creator/*.cpp)
 OBJECT_CREATOR_HEADERS := $(wildcard $object_creator/*.h)

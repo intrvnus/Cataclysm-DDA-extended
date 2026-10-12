@@ -9,6 +9,7 @@
 #include "coordinates.h"
 
 class JsonArray;
+class JsonOut;
 class cata_path;
 class submap;
 
@@ -65,6 +66,14 @@ class mapbuffer
         bool submap_exists( const tripoint_abs_sm &p );
         // Cheaper version of the above for when you don't mind some false results
         bool submap_exists_approx( const tripoint_abs_sm &p );
+
+        /** Multiplayer (host): writes one loaded submap as a JSON object in the same layout
+         * as the map save files. Returns false (and writes nothing) if it is not loaded. */
+        bool net_store_submap( const tripoint_abs_sm &p, JsonOut &jsout );
+        /** Multiplayer (client): replaces submaps with ones received from the host (array of
+         * objects written by @ref net_store_submap). Pointers to the replaced submaps become
+         * invalid, so the map has to be reloaded afterwards. */
+        void net_replace_submaps( const JsonArray &ja );
 
     private:
         using submap_map_t = std::map<tripoint_abs_sm, std::unique_ptr<submap>>;

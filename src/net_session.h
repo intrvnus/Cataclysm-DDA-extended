@@ -1,0 +1,78 @@
+#pragma once
+#ifndef CATA_SRC_NET_SESSION_H
+#define CATA_SRC_NET_SESSION_H
+
+#include <string>
+
+class npc;
+
+/**
+ * Experimental multiplayer (milestone 1).
+ *
+ * One game instance is the authoritative host: it runs the simulation as usual and
+ * every connected client is represented on the host by an NPC that is driven by the
+ * commands that client sends (instead of the NPC AI).
+ * A client runs a normal game (any world with the same mods) only as a display:
+ * it does not simulate anything, it shows the submaps, creatures and time it gets
+ * from the host and sends its key presses (move/attack, wait, pick up) to the host.
+ *
+ * Time flows continuously while a session is active (TURN_DURATION is forced on),
+ * so nobody waits for anyone else's input.
+ *
+ * Started from the command line:
+ *   --mp-host [port]            host a session once the game is loaded
+ *   --mp-connect <addr[:port]>  join a session once the game is loaded
+ */
+namespace net
+{
+
+constexpr int default_port = 7777;
+
+enum class role : int {
+    none,
+    host,
+    client
+};
+
+/** Command line: remember what to start once a game is running. */
+void request_host( int port );
+void request_connect( const std::string &address, int port );
+
+/** Starts the requested session (once). Called from the main game loop. */
+void start_pending();
+/** Closes all connections. */
+void shutdown();
+/** Handles network traffic. Cheap, call often (game loop, input wait loops). */
+void poll();
+
+role current_role();
+inline bool is_host()
+{
+    return current_role() == role::host;
+}
+inline bool is_client()
+{
+    return current_role() == role::client;
+}
+inline bool active()
+{
+    return current_role() != role::none;
+}
+
+/** Seconds per turn while waiting for input; @p option is the TURN_DURATION setting. */
+float turn_duration( float option );
+
+// ---- host ----
+/** Called for every NPC in monmove(). If it is a remote player, executes its queued
+ * commands (or lets it wait) and returns true; the NPC AI must then be skipped. */
+bool host_drive_npc( npc &guy );
+/** Called once at the end of every turn: handles joins and sends the world state. */
+void host_end_of_turn();
+
+// ---- client ----
+/** Replaces the whole turn on a client. Returns true if the game is over. */
+bool client_do_turn();
+
+} // namespace net
+
+#endif // CATA_SRC_NET_SESSION_H

@@ -73,6 +73,7 @@
 #include "move_mode.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "options.h"
 #include "output.h"
 #include "overmap_ui.h"
@@ -206,7 +207,8 @@ class user_turn
         }
 
         int moves_elapsed() {
-            const float turn_duration = get_option<float>( "TURN_DURATION" );
+            // Multiplayer forces realtime turns on, see net::turn_duration().
+            const float turn_duration = net::turn_duration( get_option<float>( "TURN_DURATION" ) );
             // Magic number 0.005 chosen due to option menu's 2 digit precision and
             // the option menu UI rounding <= 0.005 down to "0.00" in the display.
             // This conditional will catch values (e.g. 0.003) that the options menu
@@ -436,6 +438,7 @@ input_context game::get_player_input( std::string &action )
             }
 
             mod_engine::tick();
+            net::poll();
             ui_manager::redraw_invalidated();
         } while( handle_mouseview( ctxt, action ) && uquit != QUIT_WATCH
                  && ( action != "TIMEOUT" || !current_turn.has_timeout_elapsed() ) );
@@ -443,12 +446,14 @@ input_context game::get_player_input( std::string &action )
     } else {
         ctxt.set_timeout( 125 );
         mod_engine::tick();
+        net::poll();
         ui_manager::redraw_invalidated();
         while( handle_mouseview( ctxt, action ) ) {
             if( action == "TIMEOUT" && current_turn.has_timeout_elapsed() ) {
                 break;
             }
             mod_engine::tick();
+            net::poll();
             ui_manager::redraw_invalidated();
         }
         ctxt.reset_timeout();

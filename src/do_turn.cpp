@@ -53,6 +53,7 @@
 #include "monster.h"
 #include "mtype.h"
 #include "music.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -374,6 +375,13 @@ void monmove()
         if( !guy.has_effect( effect_npc_suspend ) ) {
             guy.process_turn();
         }
+        // Experimental multiplayer: an NPC played by a client does what the client sends.
+        if( net::host_drive_npc( guy ) ) {
+            if( !guy.is_dead() ) {
+                guy.npc_update_body();
+            }
+            continue;
+        }
         while( !guy.is_dead() && ( !guy.in_sleep_state() || guy.activity.id() == ACT_OPERATION ) &&
                guy.get_moves() > 0 && turns < 10 ) {
             const int moves = guy.get_moves();
@@ -465,6 +473,13 @@ bool do_turn()
     if( g->is_game_over() ) {
         return turn_handler::cleanup_at_end();
     }
+
+    // Experimental multiplayer: a client only shows the host's world, it simulates nothing.
+    net::start_pending();
+    if( net::is_client() ) {
+        return net::client_do_turn();
+    }
+    net::poll();
 
     weather_manager &weather = get_weather();
     // Actual stuff
@@ -792,6 +807,8 @@ bool do_turn()
     // Calculate bionic power balance
     u.power_balance = u.get_power_level() - u.power_prev_turn;
     u.power_prev_turn = u.get_power_level();
+
+    net::host_end_of_turn();
 
 #if defined(EMSCRIPTEN)
     // This will cause a prompt to be shown if the window is closed, until the

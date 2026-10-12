@@ -50,6 +50,7 @@
 #include "main_menu.h"
 #include "mapsharing.h"
 #include "memory_fast.h"
+#include "net_session.h"
 #include "options.h"
 #include "ordered_static_globals.h"
 #include "output.h"
@@ -341,6 +342,39 @@ cli_opts parse_commandline( int argc, const char **argv )
                 1,
                 [&result]( int, const char **params ) -> int {
                     result.world = params[0];
+                    return 1;
+                }
+            },
+            {
+                "--mp-host", "[port]",
+                "Experimental multiplayer: host a game once it is loaded (default port 7777)",
+                section_default,
+                0,
+                []( int n, const char **params ) -> int {
+                    if( n > 0 && params[0][0] != '-' )
+                    {
+                        net::request_host( std::atoi( params[0] ) );
+                        return 1;
+                    }
+                    net::request_host( net::default_port );
+                    return 0;
+                }
+            },
+            {
+                "--mp-connect", "<address[:port]>",
+                "Experimental multiplayer: join a hosted game once a game is loaded",
+                section_default,
+                1,
+                []( int, const char **params ) -> int {
+                    std::string address = params[0];
+                    int port = net::default_port;
+                    const size_t colon = address.rfind( ':' );
+                    if( colon != std::string::npos )
+                    {
+                        port = std::atoi( address.substr( colon + 1 ).c_str() );
+                        address = address.substr( 0, colon );
+                    }
+                    net::request_connect( address, port );
                     return 1;
                 }
             },

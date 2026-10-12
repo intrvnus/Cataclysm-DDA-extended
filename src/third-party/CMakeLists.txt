@@ -227,3 +227,29 @@ target_link_libraries(
         INTERFACE
         zstd
         )
+
+# ENet (multiplayer networking)
+file(GLOB ENET_HEADERS enet/*.h)
+file(GLOB ENET_SOURCES enet/*.c)
+
+add_library(
+        enet
+        STATIC
+        ${ENET_HEADERS}
+        ${ENET_SOURCES})
+
+target_include_directories(
+        enet
+        SYSTEM
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR})
+
+if (WIN32)
+    target_link_libraries(enet PUBLIC ws2_32 winmm)
+endif ()
+
+target_link_libraries(
+        third-party
+        INTERFACE
+        enet
+        )
