@@ -1,7 +1,7 @@
-# Moddable engine additions (feature level 4)
+# Moddable engine additions (feature level 5)
 
 Everything here only exists in the custom "moddable engine" build.  A mod can declare
-`"requires_engine": 4` (or lower) in its `MOD_INFO`; builds with a lower level refuse to load such a mod and say why.
+`"requires_engine": 5` (or lower) in its `MOD_INFO`; builds with a lower level refuse to load such a mod and say why.
 
 ## Item marks (`json_flag`)
 
@@ -12,6 +12,7 @@ A `json_flag` gets four optional fields:
 | `user_mark` (bool) | the player can toggle this flag on items from inventory menus (key `#`, rebindable: "Toggle item mark") |
 | `sort_priority` (int) | items with the flag are sorted higher (bigger number) or lower (negative) in inventory menus |
 | `protect_from_drop` (bool) | the "select all non-favorite items" key (`,`) in multi-select menus skips these items |
+| `guard` (bool) | level 5: the game asks before you drop, throw, disassemble or sell an item with this flag; crafting and disassembly avoid it (a craft that has to use it asks first); bulk "move all" / "move everything" actions (vehicle cargo, containers, the device window's "Drop" helpers) leave it alone |
 | `auto_pickup` (`"pickup"` or `"ignore"`) | level 4: with autopickup on, items carrying the flag are always (`"pickup"`) or never (`"ignore"`) picked up, whatever the autopickup rules say |
 | `name` / `item_prefix` / `item_suffix` / `info` | existing fields: menu label, symbol before/after the item name, tooltip |
 
@@ -23,6 +24,24 @@ Example:
 Colors: `item_prefix` / `item_suffix` may contain color tags as in the example, so a mark can have its own colored symbol.
 Searching by mark: in every item filter (the `/` key) `f:MARK_KEEP` lists the items that carry the flag.
 Marks are stored in the item's flags (nothing is added to the save format).  Marks never assign inventory letters.
+
+**Quick keys and bulk actions (level 5)**
+* `mod_action` with `"context": "INVENTORY"` and `"toggle_mark": "<flag id>"` (instead of an `eoc`): the key marks / unmarks the highlighted item
+  (the whole stack) in any inventory menu, without opening the mark menu.
+* `mod_action` with `"context": "DEFAULTMODE"` and `"drop_marked": "<flag id>"`: drops every item carrying the flag (not worn, not wielded,
+  not guarded) after one confirmation.
+* `item_mark_rule`: marks items automatically (about every 5 seconds, only items that are carried).  A mark that the player removed by hand
+  is never set again on that item, and a mark an automatic rule set is taken away again when the item stops matching (refilled, dried, repaired).
+```json
+{ "type": "item_mark_rule", "id": "MYMOD_RULE", "mark": "MARK_JUNK",
+  "option": "mymod.auto_junk",          // optional bool mod_option; the rule only runs while it is on (default true if the option does not exist)
+  "broken": true,                       // item is broken / at 0 hp
+  "armor_only": false,                  // only clothes and armor
+  "empty_container": false,             // only containers that hold nothing
+  "has_flag": [ "WET" ],                // any of these item flags
+  "item_ids": [ "can_drink", "cup_plastic" ] }   // any of these item types
+```
+All given conditions must hold for a rule to mark an item; `has_flag` and `item_ids` each match if any listed entry matches.
 
 New option, Interface: **Sort favorites first** (`INV_FAVORITES_FIRST`, default true).  Off = favorites no longer jump to the top.
 
@@ -56,11 +75,11 @@ New option, Interface: **Sort favorites first** (`INV_FAVORITES_FIRST`, default 
   `"choose_album"` (menu of the albums the player carries; the pick is what mp3 players play and is saved with the character),
   `"next_album"` / `"previous_album"` (switch to the next / previous album the player carries),
   `"restore_album"` (re-apply the saved pick; run it from a `game_load` event EOC),
-  level 4: `"pause"`, `"resume"`, `"toggle_pause"`, `"volume_up"` / `"volume_down"` (step = `"value"`, default 10), `"set_volume"` (`"value"`, 0 - 128, 100 = normal;
+  level 4: `"pause"`, `"resume"`, `"toggle_pause"` (also starts the album again after it ended with repeat off), `"volume_up"` / `"volume_down"` (step = `"value"`, default 10), level 5: `"toggle_shuffle"`, `"cycle_repeat"` (whole album -> one song -> off), `"play_index"` (`"value"` = place in the song list, 0 is the first), `"set_volume"` (`"value"`, 0 - 128, 100 = normal;
   this is the game's "Music volume" option and is saved).  `"value"` can be a number or `{ "math": [ "..." ] }`.
   `"play"` with a playlist that does not exist falls back to the normal music (and writes a warning to the debug log).
 * **Albums** (`music_albums`, engine level 3): every sub folder of `folder` (relative to the JSON file, default `albums`) that holds audio files becomes
-  * a playlist and an item type `album_<folder name>` (letters/digits only, lower case) named `album: <folder name>`, 0 g and 0 ml,
+  * a playlist and an item type `album_<folder name>` (letters/digits only, lower case) named `album: <folder name>`, 0 g and 1 ml, with the item flag `OWN_MUSIC_ALBUM` (the own_music_player mod gives mp3 players a pocket that only takes items with this flag, so albums can be stored in the player; an album stored in a carried player counts as carried),
   * an item group `music_albums_pool` with every album (equal chance each) that mods can put into loot piles, e.g.
     `{ "type": "item_group", "id": "music_shop", "copy-from": "music_shop", "subtype": "old", "extend": { "items": [ { "group": "music_albums_pool", "prob": 10 } ] } }`
     (see `album_loot.json` of the own_music_player mod),
@@ -88,6 +107,9 @@ Small windows on top of the game that show live text and have clickable buttons.
 ```
 * `width` is in character cells (10 or more); the height is the number of rows + 2.  `x` / `y` = first position (cells from the top left).
 * A row is a text (color tags allowed, clipped to the width), or an object with `text` or `buttons`, and `align` (`left`, `center`, `right`).
+* Level 5 row options: `"show_if": "u_somevar"` (the row only exists while that character variable is not 0 / empty; `"!u_somevar"` turns it around;
+  the window grows and shrinks with the rows) and a list row `{ "list": "music_queue", "height": 8 }` that shows the songs of the playing album in play
+  order (the playing one marked `>`, scrolling along with it); clicking a song plays it.
 * `eoc` of a button: an effect_on_condition id or an inline EOC.  It runs with the player as talker when the button is clicked (press and release on the same button).
 * A row `{ "image": "album_cover", "height": 11, "image_width": 22, "align": "center" }` shows the cover of the album the mp3 player plays
   (graphical build only; a grey square if the album has no cover).  The cover is found automatically: a `cover.jpg` / `folder.png` / ... in the album folder,
@@ -109,6 +131,8 @@ Windows (rows and button texts) and sidebar widgets can contain `{placeholders}`
 | `{music_time}` `{music_position}` `{music_length}` | `1:23 / 3:45`, `1:23`, `3:45` (`--:--` if unknown) |
 | `{music_bar:30}` | progress bar of the song, `[####------]`, 30 characters wide |
 | `{music_volume}` | volume, 100 = normal |
+| `{music_shuffle}` `{music_repeat}` | On / Off, Album / Song / Off (level 5) |
+| `{music_battery}` `{music_battery_bar:14}` | battery of the player or phone that plays the music: `73%` / `[#######---]`, `--` if unknown (level 5) |
 | `{time}` `{day}` `{player_name}` | time of day, day number, character name |
 | `{var:name}` `{gvar:name}` | a character variable / a global variable (`u_name` in EOCs) |
 | `{option:id}` | value of a mod option |
@@ -171,11 +195,21 @@ Take a backup of the world first; removing a mod that added items or terrain to 
 Using a device with the `E_FILE_DEVICE` action (smartphone, laptop, tablet, ...) opens one window instead of the old chain of menus:
 
 * top: the device, its charge and memory; its other apps (music, camera, games, ...) as buttons;
-* left: all e-devices the player carries or can reach (the one in use first), with memory and file count;
-* right: the files of the picked device with check boxes (after the device was browsed);
-* bottom: Browse / Browse all / Browse all + move every file here, Read file, Copy and Move (to or from the device in use), Wipe.
+* left: all e-devices the player carries or can reach (the one in use first), with memory and file count; a "Sort" box (name, most / fewest files, most / least free space, carried first) and a "Hide empty" filter;
+* right: the files of the picked device with check boxes (after the device was browsed), Select all / none / Invert and a "Sort" box (name, largest, smallest);
+* bottom: Browse / Browse all / Browse all + move every file here (also works when everything was browsed already), Read file, Copy and Move (to or from the device in use), Wipe.
+* footer: "Drop empty cards" drops every browsed, empty memory card / USB drive / hard drive (any variant) that is carried.  Devices that can read files themselves (phones, laptops, e-readers) are never dropped.
   Hovering a button shows why it is greyed out, or how long the transfer takes.
 
 The work is done by the normal e-file activity, so the rules (time, charges, memory, compatibility) are those of the old menus.
 The "Old menu" button opens the old menu chain.  No JSON is needed for this.
 
+
+## Title screen and loading screen pictures (level 5)
+
+* **Title screen**: every file `data/title/art/<name>.<style>.<size>.title` is one picture (`style` = `braille` or `blocks`, `size` = `L`, `M`, `S`; same format as
+  `data/title/en.title`, color tags allowed).  When the main menu opens, one `<name>` is picked at random and the biggest size that fits the window is used
+  (L needs 30 free rows, M 21, S 12); the main menu window uses the whole screen height for it.  Option **Title screen picture** (Interface -> ASCII):
+  Braille / Blocks / Classic (the old logo).  Seasonal logos on holidays still win.
+* **Loading screen** (tiles version): every `.png` in `gfx/loading/` is a possible loading picture (mods can still add their own with `loading_images`).
+  Option **Pictures on the loading screen** switches this off.

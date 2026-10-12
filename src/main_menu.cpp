@@ -44,6 +44,7 @@
 #include "music.h"
 #include "options.h"
 #include "output.h"
+#include "rng.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
 #include "popup.h"
@@ -336,7 +337,19 @@ void main_menu::print_menu( const catacurses::window &w_open, int iSel, const po
         }
     }
 
-    if( mmenu_title.size() > 1 ) {
+    if( title_is_art ) {
+        // a picture from data/title/art: centered, as big as the picture is
+        int art_width = 0;
+        for( const std::string &i_title : mmenu_title ) {
+            art_width = std::max( art_width, utf8_width( remove_color_tags( i_title ) ) );
+        }
+        const int art_x = std::max( 0, ( window_width - art_width ) / 2 );
+        for( const std::string &i_title : mmenu_title ) {
+            nc_color cur_color = c_white;
+            nc_color base_color = c_white;
+            print_colored_text( w_open, point( art_x, iLine++ ), cur_color, base_color, i_title );
+        }
+    } else if( mmenu_title.size() > 1 ) {
         for( const std::string &i_title : mmenu_title ) {
             nc_color cur_color = c_white;
             nc_color base_color = c_white;
@@ -410,6 +423,10 @@ void main_menu::init_windows()
     int extra_h = ( ( TERMY - FULL_SCREEN_HEIGHT ) / 2 ) - 1;
     extra_w = ( extra_w > 0 ? extra_w : 0 );
     extra_h = ( extra_h > 0 ? extra_h : 0 );
+    if( wants_big_window() ) {
+        // the title pictures are bigger than the classic logo: use (nearly) the whole screen height
+        extra_h = std::max( extra_h, TERMY - FULL_SCREEN_HEIGHT - 2 );
+    }
     const int total_w = FULL_SCREEN_WIDTH + extra_w;
     const int total_h = FULL_SCREEN_HEIGHT + extra_h;
 
@@ -423,12 +440,118 @@ void main_menu::init_windows()
     // please update MOTD and credits to indicate how long they can be.
 
     LAST_TERM = point( TERMX, TERMY );
+    apply_title_art();
+}
+
+namespace
+{
+struct title_art_file {
+    std::string name;
+    std::string style;
+    std::string size;
+    std::string path;
+};
+
+// rows of the picture that fit above the version line and the menu
+int art_rows_for_size( const std::string &size )
+{
+    if( size == "L" ) {
+        return 30;
+    } else if( size == "M" ) {
+        return 21;
+    }
+    return 12;
+}
+
+std::vector<title_art_file> list_title_art()
+{
+    std::vector<title_art_file> files;
+    const std::string dir = PATH_INFO::datadir() + "title/art/";
+    for( const std::string &path : get_files_from_path( ".title", dir, false, true ) ) {
+        // <name>.<style>.<size>.title
+        std::string base = path.substr( path.find_last_of( "/\\" ) + 1 );
+        std::vector<std::string> parts = string_split( base, '.' );
+        if( parts.size() == 4 ) {
+            files.push_back( { parts[0], parts[1], parts[2], path } );
+        }
+    }
+    return files;
+}
+} // namespace
+
+bool main_menu::wants_big_window() const
+{
+    return title_is_art || ( !title_art_name.empty() && get_option<bool>( "ENABLE_ASCII_TITLE" ) );
+}
+
+void main_menu::choose_title_art()
+{
+    title_art_name.clear();
+    title_is_art = false;
+    if( !get_option<bool>( "ENABLE_ASCII_TITLE" ) || get_option<std::string>( "TITLE_ART_STYLE" ) == "classic" ) {
+        return;
+    }
+    // seasonal logos (halloween, christmas...) keep their own art
+    if( get_option<bool>( "SEASONAL_TITLE" ) && current_holiday != holiday::none ) {
+        return;
+    }
+    std::vector<std::string> names;
+    for( const title_art_file &f : list_title_art() ) {
+        if( std::find( names.begin(), names.end(), f.name ) == names.end() ) {
+            names.push_back( f.name );
+        }
+    }
+    if( names.empty() ) {
+        return;
+    }
+    // NOLINTNEXTLINE(cata-determinism)
+    title_art_name = names[rng( 0, static_cast<int>( names.size() ) - 1 )];
+}
+
+void main_menu::apply_title_art()
+{
+    title_is_art = false;
+    if( title_art_name.empty() || !w_open ) {
+        return;
+    }
+    const std::string style = get_option<std::string>( "TITLE_ART_STYLE" );
+    const int avail_w = getmaxx( w_open ) - 2;
+    const int avail_h = getmaxy( w_open ) - 12;
+    const title_art_file *best = nullptr;
+    int best_rows = 0;
+    const std::vector<title_art_file> files = list_title_art();
+    for( const title_art_file &f : files ) {
+        if( f.name != title_art_name || f.style != style ) {
+            continue;
+        }
+        const int rows = art_rows_for_size( f.size );
+        if( rows <= avail_h && rows > best_rows ) {
+            best = &f;
+            best_rows = rows;
+        }
+    }
+    if( best == nullptr ) {
+        return; // window too small: the classic logo stays
+    }
+    std::vector<std::string> art = load_file( best->path, std::string() );
+    int width = 0;
+    for( const std::string &line : art ) {
+        width = std::max( width, utf8_width( remove_color_tags( line ) ) );
+    }
+    if( art.empty() || art.front().empty() || width > avail_w ) {
+        return;
+    }
+    mmenu_title = std::move( art );
+    title_is_art = true;
 }
 
 void main_menu::init_strings()
 {
     // ASCII Art
     mmenu_title = load_file( PATH_INFO::title( current_holiday ), _( "Cataclysm: Dark Days Ahead" ) );
+    // a picture from data/title/art instead (chosen again every time the menu opens or the options change)
+    choose_title_art();
+    apply_title_art();
     // MOTD
     auto motd = load_file( PATH_INFO::motd(), _( "No message today." ) );
 
@@ -858,6 +981,9 @@ bool main_menu::opening_screen()
                         get_options().show( false );
                         // The language may have changed- gracefully handle this.
                         init_strings();
+                        // the title picture may have changed the size of the window
+                        LAST_TERM = point( -1, -1 );
+                        ui.mark_resize();
                     } else if( sel2 == 1 ) { /// Keybindings
                         input_context ctxt_default = get_default_mode_input_context();
                         ctxt_default.display_menu();

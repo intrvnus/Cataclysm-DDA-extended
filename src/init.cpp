@@ -74,6 +74,7 @@
 #include "material.h"
 #include "math_parser_jmath.h"
 #include "mission.h"
+#include "item_marks.h"
 #include "mod_engine.h"
 #include "mod_manager.h"
 #include "mod_tileset.h"
@@ -268,6 +269,7 @@ void DynamicDataLoader::initialize()
     add( "option_slider", &option_slider::load_option_sliders );
     add( "json_flag", &json_flag::load_all );
     add( "mod_action", &mod_actions::load );
+    add( "item_mark_rule", &item_marks::load_rule );
     add( "realtime_eoc", &mod_engine::load_realtime_eoc );
     add( "mod_window", &mod_engine::load_window );
     add( "mod_option", &mod_engine::load_option );
@@ -655,6 +657,7 @@ void DynamicDataLoader::unload_data()
     jmath_func::reset();
     json_flag::reset();
     mod_actions::reset();
+    item_marks::reset();
     mod_engine::reset();
     sfx::unload_mod_music();
     music::reset_albums();

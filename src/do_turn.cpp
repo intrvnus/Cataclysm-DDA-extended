@@ -48,6 +48,7 @@
 #include "memorial_logger.h"
 #include "messages.h"
 #include "mission.h"
+#include "item_marks.h"
 #include "mod_engine.h"
 #include "monster.h"
 #include "mtype.h"
@@ -85,6 +86,11 @@ static const activity_id ACT_FIRSTAID( "ACT_FIRSTAID" );
 static const activity_id ACT_OPERATION( "ACT_OPERATION" );
 
 static const bionic_id bio_alarm( "bio_alarm" );
+
+static const itype_id itype_afs_atomic_smartphone_music( "afs_atomic_smartphone_music" );
+static const itype_id itype_afs_atomic_wraitheon_music( "afs_atomic_wraitheon_music" );
+static const itype_id itype_mp3_on( "mp3_on" );
+static const itype_id itype_smartphone_music( "smartphone_music" );
 
 static const efftype_id effect_controlled( "controlled" );
 static const efftype_id effect_npc_suspend( "npc_suspend" );
@@ -554,6 +560,21 @@ bool do_turn()
     }
 
     music::deactivate_music_id( music::music_id::sound );
+
+    // Moddable engine: automatic item marks (junk rules), every few seconds
+    if( calendar::once_every( 5_seconds ) ) {
+        item_marks::auto_mark_scan( u );
+    }
+
+    // Moddable engine: a player that ran out of battery turns itself off without telling the
+    // music system, so the music (and the player window) would go on.  No running player = no music.
+    if( music::music_id_list[music::music_id::mp3].second &&
+        !u.has_active_item( itype_mp3_on ) && !u.has_active_item( itype_smartphone_music ) &&
+        !u.has_active_item( itype_afs_atomic_smartphone_music ) &&
+        !u.has_active_item( itype_afs_atomic_wraitheon_music ) ) {
+        music::deactivate_music_id( music::music_id::mp3 );
+        mod_engine::mp3_state_changed( false );
+    }
 
     // Process sound events into sound markers for display to the player.
     sounds::process_sound_markers( &u );

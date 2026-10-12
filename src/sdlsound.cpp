@@ -312,6 +312,19 @@ static std::string mp3_album;
 static std::string current_track_name;
 // Set while we replace the current track ourselves, so the "music finished" hook doesn't advance too.
 static std::atomic<bool> suppress_music_finished( false );
+/** Shuffle chosen with the music window; empty = whatever the album says. */
+static std::optional<bool> user_shuffle;
+/** 0 = stop after the last song, 1 = repeat the album, 2 = repeat the song that plays. */
+static int music_repeat_mode = 1;
+
+static cata_default_random_engine &music_rng()
+{
+    // Doesn't need to worry about the determinism check here because it only affects audio, not game logic.
+    // NOLINTNEXTLINE(cata-determinism)
+    static cata_default_random_engine eng = cata_default_random_engine(
+            std::chrono::steady_clock::now().time_since_epoch().count() );
+    return eng;
+}
 static cata_path current_soundpack_path;
 
 static const music_playlist *find_playlist( const std::string &id )
@@ -481,11 +494,19 @@ void musicFinished()
     const music_playlist &list = *found;
 
     // Load the next file to play.
-    absolute_playlist_at++;
+    if( music_repeat_mode != 2 ) {
+        absolute_playlist_at++;
+    }
 
     // Wrap around if we reached the end of the playlist.
     if( absolute_playlist_at >= list.entries.size() ) {
         absolute_playlist_at = 0;
+        if( music_repeat_mode == 0 ) {
+            // Repeat is off: the album is over.  "Play" in the music window starts it again.
+            current_playlist_at = playlist_indexes.at( 0 );
+            current_track_name.clear();
+            return;
+        }
     }
 
     current_playlist_at = playlist_indexes.at( absolute_playlist_at );
@@ -515,13 +536,8 @@ void play_music( const std::string &requested_playlist )
     for( size_t i = 0; i < list.entries.size(); i++ ) {
         playlist_indexes.push_back( i );
     }
-    if( list.shuffle ) {
-        // Son't need to worry about the determinism check here because it only
-        // affects audio, not game logic.
-        // NOLINTNEXTLINE(cata-determinism)
-        static cata_default_random_engine eng = cata_default_random_engine(
-                std::chrono::steady_clock::now().time_since_epoch().count() );
-        std::shuffle( playlist_indexes.begin(), playlist_indexes.end(), eng );
+    if( user_shuffle.value_or( list.shuffle ) ) {
+        std::shuffle( playlist_indexes.begin(), playlist_indexes.end(), music_rng() );
     }
 
     current_playlist = playlist;
@@ -848,7 +864,14 @@ bool music_is_paused()
 
 void music_set_paused( const bool paused )
 {
-    if( test_mode || !sound_init_success || current_music == nullptr ) {
+    if( test_mode || !sound_init_success ) {
+        return;
+    }
+    if( current_music == nullptr ) {
+        // The album ended (repeat off): "play" starts it again from the first song
+        if( !paused && !current_playlist.empty() && !playlist_indexes.empty() ) {
+            music_play_index( 0 );
+        }
         return;
     }
     if( paused ) {
@@ -988,6 +1011,100 @@ std::string music_current_playlist()
 std::string music_current_track()
 {
     return current_music == nullptr ? std::string() : current_track_name;
+}
+
+std::string music_play_index( const int index )
+{
+    if( test_mode || current_playlist.empty() ) {
+        return std::string();
+    }
+    const music_playlist *list = find_playlist( current_playlist );
+    if( list == nullptr || playlist_indexes.empty() || index < 0 ||
+        static_cast<size_t>( index ) >= playlist_indexes.size() ) {
+        return std::string();
+    }
+    suppress_music_finished = true;
+    Mix_HaltMusic();
+    Mix_FreeMusic( current_music );
+    current_music = nullptr;
+
+    absolute_playlist_at = index;
+    current_playlist_at = playlist_indexes.at( absolute_playlist_at );
+    const music_playlist::entry &next = list->entries[current_playlist_at];
+    current_music_track_volume = next.volume;
+    play_music_file( next.file, next.volume, next.absolute );
+    suppress_music_finished = false;
+    return current_track_name;
+}
+
+std::vector<std::string> music_queue( int &current )
+{
+    std::vector<std::string> names;
+    current = -1;
+    if( test_mode || current_playlist.empty() ) {
+        return names;
+    }
+    const music_playlist *list = find_playlist( current_playlist );
+    if( list == nullptr ) {
+        return names;
+    }
+    for( const size_t idx : playlist_indexes ) {
+        if( idx < list->entries.size() ) {
+            names.push_back( std::filesystem::u8path( list->entries[idx].file ).stem().u8string() );
+        }
+    }
+    if( current_music != nullptr && absolute_playlist_at < names.size() ) {
+        current = static_cast<int>( absolute_playlist_at );
+    }
+    return names;
+}
+
+bool music_get_shuffle()
+{
+    if( user_shuffle.has_value() ) {
+        return *user_shuffle;
+    }
+    const music_playlist *list = current_playlist.empty() ? nullptr : find_playlist( current_playlist );
+    return list != nullptr && list->shuffle;
+}
+
+void music_set_shuffle( const bool shuffle )
+{
+    user_shuffle = shuffle;
+    if( test_mode || current_playlist.empty() ) {
+        return;
+    }
+    const music_playlist *list = find_playlist( current_playlist );
+    if( list == nullptr || playlist_indexes.empty() ) {
+        return;
+    }
+    const size_t count = list->entries.size();
+    // the song that plays right now stays where it is in the new order
+    const size_t playing = current_playlist_at;
+    playlist_indexes.clear();
+    for( size_t i = 0; i < count; i++ ) {
+        playlist_indexes.push_back( i );
+    }
+    if( shuffle ) {
+        std::shuffle( playlist_indexes.begin(), playlist_indexes.end(), music_rng() );
+        const auto at = std::find( playlist_indexes.begin(), playlist_indexes.end(), playing );
+        if( at != playlist_indexes.end() ) {
+            std::iter_swap( playlist_indexes.begin(), at );
+        }
+        absolute_playlist_at = 0;
+    } else {
+        absolute_playlist_at = playing < count ? playing : 0;
+    }
+}
+
+int music_get_repeat()
+{
+    return music_repeat_mode;
+}
+
+void music_set_repeat( const int mode )
+{
+    music_repeat_mode = std::clamp( mode, 0, 2 );
 }
 
 std::string music_skip( const int direction )

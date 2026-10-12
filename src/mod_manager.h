@@ -35,8 +35,10 @@ mod_id get_mod_base_id_from_src( mod_id src );
  * inventory hotkeys.  Level 3: "music_albums" (album folders become items), music_control choose_album.
  * Level 4: floating windows ("mod_window"), "realtime_eoc", "mod_option", mod_text sidebar widgets, file effects,
  * music pause/volume, play_sound_file, new events, mark "auto_pickup", editing mods of an existing world.
+ * Level 5: item_mark_rule, mark "guard", toggle_mark / drop_marked, window rows with "show_if" and song
+ * lists, music shuffle / repeat / play_index, battery placeholders, files in the title and loading art.
  */
-constexpr int moddable_engine_level = 4;
+constexpr int moddable_engine_level = 5;
 
 struct MOD_INFORMATION {
     private:

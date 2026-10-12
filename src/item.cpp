@@ -8928,6 +8928,26 @@ bool item::is_cash_card() const
     return typeId() == itype_cash_card;
 }
 
+bool item::is_guarded() const
+{
+    for( const flag_id &f : get_flags() ) {
+        if( f.is_valid() && f->guard() ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool item::is_mark_protected() const
+{
+    for( const flag_id &f : get_flags() ) {
+        if( f.is_valid() && ( f->guard() || f->protect_from_drop() ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool item::is_estorage() const
 {
     return contents.has_pocket_type( pocket_type::E_FILE_STORAGE );

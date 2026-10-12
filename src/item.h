@@ -3407,6 +3407,10 @@ class item : public visitable
         char invlet = 0;      // Inventory letter
         bool active = false; // If true, it has active effects to be processed
         bool is_favorite = false;
+        /** True if the item carries a mark (json_flag) with "guard": true (moddable engine). */
+        bool is_guarded() const;
+        /** True if the item carries a mark with "protect_from_drop" or "guard" (moddable engine). */
+        bool is_mark_protected() const;
 
         void set_favorite( bool favorite );
         bool has_clothing_mod() const;

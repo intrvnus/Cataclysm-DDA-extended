@@ -30,6 +30,7 @@
 #include "item_category.h"
 #include "item_contents.h"
 #include "item_pocket.h"
+#include "item_marks.h"
 #include "item_search.h"
 #include "item_stack.h"
 #include "item_tname.h"
@@ -1431,15 +1432,7 @@ static bool toggle_user_mark_menu( inventory_entry &entry )
     if( menu.ret < 0 || menu.ret >= static_cast<int>( marks.size() ) ) {
         return false;
     }
-    const flag_id chosen = marks[menu.ret]->id;
-    const bool turn_on = !entry.any_item()->has_own_flag( chosen );
-    for( item_location &loc : entry.locations ) {
-        if( turn_on ) {
-            loc->set_flag( chosen );
-        } else {
-            loc->unset_flag( chosen );
-        }
-    }
+    item_marks::toggle_mark( entry.locations, marks[menu.ret]->id );
     return true;
 }
 
@@ -3218,8 +3211,14 @@ void inventory_selector::on_input( const inventory_input &input )
     } else if( is_inventory_mod_action( input.action ) ) {
         inventory_entry &selected = get_active_column().get_highlighted();
         if( selected.is_item() ) {
+            const std::string quick_mark = mod_actions::toggle_mark_of( input.action );
             item_location target = selected.any_item();
-            mod_actions::try_run_on_item( input.action, target );
+            if( !quick_mark.empty() ) {
+                // quick key: switch this mark on / off for the whole stack
+                item_marks::toggle_mark( selected.locations, flag_id( quick_mark ) );
+            } else {
+                mod_actions::try_run_on_item( input.action, target );
+            }
             // The effect may have changed names, flags or values of items
             for( inventory_column *elem : columns ) {
                 elem->invalidate_paging();

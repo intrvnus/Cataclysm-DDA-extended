@@ -983,6 +983,11 @@ void avatar_action::plthrow( avatar &you, item_location loc,
 {
     map &here = get_map();
 
+    if( loc && loc->is_guarded() &&
+        !query_yn( _( "The %s is marked to keep.  Throw it anyway?" ), loc->tname() ) ) {
+        return;
+    }
+
     bool in_shell = you.has_active_mutation( trait_SHELL2 ) ||
                     you.has_active_mutation( trait_SHELL3 );
     if( in_shell ) {

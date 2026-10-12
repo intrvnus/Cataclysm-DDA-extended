@@ -1,6 +1,7 @@
 #include "loading_ui.h"
 
 #include "cached_options.h"
+#include "filesystem.h"
 #include "options.h"
 #include "input.h"
 #include "output.h"
@@ -108,6 +109,13 @@ static void update_state( const std::string &context, const std::string &step )
                 for( cata_path &img_path : get_files_from_path( img_name, mod.path, true ) ) {
                     imgs.emplace_back( img_path );
                 }
+            }
+        }
+        if( get_option<bool>( "CUSTOM_LOADING_ART" ) ) {
+            // pictures in gfx/loading (every .png file there is one more possible loading screen)
+            for( cata_path &img_path : get_files_from_path( ".png", PATH_INFO::gfxdir() / "loading", false,
+                    true ) ) {
+                imgs.emplace_back( img_path );
             }
         }
         if( gLUI->chosen_load_img == cata_path() ) {

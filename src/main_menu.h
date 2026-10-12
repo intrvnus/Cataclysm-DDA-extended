@@ -27,6 +27,16 @@ class main_menu
     private:
         // ASCII art that says "Cataclysm Dark Days Ahead"
         std::vector<std::string> mmenu_title;
+        /** Name of the picture (a file group in data/title/art) the title screen shows; empty = the classic logo. */
+        std::string title_art_name;
+        /** True if mmenu_title is a picture from data/title/art (it is bigger than the classic logo). */
+        bool title_is_art = false;
+        /** Pick a picture from data/title/art, or clear title_art_name if the classic logo is wanted. */
+        void choose_title_art();
+        /** Load the file of the chosen picture that fits the window best. */
+        void apply_title_art();
+        /** Does the chosen picture need the bigger main menu window? */
+        bool wants_big_window() const;
         std::string mmenu_motd;
         std::string mmenu_credits;
         int mmenu_motd_len;

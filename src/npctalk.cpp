@@ -5573,7 +5573,7 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
         std::string_view )
 {
     // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan" | "choose_album" | "next_album" | "previous_album" | "restore_album" |
-    //                    "pause" | "resume" | "toggle_pause" | "volume_up" | "volume_down" | "set_volume",
+    //                    "pause" | "resume" | "toggle_pause" | "toggle_shuffle" | "cycle_repeat" | "play_index" | "volume_up" | "volume_down" | "set_volume",
     //   "playlist": "<id>", "value": <number> }
     str_or_var command = get_str_or_var( jo.get_member( member ), member, true );
     str_or_var playlist;
@@ -5609,7 +5609,16 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
         } else if( cmd == "resume" ) {
             music_set_paused( false );
         } else if( cmd == "toggle_pause" ) {
-            music_set_paused( !music_is_paused() );
+            // when the album has ended (repeat off) "resume" starts it again
+            music_set_paused( music_current_track().empty() ? false : !music_is_paused() );
+        } else if( cmd == "toggle_shuffle" ) {
+            music_set_shuffle( !music_get_shuffle() );
+        } else if( cmd == "cycle_repeat" ) {
+            // album -> song -> off -> album
+            const int mode = music_get_repeat();
+            music_set_repeat( mode == 1 ? 2 : ( mode == 2 ? 0 : 1 ) );
+        } else if( cmd == "play_index" ) {
+            music_play_index( static_cast<int>( value.evaluate( d ) ) );
         } else if( cmd == "volume_up" || cmd == "volume_down" ) {
             const int step = has_value ? std::max( 1, static_cast<int>( value.evaluate( d ) ) ) : 10;
             music_set_volume( music_volume() + ( cmd == "volume_up" ? step : -step ) );
@@ -5629,7 +5638,7 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
                 music_set_mp3_album( saved->str() );
             }
         } else {
-            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto, rescan, choose_album, next_album, previous_album, restore_album, pause, resume, toggle_pause, volume_up, volume_down or set_volume)",
+            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto, rescan, choose_album, next_album, previous_album, restore_album, pause, resume, toggle_pause, toggle_shuffle, cycle_repeat, play_index, volume_up, volume_down or set_volume)",
                       cmd );
         }
     };

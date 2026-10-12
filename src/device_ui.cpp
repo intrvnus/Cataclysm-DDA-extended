@@ -1,6 +1,7 @@
 #include "device_ui.h"
 
 #include <imgui/imgui.h>
+#include <imgui/imgui_stdlib.h>
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -14,11 +15,14 @@
 #include "calendar.h"
 #include "cata_imgui.h"
 #include "character.h"
+#include "cata_utility.h"
 #include "color.h"
 #include "game_constants.h"
 #include "input_context.h"
 #include "item.h"
 #include "item_location.h"
+#include "localized_comparator.h"
+#include "math_parser_diag_value.h"
 #include "itype.h"
 #include "iuse.h"
 #include "map.h"
@@ -114,6 +118,8 @@ class device_window : public cataimgui::window
         plan chosen;
         std::string app_method;
         std::optional<item_location> read_file;
+        /** Empty memory cards / USB drives the player asked to drop. */
+        std::vector<item_location> cards_to_drop;
 
         bool wants_to_close() const {
             return want_close;
@@ -133,6 +139,11 @@ class device_window : public cataimgui::window
         int target_device = -1;
         std::set<const item *> selected_files;
         bool want_close = false;
+        int device_sort = 0;
+        int file_sort = 0;
+        bool hide_empty = false;
+        std::string search;
+        std::string saved_prefs;
 
         bool is_used( const item_location &loc ) const {
             return loc == used;
@@ -145,7 +156,19 @@ class device_window : public cataimgui::window
         /** Same conditions as the old device menus.  Returns an empty text if allowed. */
         std::string why_not( const item_location &loc, efile_action action ) const;
         std::string estimate_text( const plan &p ) const;
+        /** Charges the device in use needs for a plan, and a warning text if it does not have them. */
+        int charges_needed( const plan &p ) const;
+        std::string charge_warning( const plan &p ) const;
+        /** Does the search text match this text (case-insensitive)?  An empty search matches all. */
+        bool matches_search( const std::string &text ) const;
+        bool device_matches_search( const item_location &dev ) const;
+        void load_prefs();
+        void save_prefs();
         std::vector<item_location> files_of( const item_location &dev, bool only_selected ) const;
+        /** Browsed, empty cards / drives (no device that can read them) that the player carries. */
+        std::vector<item_location> empty_cards( int *unbrowsed_cards = nullptr ) const;
+        /** The device rows in the order the sort mode wants (the used device stays first). */
+        std::vector<int> device_order() const;
         void finish_with( const plan &p );
         void draw_header();
         void draw_apps();
@@ -161,6 +184,7 @@ device_window::device_window( Character &who_, item_location &used_ ) :
                        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove ),
     who( who_ ), used( used_ )
 {
+    load_prefs();
     devices = gather_edevices( who );
     // the used device first
     auto it = std::find( devices.begin(), devices.end(), used );
@@ -239,6 +263,178 @@ std::string device_window::why_not( const item_location &loc, efile_action actio
     return std::string();
 }
 
+bool device_window::matches_search( const std::string &text ) const
+{
+    return search.empty() || lcmatch( text, search );
+}
+
+bool device_window::device_matches_search( const item_location &dev ) const
+{
+    if( search.empty() ) {
+        return true;
+    }
+    if( matches_search( remove_color_tags( dev->tname( 1, false ) ) ) ) {
+        return true;
+    }
+    if( dev->is_browsed() ) {
+        for( const item *f : efiles_of( dev ) ) {
+            if( matches_search( remove_color_tags( f->tname( 1, false ) ) ) ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void device_window::load_prefs()
+{
+    // sort modes and the "hide empty" switch are remembered with the character
+    const diag_value *saved = get_avatar().maybe_get_value( "device_ui_prefs" );
+    if( saved != nullptr && saved->is_str() ) {
+        int d = 0;
+        int f = 0;
+        int h = 0;
+        if( sscanf( saved->str().c_str(), "%d,%d,%d", &d, &f, &h ) == 3 && d >= 0 && d <= 6 &&
+            f >= 0 && f <= 3 ) {
+            device_sort = d;
+            file_sort = f;
+            hide_empty = h != 0;
+        }
+    }
+    saved_prefs = string_format( "%d,%d,%d", device_sort, file_sort, hide_empty ? 1 : 0 );
+}
+
+void device_window::save_prefs()
+{
+    const std::string now = string_format( "%d,%d,%d", device_sort, file_sort, hide_empty ? 1 : 0 );
+    if( now != saved_prefs ) {
+        saved_prefs = now;
+        get_avatar().set_value( "device_ui_prefs", now );
+    }
+}
+
+int device_window::charges_needed( const plan &p ) const
+{
+    if( !p.valid || p.files.empty() || p.targets.empty() || p.action == EF_BROWSE ) {
+        return 0;
+    }
+    const bool from_used = efile_activity_actor::efile_action_is_from( p.action );
+    const item_location &to_edevice = from_used ? p.targets.front() : used;
+    time_duration required = efile_activity_actor::total_processing_time( used, p.targets, p.files,
+                             p.action, who, low_skill() );
+    for( const item_location &efile : p.files ) {
+        const item_location parent = efile.parent_item();
+        const efile_transfer transfer( to_edevice, parent );
+        required += efile_activity_actor::efile_processing_time( efile, transfer, p.action, who,
+                    low_skill() );
+    }
+    return required / efile_activity_actor::charge_per_transfer_time;
+}
+
+std::string device_window::charge_warning( const plan &p ) const
+{
+    if( !used->is_tool() ) {
+        return std::string();
+    }
+    const int needed = charges_needed( p );
+    const int have = used->ammo_remaining();
+    if( needed > have ) {
+        return string_format( _( "Low charge: this needs about %d charges, %s has %d.  "
+                                 "It would stop halfway." ), needed, remove_color_tags( used->tname( 1, false ) ), have );
+    }
+    return std::string();
+}
+
+std::vector<item_location> device_window::empty_cards( int *unbrowsed_cards ) const
+{
+    std::vector<item_location> out;
+    if( unbrowsed_cards != nullptr ) {
+        *unbrowsed_cards = 0;
+    }
+    for( const item_location &loc : devices ) {
+        // only plain storage (memory cards, USB drives, hard drives, any variant of them);
+        // everything that can read files itself (phones, laptops, e-readers) stays
+        if( is_used( loc ) || !loc->is_estorage() || !loc->is_tool() ||
+            efile_activity_actor::edevice_has_use( loc.get_item() ) || !loc.held_by( who ) ) {
+            continue;
+        }
+        if( !loc->is_browsed() ) {
+            if( unbrowsed_cards != nullptr ) {
+                ( *unbrowsed_cards )++;
+            }
+            continue;
+        }
+        if( efiles_of( loc ).empty() ) {
+            out.push_back( loc );
+        }
+    }
+    return out;
+}
+
+std::vector<int> device_window::device_order() const
+{
+    std::vector<int> order;
+    for( int i = 1; i < static_cast<int>( devices.size() ); i++ ) {
+        if( hide_empty && devices[i]->is_browsed() && efiles_of( devices[i] ).empty() ) {
+            continue;
+        }
+        if( !device_matches_search( devices[i] ) ) {
+            continue;
+        }
+        order.push_back( i );
+    }
+    const auto file_count = [this]( int i ) {
+        return devices[i]->is_browsed() ? static_cast<int>( efiles_of( devices[i] ).size() ) : -1;
+    };
+    switch( device_sort ) {
+        case 1: // name
+            std::stable_sort( order.begin(), order.end(), [this]( int a, int b ) {
+                return localized_compare( remove_color_tags( devices[a]->tname( 1, false ) ),
+                                          remove_color_tags( devices[b]->tname( 1, false ) ) );
+            } );
+            break;
+        case 2: // most files (not browsed devices last)
+            std::stable_sort( order.begin(), order.end(), [&]( int a, int b ) {
+                const int fa = file_count( a );
+                const int fb = file_count( b );
+                if( ( fa < 0 ) != ( fb < 0 ) ) {
+                    return fa >= 0;
+                }
+                return fa > fb;
+            } );
+            break;
+        case 3: // fewest files (not browsed devices last)
+            std::stable_sort( order.begin(), order.end(), [&]( int a, int b ) {
+                const int fa = file_count( a );
+                const int fb = file_count( b );
+                if( ( fa < 0 ) != ( fb < 0 ) ) {
+                    return fa >= 0;
+                }
+                return fa < fb;
+            } );
+            break;
+        case 4: // most free space
+            std::stable_sort( order.begin(), order.end(), [this]( int a, int b ) {
+                return devices[a]->remaining_ememory() > devices[b]->remaining_ememory();
+            } );
+            break;
+        case 5: // least free space
+            std::stable_sort( order.begin(), order.end(), [this]( int a, int b ) {
+                return devices[a]->remaining_ememory() < devices[b]->remaining_ememory();
+            } );
+            break;
+        case 6: // carried first
+            std::stable_sort( order.begin(), order.end(), [this]( int a, int b ) {
+                return devices[a].held_by( who ) && !devices[b].held_by( who );
+            } );
+            break;
+        default:
+            break;
+    }
+    order.insert( order.begin(), 0 );
+    return order;
+}
+
 std::vector<item_location> device_window::files_of( const item_location &dev,
         bool only_selected ) const
 {
@@ -278,6 +474,10 @@ std::string device_window::estimate_text( const plan &p ) const
         if( total_memory > room ) {
             text += _( "\nNot enough free space!" );
         }
+    }
+    const std::string warning = charge_warning( p );
+    if( !warning.empty() ) {
+        text += "\n" + warning;
     }
     return text;
 }
@@ -355,13 +555,34 @@ void device_window::draw_apps()
 void device_window::draw_devices( const ImVec2 &size )
 {
     ImGui::TextUnformatted( _( "Devices" ) );
+    ImGui::SameLine();
+    static const char *const sort_names[] = { translate_marker( "Default order" ), translate_marker( "Name" ), translate_marker( "Most files" ),
+                                              translate_marker( "Fewest files" ), translate_marker( "Most free space" ),
+                                              translate_marker( "Least free space" ), translate_marker( "Carried first" )
+                                            };
+    ImGui::SetNextItemWidth( ImGui::GetFontSize() * 11 );
+    if( ImGui::BeginCombo( "##device_sort", ( std::string( _( "Sort: " ) ) +
+                           _( sort_names[device_sort] ) ).c_str() ) ) {
+        for( int m = 0; m < static_cast<int>( sizeof( sort_names ) / sizeof( sort_names[0] ) ); m++ ) {
+            if( ImGui::Selectable( _( sort_names[m] ), m == device_sort ) ) {
+                device_sort = m;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    ImGui::Checkbox( _( "Hide empty" ), &hide_empty );
+    if( ImGui::IsItemHovered() ) {
+        ImGui::SetTooltip( "%s", _( "Hide devices that were browsed and hold no files." ) );
+    }
     if( ImGui::BeginChild( "##devices", size, ImGuiChildFlags_Borders ) ) {
         if( ImGui::BeginTable( "##device_table", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp ) ) {
             ImGui::TableSetupColumn( _( "Name" ), ImGuiTableColumnFlags_WidthStretch, 3.0f );
             ImGui::TableSetupColumn( _( "Memory" ), ImGuiTableColumnFlags_WidthStretch, 2.0f );
             ImGui::TableSetupColumn( _( "Files" ), ImGuiTableColumnFlags_WidthStretch, 1.5f );
             ImGui::TableHeadersRow();
-            for( int i = 0; i < static_cast<int>( devices.size() ); i++ ) {
+            const std::vector<int> order = device_order();
+            for( const int i : order ) {
                 const item_location &dev = devices[i];
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -385,6 +606,11 @@ void device_window::draw_devices( const ImVec2 &size )
                     ImGui::TextUnformatted( _( "not browsed" ) );
                 }
             }
+            if( std::find( order.begin(), order.end(), selected_device ) == order.end() ) {
+                // the picked device was hidden by the filter
+                selected_device = 0;
+                selected_files.clear();
+            }
             ImGui::EndTable();
         }
     }
@@ -400,7 +626,26 @@ void device_window::draw_files( const ImVec2 &size )
             ImGui::TextWrapped( "%s", _( "Nobody has looked through this device yet.  "
                                          "Browse it (button below) to see its files." ) );
         } else {
-            const std::vector<item *> files = efiles_of( dev );
+            std::vector<item *> files = efiles_of( dev );
+            if( !search.empty() && !matches_search( remove_color_tags( dev->tname( 1, false ) ) ) ) {
+                // the search text names files, not this device: show only the files that match
+                files.erase( std::remove_if( files.begin(), files.end(), [this]( const item * f ) {
+                    return !matches_search( remove_color_tags( f->tname( 1, false ) ) );
+                } ), files.end() );
+            }
+            if( file_sort != 0 ) {
+                std::stable_sort( files.begin(), files.end(), [this]( const item * a, const item * b ) {
+                    switch( file_sort ) {
+                        case 1:
+                            return localized_compare( remove_color_tags( a->tname( 1, false ) ),
+                                                      remove_color_tags( b->tname( 1, false ) ) );
+                        case 2:
+                            return a->ememory_size() > b->ememory_size();
+                        default:
+                            return a->ememory_size() < b->ememory_size();
+                    }
+                } );
+            }
             if( files.empty() ) {
                 ImGui::TextUnformatted( _( "This device has no files." ) );
             } else {
@@ -412,6 +657,30 @@ void device_window::draw_files( const ImVec2 &size )
                 ImGui::SameLine();
                 if( ImGui::SmallButton( _( "Select none" ) ) ) {
                     selected_files.clear();
+                }
+                ImGui::SameLine();
+                if( ImGui::SmallButton( _( "Invert" ) ) ) {
+                    for( const item *f : files ) {
+                        if( selected_files.count( f ) > 0 ) {
+                            selected_files.erase( f );
+                        } else {
+                            selected_files.insert( f );
+                        }
+                    }
+                }
+                ImGui::SameLine();
+                static const char *const file_sort_names[] = { translate_marker( "Default order" ), translate_marker( "Name" ),
+                                                               translate_marker( "Largest first" ), translate_marker( "Smallest first" )
+                                                             };
+                ImGui::SetNextItemWidth( ImGui::GetFontSize() * 11 );
+                if( ImGui::BeginCombo( "##file_sort", ( std::string( _( "Sort: " ) ) +
+                                       _( file_sort_names[file_sort] ) ).c_str() ) ) {
+                    for( int m = 0; m < 4; m++ ) {
+                        if( ImGui::Selectable( _( file_sort_names[m] ), m == file_sort ) ) {
+                            file_sort = m;
+                        }
+                    }
+                    ImGui::EndCombo();
                 }
                 if( ImGui::BeginTable( "##file_table", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY |
                                        ImGuiTableFlags_SizingStretchProp ) ) {
@@ -490,10 +759,41 @@ void device_window::draw_actions()
             return;
         }
         ImGui::SameLine();
-        plan q = p;
-        q.combo = COMBO_MOVE_ONTO_BROWSE;
-        if( action_button( _( "Browse all + move every file here" ), reason,
-                           _( "Browse all other devices, then move all their files onto the device you are using." ) ) ) {
+        plan q;
+        std::string q_reason;
+        std::string q_tip;
+        if( !unbrowsed.empty() ) {
+            // some devices were not looked through yet: browse them, then move everything over
+            q = p;
+            q.combo = COMBO_MOVE_ONTO_BROWSE;
+            q_reason = reason;
+            q_tip = _( "Browse all other devices, then move all their files onto the device you are using.  "
+                       "Devices that were browsed before are not included; press the button again afterwards "
+                       "to move their files too." );
+        } else {
+            // everything was browsed already: simply move all files of the other devices here
+            q.action = EF_MOVE_ONTO_THIS;
+            for( const item_location &other : devices ) {
+                if( is_used( other ) || !why_not( other, EF_MOVE_ONTO_THIS ).empty() ) {
+                    continue;
+                }
+                const std::vector<item_location> found = files_of( other, false );
+                if( found.empty() ) {
+                    continue;
+                }
+                q.targets.push_back( other );
+                q.files.insert( q.files.end(), found.begin(), found.end() );
+            }
+            q.valid = !q.files.empty();
+            if( !used->is_browsed() ) {
+                q_reason = _( "Browse this device first." );
+            } else if( !q.valid ) {
+                q_reason = _( "No other device has files to move." );
+            }
+            q_tip = _( "Move every file of all other devices onto the device you are using." ) +
+                    std::string( "\n" ) + estimate_text( q );
+        }
+        if( action_button( _( "Browse all + move every file here" ), q_reason, q_tip ) ) {
             finish_with( q );
             return;
         }
@@ -574,6 +874,30 @@ void device_window::draw_actions()
             }
             ImGui::SameLine();
         }
+        const transfer_button all_buttons[] = {
+            { translate_marker( "Copy ALL" ), EF_COPY_FROM_THIS, translate_marker( "Copy every file on this device onto the device chosen on the left." ) },
+            { translate_marker( "Move ALL" ), EF_MOVE_FROM_THIS, translate_marker( "Move every file on this device onto the device chosen on the left." ) }
+        };
+        for( const transfer_button &b : all_buttons ) {
+            plan p;
+            p.action = b.action;
+            if( target_device >= 0 ) {
+                p.targets = { devices[target_device] };
+            }
+            p.files = files_of( dev, false );
+            p.valid = target_device >= 0 && !p.files.empty();
+            std::string reason = target_device < 0 ? std::string( _( "No other device to copy to." ) ) :
+                                 ( p.files.empty() ? std::string( _( "There are no files on this device." ) ) :
+                                   std::string() );
+            if( reason.empty() ) {
+                reason = why_not( dev, b.action );
+            }
+            if( action_button( _( b.label ), reason, _( b.tip ) + std::string( "\n" ) + estimate_text( p ) ) ) {
+                finish_with( p );
+                return;
+            }
+            ImGui::SameLine();
+        }
     } else {
         // files on another device come onto this one
         const transfer_button buttons[] = {
@@ -587,6 +911,30 @@ void device_window::draw_actions()
             p.files = files_of( dev, true );
             p.valid = picked > 0;
             std::string reason = selection_hint;
+            if( reason.empty() ) {
+                reason = why_not( dev, b.action );
+            }
+            if( reason.empty() && ( !used->is_browsed() ) ) {
+                reason = _( "Browse this device first." );
+            }
+            if( action_button( _( b.label ), reason, _( b.tip ) + std::string( "\n" ) + estimate_text( p ) ) ) {
+                finish_with( p );
+                return;
+            }
+            ImGui::SameLine();
+        }
+        const transfer_button all_buttons[] = {
+            { translate_marker( "Copy ALL here" ), EF_COPY_ONTO_THIS, translate_marker( "Copy every file on this device onto the device you are using." ) },
+            { translate_marker( "Move ALL here" ), EF_MOVE_ONTO_THIS, translate_marker( "Move every file on this device onto the device you are using." ) }
+        };
+        for( const transfer_button &b : all_buttons ) {
+            plan p;
+            p.action = b.action;
+            p.targets = { dev };
+            p.files = files_of( dev, false );
+            p.valid = !p.files.empty();
+            std::string reason = p.files.empty() ? std::string( _( "There are no files on this device." ) ) :
+                                 std::string();
             if( reason.empty() ) {
                 reason = why_not( dev, b.action );
             }
@@ -621,6 +969,25 @@ void device_window::draw_actions()
             return;
         }
     }
+
+    // ---- low charge warning for what is currently selected
+    {
+        plan p;
+        p.action = on_used ? EF_COPY_FROM_THIS : EF_COPY_ONTO_THIS;
+        if( on_used ) {
+            if( target_device >= 0 ) {
+                p.targets = { devices[target_device] };
+            }
+        } else {
+            p.targets = { dev };
+        }
+        p.files = files_of( dev, picked > 0 );
+        p.valid = !p.files.empty() && !p.targets.empty();
+        const std::string warning = charge_warning( p );
+        if( !warning.empty() ) {
+            ImGui::TextColored( ImVec4( 1.0f, 0.45f, 0.35f, 1.0f ), "%s", warning.c_str() );
+        }
+    }
 }
 
 void device_window::draw_controls()
@@ -631,6 +998,15 @@ void device_window::draw_controls()
     draw_header();
     draw_apps();
     ImGui::Separator();
+    ImGui::SetNextItemWidth( ImGui::GetFontSize() * 18 );
+    ImGui::InputTextWithHint( "##search", _( "Search devices and files..." ), &search );
+    if( !search.empty() ) {
+        ImGui::SameLine();
+        if( ImGui::SmallButton( _( "Clear" ) ) ) {
+            search.clear();
+        }
+    }
+    save_prefs();
 
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float footer = ImGui::GetFrameHeightWithSpacing() * 5.5f;
@@ -652,6 +1028,33 @@ void device_window::draw_controls()
     if( ImGui::Button( _( "Close" ) ) ) {
         want_close = true;
         is_open = false;
+    }
+    ImGui::SameLine();
+    {
+        int unbrowsed_cards = 0;
+        const std::vector<item_location> empties = empty_cards( &unbrowsed_cards );
+        std::string reason;
+        if( empties.empty() ) {
+            reason = _( "You carry no browsed, empty memory cards or USB drives." );
+            if( unbrowsed_cards > 0 ) {
+                reason += string_format( _( "\n%d not browsed yet are skipped." ), unbrowsed_cards );
+            }
+        }
+        std::string tip = _( "Drop every browsed, empty memory card and USB drive you carry.  "
+                             "Devices that can read files (phones, laptops, e-readers) are never dropped." );
+        for( const item_location &loc : empties ) {
+            tip += "\n  " + remove_color_tags( loc->tname( 1, false ) );
+        }
+        if( unbrowsed_cards > 0 ) {
+            tip += string_format( _( "\n%d not browsed yet are skipped." ), unbrowsed_cards );
+        }
+        const std::string label = empties.empty() ? std::string( _( "Drop empty cards" ) ) :
+                                  string_format( _( "Drop empty cards (%d)" ), static_cast<int>( empties.size() ) );
+        if( action_button( label.c_str(), reason, tip ) ) {
+            cards_to_drop = empties;
+            want_close = true;
+            is_open = false;
+        }
     }
     ImGui::SameLine();
     if( ImGui::Button( _( "Old menu" ) ) ) {
@@ -694,7 +1097,13 @@ result run( Character &who, item_location &used_edevice )
     }
 
     // what the player picked happens after the window is gone
-    if( window.read_file ) {
+    if( !window.cards_to_drop.empty() ) {
+        drop_locations to_drop;
+        for( const item_location &card : window.cards_to_drop ) {
+            to_drop.emplace_back( card, card->count() );
+        }
+        you->drop( to_drop, you->pos_bub() );
+    } else if( window.read_file ) {
         you->use( *window.read_file );
     } else if( !window.app_method.empty() ) {
         you->invoke_item( used_edevice.get_item(), window.app_method );

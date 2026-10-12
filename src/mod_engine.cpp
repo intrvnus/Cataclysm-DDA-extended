@@ -24,9 +24,11 @@
 #include "filesystem.h"
 #include "effect_on_condition.h"
 #include "game.h"
+#include "itype.h"
 #include "global_vars.h"
 #include "input_context.h"
 #include "json.h"
+#include "item.h"
 #include "json_loader.h"
 #include "mod_gfx.h"
 #include "math_parser_diag_value.h"
@@ -236,6 +238,11 @@ struct row_def {
     std::string image;
     int height = 1;
     int image_width = 0;
+    // "show_if": the row only exists while this variable of the player is not 0 / empty;
+    // a leading "!" turns it around.  "u_foo" and "foo" mean the same variable.
+    std::string show_if;
+    // "list": "music_queue" - a list of the songs, "height" lines, click a song to play it
+    std::string list;
 };
 
 struct window_def {
@@ -278,6 +285,10 @@ struct row_layout {
     int height = 1;
     std::string image_key; // picture rows: which album
     std::vector<button_layout> buttons;
+    bool hidden = false; // "show_if" is not met: the row takes no space
+    std::vector<std::string> list_lines; // list rows: the texts
+    int list_first = 0; // list rows: place in the queue of the first line
+    int list_current = -1; // list rows: line of the song that plays
 };
 
 struct window_instance {
@@ -289,6 +300,7 @@ struct window_instance {
     std::unique_ptr<ui_adaptor> ui;
     std::vector<row_layout> layout;
     std::string signature;
+    int wanted_height = 0;
     int hover_row = -1;
     int hover_button = -1;
 };
@@ -353,6 +365,29 @@ point clamp_position( const window_instance &w, point p )
     return point( std::clamp( p.x, 0, max_x ), std::clamp( p.y, 0, max_y ) );
 }
 
+bool row_is_shown( const row_def &row )
+{
+    if( row.show_if.empty() ) {
+        return true;
+    }
+    std::string name = row.show_if;
+    bool negate = false;
+    if( name.front() == '!' ) {
+        negate = true;
+        name.erase( 0, 1 );
+    }
+    if( name.compare( 0, 2, "u_" ) == 0 ) {
+        name.erase( 0, 2 );
+    }
+    const diag_value *val = get_avatar().maybe_get_value( name );
+    bool on = false;
+    if( val != nullptr ) {
+        const std::string text = val->to_string();
+        on = !text.empty() && text != "0" && text != "false" && text != "0.0";
+    }
+    return on != negate;
+}
+
 /** Work out the texts and button places of a window.  Returns true if something changed. */
 bool refresh_layout( window_instance &w )
 {
@@ -369,8 +404,41 @@ bool refresh_layout( window_instance &w )
         row_layout rl;
         rl.y = next_y;
         rl.height = std::max( 1, row.height );
+        if( !row_is_shown( row ) ) {
+            rl.hidden = true;
+            rl.height = 0;
+            sig += "hidden\x1e";
+            layout.push_back( std::move( rl ) );
+            continue;
+        }
         next_y += rl.height;
-        if( !row.image.empty() ) {
+        if( !row.list.empty() ) {
+            int current = -1;
+            const std::vector<std::string> queue = music_queue( current );
+            const int count = static_cast<int>( queue.size() );
+            const int lines = rl.height;
+            int first = 0;
+            if( count > lines ) {
+                first = std::clamp( ( current < 0 ? 0 : current ) - lines / 2, 0, count - lines );
+            }
+            rl.list_first = first;
+            for( int i = 0; i < lines; i++ ) {
+                const int idx = first + i;
+                if( idx < count ) {
+                    rl.list_lines.push_back( string_format( "%s %2d. %s", idx == current ? ">" : " ", idx + 1,
+                                                            queue[idx] ) );
+                } else {
+                    rl.list_lines.push_back( std::string() );
+                }
+            }
+            rl.list_current = current >= first && current < first + lines ? current - first : -1;
+            if( count == 0 ) {
+                rl.list_lines[0] = _( "  (no songs)" );
+            }
+            for( const std::string &line : rl.list_lines ) {
+                sig += line + "\x1f";
+            }
+        } else if( !row.image.empty() ) {
             const int image_w = row.image_width > 0 ? row.image_width : rl.height * 2;
             rl.image_key = music_get_mp3_album();
             switch( row.align ) {
@@ -429,6 +497,7 @@ bool refresh_layout( window_instance &w )
         return false;
     }
     w.signature = sig;
+    w.wanted_height = next_y + 2;
     w.layout = std::move( layout );
     return true;
 }
@@ -447,6 +516,20 @@ void draw_window( window_instance &w )
     for( size_t r = 0; r < w.layout.size(); r++ ) {
         const row_layout &rl = w.layout[r];
         const int y = rl.y + 1;
+        if( rl.hidden ) {
+            continue;
+        }
+        if( !def.rows[r].list.empty() ) {
+            for( size_t i = 0; i < rl.list_lines.size(); i++ ) {
+                const bool hot = static_cast<int>( r ) == w.hover_row && static_cast<int>( i ) == w.hover_button;
+                const nc_color col = static_cast<int>( i ) == rl.list_current ? c_light_green :
+                                     ( hot ? hilite( c_white ) : c_light_gray );
+                if( !rl.list_lines[i].empty() ) {
+                    trim_and_print( w.win, point( 1, y + static_cast<int>( i ) ), inner, col, rl.list_lines[i] );
+                }
+            }
+            continue;
+        }
         if( !def.rows[r].image.empty() ) {
             continue; // the picture is drawn after the window, see below
         }
@@ -464,7 +547,7 @@ void draw_window( window_instance &w )
     wnoutrefresh( w.win );
     // pictures go on top of the window that was just drawn
     for( size_t r = 0; r < w.layout.size(); r++ ) {
-        if( def.rows[r].image.empty() ) {
+        if( def.rows[r].image.empty() || w.layout[r].hidden ) {
             continue;
         }
         const row_layout &rl = w.layout[r];
@@ -485,6 +568,18 @@ void place_window( window_instance &w )
     }
 }
 
+/** Refresh a window; it grows or shrinks when rows appear or disappear.  True if it needs a redraw. */
+bool update_window( window_instance &w )
+{
+    bool changed = refresh_layout( w );
+    if( changed && w.wanted_height >= 3 && w.wanted_height != w.height ) {
+        w.height = w.wanted_height;
+        w.pos = clamp_position( w, w.pos );
+        place_window( w );
+    }
+    return changed;
+}
+
 void open_window( const std::string &id )
 {
     if( find_instance( id ) != nullptr ) {
@@ -501,9 +596,10 @@ void open_window( const std::string &id )
     w->id = id;
     w->width = std::clamp( def.width, 10, std::max( 10, TERMX ) );
     w->height = window_height( def );
+    refresh_layout( *w );
+    w->height = std::max( 3, w->wanted_height );
     const window_state &saved = window_states()[id];
     w->pos = clamp_position( *w, saved.has_pos ? saved.pos : def.default_pos );
-    refresh_layout( *w );
     w->ui = std::make_unique<ui_adaptor>();
     window_instance *raw = w.get();
     w->ui->on_screen_resize( [raw]( ui_adaptor & ) {
@@ -617,6 +713,15 @@ hit_result hit_test( const point &cell )
             if( ry < rl.y || ry >= rl.y + rl.height ) {
                 continue;
             }
+            if( !rl.list_lines.empty() ) {
+                const int line = ry - rl.y;
+                if( line >= 0 && line < static_cast<int>( rl.list_lines.size() ) &&
+                    !rl.list_lines[line].empty() ) {
+                    res.row = static_cast<int>( r );
+                    res.button = line;
+                }
+                break;
+            }
             for( size_t b = 0; b < rl.buttons.size(); b++ ) {
                 if( rx >= rl.buttons[b].x && rx < rl.buttons[b].x + rl.buttons[b].width ) {
                     res.row = static_cast<int>( r );
@@ -658,7 +763,7 @@ void set_hover( window_instance *w, int row, int button )
         if( i->hover_row != new_row || i->hover_button != new_button ) {
             i->hover_row = new_row;
             i->hover_button = new_button;
-            if( refresh_layout( *i ) && i->ui ) {
+            if( update_window( *i ) && i->ui ) {
                 i->ui->invalidate_ui();
             }
         }
@@ -689,6 +794,28 @@ std::string album_display_name()
         }
     }
     return current;
+}
+
+/** Battery of the player or phone that plays the music, in percent; -1 if there is none. */
+int music_device_battery()
+{
+    static const std::vector<itype_id> ids = { itype_id( "mp3_on" ), itype_id( "smartphone_music" ),
+            itype_id( "afs_atomic_smartphone_music" ), itype_id( "afs_atomic_wraitheon_music" )
+                                             };
+    const avatar &me = get_avatar();
+    const std::vector<const item *> found = me.items_with( [&]( const item & it ) {
+        return std::find( ids.begin(), ids.end(), it.typeId() ) != ids.end();
+    } );
+    if( found.empty() ) {
+        return -1;
+    }
+    const item &dev = *found.front();
+    const int have = dev.ammo_remaining();
+    const int total = have + dev.remaining_ammo_capacity();
+    if( total <= 0 ) {
+        return -1;
+    }
+    return std::clamp( have * 100 / total, 0, 100 );
 }
 
 std::optional<std::string> resolve_placeholder( const std::string &key )
@@ -731,6 +858,23 @@ std::optional<std::string> resolve_placeholder( const std::string &key )
         if( pos >= 0 && len > 0 ) {
             filled = std::clamp( static_cast<int>( std::round( ( width - 2 ) * pos / len ) ), 0, width - 2 );
         }
+        return "[" + std::string( filled, '#' ) + std::string( ( width - 2 ) - filled, '-' ) + "]";
+    } else if( name == "music_shuffle" ) {
+        return std::string( music_get_shuffle() ? _( "On" ) : _( "Off" ) );
+    } else if( name == "music_repeat" ) {
+        const int mode = music_get_repeat();
+        return std::string( mode == 2 ? _( "Song" ) : ( mode == 1 ? _( "Album" ) : _( "Off" ) ) );
+    } else if( name == "music_battery" ) {
+        const int pct = music_device_battery();
+        return pct < 0 ? std::string( "--" ) : string_format( "%d%%", pct );
+    } else if( name == "music_battery_bar" ) {
+        int width = 10;
+        if( !arg.empty() ) {
+            width = std::clamp( atoi( arg.c_str() ), 3, 40 );
+        }
+        const int pct = music_device_battery();
+        const int filled = pct < 0 ? 0 : std::clamp( static_cast<int>( std::round( ( width - 2 ) * pct / 100.0 ) ),
+                           pct > 0 ? 1 : 0, width - 2 );
         return "[" + std::string( filled, '#' ) + std::string( ( width - 2 ) - filled, '-' ) + "]";
     } else if( name == "music_volume" ) {
         return string_format( "%d", music_volume() );
@@ -858,7 +1002,14 @@ void load_window( const JsonObject &jo, const std::string &src )
         } else {
             JsonObject ro = row_val.get_object();
             row.align = read_align( ro );
-            if( ro.has_string( "image" ) ) {
+            row.show_if = ro.get_string( "show_if", "" );
+            if( ro.has_string( "list" ) ) {
+                row.list = ro.get_string( "list" );
+                if( row.list != "music_queue" ) {
+                    ro.throw_error_at( "list", "list must be \"music_queue\"" );
+                }
+                row.height = std::clamp( ro.get_int( "height", 6 ), 1, 30 );
+            } else if( ro.has_string( "image" ) ) {
                 row.image = ro.get_string( "image" );
                 if( row.image != "album_cover" ) {
                     ro.throw_error_at( "image", "image must be \"album_cover\"" );
@@ -1009,7 +1160,7 @@ void tick()
 
         // 5. live content of the windows
         for( std::unique_ptr<window_instance> &w : open_windows() ) {
-            if( refresh_layout( *w ) && w->ui ) {
+            if( update_window( *w ) && w->ui ) {
                 w->ui->invalidate_ui();
             }
         }
@@ -1105,7 +1256,12 @@ bool handle_mouse( input_context &ctxt, const std::string &action )
             const auto def_it = window_registry().find( finished.id );
             if( def_it != window_registry().end() && finished.row < static_cast<int>( def_it->second.rows.size() ) ) {
                 const row_def &row = def_it->second.rows[finished.row];
-                if( finished.button < static_cast<int>( row.buttons.size() ) ) {
+                if( !row.list.empty() ) {
+                    window_instance *lw = find_instance( finished.id );
+                    if( lw != nullptr && finished.row < static_cast<int>( lw->layout.size() ) ) {
+                        music_play_index( lw->layout[finished.row].list_first + finished.button );
+                    }
+                } else if( finished.button < static_cast<int>( row.buttons.size() ) ) {
                     // copy: the effect may close the window
                     const effect_on_condition_id eoc = row.buttons[finished.button].eoc;
                     run_eoc( eoc, "a button of the window " + finished.id );

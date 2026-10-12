@@ -2346,6 +2346,19 @@ void options_manager::add_options_graphics()
            );
 
         get_option( "ALT_TITLE" ).setPrerequisite( "ENABLE_ASCII_TITLE" );
+
+        add( "TITLE_ART_STYLE", page_id, to_translation( "Title screen picture" ),
+             to_translation( "Pictures for the title screen, one of them is picked at random.  Braille: finest detail, needs braille dots in the font (the unifont fallback has them).  Blocks: coarser, made of half blocks.  Classic: the old text logo.  Seasonal logos still take their place on holidays." ),
+        { { "braille", to_translation( "Braille" ) }, { "blocks", to_translation( "Blocks" ) }, { "classic", to_translation( "Classic" ) } },
+        "braille"
+           );
+
+        get_option( "TITLE_ART_STYLE" ).setPrerequisite( "ENABLE_ASCII_TITLE" );
+
+        add( "CUSTOM_LOADING_ART", page_id, to_translation( "Pictures on the loading screen" ),
+             to_translation( "If true, the loading screen shows a random picture from the gfx/loading folder (tiles version only).  If false, the usual loading picture is used." ),
+             true
+           );
     } );
 
     add_empty_line();

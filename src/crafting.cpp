@@ -2652,8 +2652,8 @@ bool Character::disassemble( item_location target, bool interactive, bool disass
         return false;
     }
 
-    if( obj.is_favorite &&
-        !query_yn( _( "You're going to disassemble favorited item.\nAre you sure?" ) ) ) {
+    if( ( obj.is_favorite || obj.is_guarded() ) &&
+        !query_yn( _( "You're going to disassemble favorited or Keep-marked item.\nAre you sure?" ) ) ) {
         return false;
     }
 

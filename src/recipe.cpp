@@ -1295,7 +1295,7 @@ std::function<bool( const item & )> recipe::get_component_filter(
     std::function<bool( const item & )> favorite_filter = return_true<item>;
     if( flags_forbid_favorites ) {
         favorite_filter = []( const item & component ) {
-            return !component.is_favorite;
+            return !component.is_favorite && !component.is_guarded();
         };
     }
 

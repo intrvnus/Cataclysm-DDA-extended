@@ -603,6 +603,20 @@ void Character::drop( const drop_locations &what, const tripoint_bub_ms &target,
         return;
     }
 
+    if( is_avatar() && !stash ) {
+        // Moddable engine: ask before dropping items with a Keep mark
+        std::string guarded_names;
+        for( const drop_location &item_pair : what ) {
+            if( item_pair.first && item_pair.first->is_guarded() ) {
+                guarded_names += "\n  " + item_pair.first->tname( 1, false );
+            }
+        }
+        if( !guarded_names.empty() &&
+            !query_yn( _( "These items are marked to keep:%s\n\nDrop them anyway?" ), guarded_names ) ) {
+            return;
+        }
+    }
+
     const tripoint_rel_ms placement = target - pos_bub();
     std::vector<drop_or_stash_item_info> items;
     for( drop_location item_pair : what ) {

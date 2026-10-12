@@ -277,6 +277,18 @@ bool trade_ui::_confirm_trade() const
 {
     npc const &np = *_parties[_trader]->as_npc();
 
+    // Moddable engine: ask before selling items with a Keep mark
+    std::string guarded_names;
+    for( const entry_t &entry : _panes[_you]->to_trade() ) {
+        if( entry.first && entry.first->is_guarded() ) {
+            guarded_names += "\n  " + entry.first->tname( 1, false );
+        }
+    }
+    if( !guarded_names.empty() &&
+        !query_yn( _( "These items are marked to keep:%s\n\nSell them anyway?" ), guarded_names ) ) {
+        return false;
+    }
+
     if( !npc_trading::npc_will_accept_trade( np, _balance ) ) {
         if( np.max_credit_extended() == 0 ) {
             popup( _( "You'll need to offer me more than that." ) );

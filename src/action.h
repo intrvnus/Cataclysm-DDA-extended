@@ -706,6 +706,8 @@ bool try_run( const std::string &action );
  * The effect should only change the item (flags, variables, ...) and must not delete or move it.
  */
 bool try_run_on_item( const std::string &action, item_location &loc );
+/** For an inventory-menu mod action with "toggle_mark": the json_flag id to toggle, else an empty string. */
+std::string toggle_mark_of( const std::string &action );
 } // namespace mod_actions
 
 #endif // CATA_SRC_ACTION_H

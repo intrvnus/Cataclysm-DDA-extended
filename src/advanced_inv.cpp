@@ -945,6 +945,12 @@ bool advanced_inventory::fill_lists_with_pane_items( Character &player_character
                 continue;
             }
 
+            // Moddable engine: items with a Keep / Trade mark stay with the player
+            if( ( spane.get_area() == AIM_INVENTORY || spane.get_area() == AIM_WORN ) &&
+                it->is_mark_protected() ) {
+                continue;
+            }
+
             if( sort_priority == advanced_inv_sortby::SORTBY_NONE ) {
                 if( it->is_favorite ) {
                     fav_list.emplace_back( it, it->count() );

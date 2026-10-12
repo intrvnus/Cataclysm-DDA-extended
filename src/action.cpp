@@ -20,6 +20,7 @@
 #include "dialogue.h"
 #include "effect_on_condition.h"
 #include "flag.h"
+#include "item_marks.h"
 #include "flexbuffer_json.h"
 #include "game.h"
 #include "game_constants.h"
@@ -1281,6 +1282,10 @@ struct mod_action {
     translation name;
     effect_on_condition_id eoc;
     std::string context = "DEFAULTMODE";
+    /** "INVENTORY" context: toggle this mark (json_flag id) on the highlighted item(s) instead of an eoc */
+    std::string toggle_mark;
+    /** "DEFAULTMODE" context: drop every carried item with this mark (json_flag id) instead of an eoc */
+    std::string drop_marked;
 };
 
 std::vector<mod_action> &registry()
@@ -1302,10 +1307,19 @@ void load( const JsonObject &jo, const std::string &src )
     if( act.context != "DEFAULTMODE" && act.context != "INVENTORY" ) {
         jo.throw_error_at( "context", "mod_action context must be \"DEFAULTMODE\" or \"INVENTORY\"" );
     }
-    if( !jo.has_member( "eoc" ) ) {
-        jo.throw_error( "mod_action needs an \"eoc\" (an effect_on_condition id or an inline effect_on_condition)" );
+    act.toggle_mark = jo.get_string( "toggle_mark", "" );
+    act.drop_marked = jo.get_string( "drop_marked", "" );
+    if( !act.toggle_mark.empty() && act.context != "INVENTORY" ) {
+        jo.throw_error_at( "toggle_mark", "toggle_mark only works with \"context\": \"INVENTORY\"" );
     }
-    act.eoc = effect_on_conditions::load_inline_eoc( jo.get_member( "eoc" ), src );
+    if( !act.drop_marked.empty() && act.context != "DEFAULTMODE" ) {
+        jo.throw_error_at( "drop_marked", "drop_marked only works with \"context\": \"DEFAULTMODE\"" );
+    }
+    if( jo.has_member( "eoc" ) ) {
+        act.eoc = effect_on_conditions::load_inline_eoc( jo.get_member( "eoc" ), src );
+    } else if( act.toggle_mark.empty() && act.drop_marked.empty() ) {
+        jo.throw_error( "mod_action needs an \"eoc\" (an effect_on_condition id or an inline effect_on_condition), or \"toggle_mark\" / \"drop_marked\"" );
+    }
     // Register default keys right away (the input manager already exists when mods load).
     // Keys the player already configured for this action are kept.
     JsonArray bindings = jo.has_array( "bindings" ) ? jo.get_array( "bindings" ) : JsonArray();
@@ -1343,6 +1357,10 @@ bool try_run( const std::string &action )
 {
     for( const mod_action &act : registry() ) {
         if( act.id == action && act.context == "DEFAULTMODE" ) {
+            if( !act.drop_marked.empty() ) {
+                item_marks::drop_marked( get_avatar(), flag_id( act.drop_marked ) );
+                return true;
+            }
             if( !act.eoc.is_valid() ) {
                 debugmsg( "mod_action %s refers to unknown effect_on_condition %s", act.id, act.eoc.str() );
                 return true;
@@ -1355,10 +1373,24 @@ bool try_run( const std::string &action )
     return false;
 }
 
+std::string toggle_mark_of( const std::string &action )
+{
+    for( const mod_action &act : registry() ) {
+        if( act.id == action && act.context == "INVENTORY" ) {
+            return act.toggle_mark;
+        }
+    }
+    return std::string();
+}
+
 bool try_run_on_item( const std::string &action, item_location &loc )
 {
     for( const mod_action &act : registry() ) {
         if( act.id == action && act.context == "INVENTORY" ) {
+            if( !act.toggle_mark.empty() ) {
+                // handled by the inventory menu for the whole stack (see toggle_mark_of)
+                return true;
+            }
             if( !act.eoc.is_valid() ) {
                 debugmsg( "mod_action %s refers to unknown effect_on_condition %s", act.id, act.eoc.str() );
                 return true;

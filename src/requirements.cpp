@@ -1024,7 +1024,7 @@ nc_color item_comp::get_color( bool has_one, const read_only_visitable &crafting
         }
         // Will use favorited component
         if( !has( crafting_inv, [&filter]( const item & it ) {
-        return filter( it ) && !it.is_favorite;
+        return filter( it ) && !it.is_favorite && !it.is_guarded();
         }, batch ) ) {
             return c_pink;
         }

@@ -483,7 +483,7 @@ void load_albums( const JsonObject &jo, const std::string &src, const cata_path 
         albums.push_back( { id, id, name, folder.generic_u8string() } );
         new_ids.push_back( id );
 
-        // The item the player carries around.  It has no weight and takes (almost) no room.
+        // The item the player carries around.  It has no weight and takes almost no room (1 ml, so an mp3 player holds only a few).
         std::ostringstream item_json;
         JsonOut item_out( item_json );
         item_out.start_object();
@@ -495,17 +495,17 @@ void load_albums( const JsonObject &jo, const std::string &src, const cata_path 
         item_out.end_object();
         item_out.member( "description",
                          "A music album with " + std::to_string( files.size() ) +
-                         " songs.  Choose it from the menu of an mp3 player (use the mp3 player, "
-                         "then \"Choose album\") to listen to it while you carry it." );
+                         " songs.  Carry it, or store it inside an mp3 player, then choose it from the "
+                         "menu of the mp3 player (use the mp3 player, then \"Choose album\")." );
         item_out.member( "category", "other" );
         item_out.member( "weight", "0 g" );
-        item_out.member( "volume", "0 ml" );
+        item_out.member( "volume", "1 ml" );
         item_out.member( "price", "1 USD" );
         item_out.member( "price_postapoc", "10 cent" );
         item_out.member( "symbol", "?" );
         item_out.member( "color", "light_cyan" );
         item_out.member( "material", std::vector<std::string> { "plastic" } );
-        item_out.member( "flags", std::vector<std::string> { "ZERO_WEIGHT" } );
+        item_out.member( "flags", std::vector<std::string> { "ZERO_WEIGHT", "OWN_MUSIC_ALBUM" } );
         item_out.end_object();
         loader.load_generated_json( item_json.str(), src, base_path, full_path );
     }

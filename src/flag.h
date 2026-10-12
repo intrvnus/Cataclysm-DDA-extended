@@ -479,6 +479,12 @@ class json_flag
             return protect_from_drop_;
         }
 
+        /** Guarded items (a "Keep" mark): the game asks before they are dropped, thrown, disassembled
+         *  or sold, crafting does not use them unless the player agrees, and "move all" skips them. */
+        bool guard() const {
+            return guard_;
+        }
+
         /** "pickup": items with this flag are always picked up by autopickup,
          *  "ignore": they never are.  Empty: the normal autopickup rules decide. */
         const std::string &auto_pickup_mode() const {
@@ -509,6 +515,7 @@ class json_flag
         bool user_mark_ = false;
         int sort_priority_ = 0;
         bool protect_from_drop_ = false;
+        bool guard_ = false;
         std::string auto_pickup_mode_;
 
         /** Load flag definition from JSON */
