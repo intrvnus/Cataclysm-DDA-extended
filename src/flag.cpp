@@ -429,6 +429,10 @@ void json_flag::load( const JsonObject &jo, std::string_view )
     optional( jo, was_loaded, "user_mark", user_mark_, false );
     optional( jo, was_loaded, "sort_priority", sort_priority_, 0 );
     optional( jo, was_loaded, "protect_from_drop", protect_from_drop_, false );
+    optional( jo, was_loaded, "auto_pickup", auto_pickup_mode_ );
+    if( !auto_pickup_mode_.empty() && auto_pickup_mode_ != "pickup" && auto_pickup_mode_ != "ignore" ) {
+        jo.throw_error_at( "auto_pickup", "auto_pickup must be \"pickup\" or \"ignore\"" );
+    }
 }
 
 void json_flag::check_consistency()

@@ -243,33 +243,47 @@ void input_manager::register_mod_action( const std::string &action_id, const std
 
     t_input_event_list events;
     for( const JsonObject keybinding : bindings ) {
-        const std::string input_method = keybinding.get_string( "input_method", "keyboard_char" );
-        input_event ev;
-        if( input_method == "keyboard_char" || input_method == "keyboard" ) {
-            ev.type = input_event_t::keyboard_char;
+        // Default is "keyboard_any" (both a character and a key-code event), the same as the
+        // game's own keybindings use for keys like F1-F12.  A key-code only binding is not
+        // shown or used while the game is in character mode, and vice versa.
+        const std::string input_method = keybinding.get_string( "input_method", "keyboard_any" );
+        std::vector<input_event> new_events( 1 );
+        if( input_method == "keyboard_any" ) {
+            new_events.resize( 2 );
+            new_events[0].type = input_event_t::keyboard_char;
+            new_events[1].type = input_event_t::keyboard_code;
+        } else if( input_method == "keyboard_char" || input_method == "keyboard" ) {
+            new_events[0].type = input_event_t::keyboard_char;
         } else if( input_method == "keyboard_code" ) {
-            ev.type = input_event_t::keyboard_code;
+            new_events[0].type = input_event_t::keyboard_code;
         } else {
             keybinding.throw_error_at( "input_method",
-                                       "mod actions only support keyboard_char and keyboard_code" );
+                                       "mod actions only support keyboard_any, keyboard_char and keyboard_code" );
         }
         if( keybinding.has_member( "mod" ) ) {
             for( const JsonValue val : keybinding.get_array( "mod" ) ) {
                 const std::string str = val;
+                keymod_t mod = keymod_t::ctrl;
                 if( str == "ctrl" ) {
-                    ev.modifiers.emplace( keymod_t::ctrl );
+                    mod = keymod_t::ctrl;
                 } else if( str == "alt" ) {
-                    ev.modifiers.emplace( keymod_t::alt );
+                    mod = keymod_t::alt;
                 } else if( str == "shift" ) {
-                    ev.modifiers.emplace( keymod_t::shift );
+                    mod = keymod_t::shift;
                 } else {
                     val.throw_error( "unknown modifier name" );
                 }
+                for( input_event &ev : new_events ) {
+                    ev.modifiers.emplace( mod );
+                }
             }
         }
-        ev.sequence.push_back( get_keycode( ev.type, keybinding.get_string( "key" ) ) );
-        if( std::find( events.begin(), events.end(), ev ) == events.end() ) {
-            events.emplace_back( ev );
+        const std::string key_name = keybinding.get_string( "key" );
+        for( input_event &ev : new_events ) {
+            ev.sequence.push_back( get_keycode( ev.type, key_name ) );
+            if( std::find( events.begin(), events.end(), ev ) == events.end() ) {
+                events.emplace_back( ev );
+            }
         }
     }
 

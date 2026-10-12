@@ -34,6 +34,8 @@
 #include "effect_on_condition.h"
 #include "enum_traits.h"
 #include "enums.h"
+#include "event.h"
+#include "event_bus.h"
 #include "faction.h"
 #include "flag.h"
 #include "game.h"
@@ -1581,6 +1583,10 @@ void Character::complete_craft( item &craft, const std::optional<tripoint_bub_ms
     }
 
     recoil = MAX_RECOIL;
+
+    if( !making.is_practice() && !making.result().is_null() ) {
+        get_event_bus().send<event_type::character_crafts_item>( getID(), making.result() );
+    }
 
     inv->restack( *this );
     for( const effect_on_condition_id &eoc : making.result_eocs ) {

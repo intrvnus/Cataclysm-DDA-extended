@@ -48,6 +48,7 @@
 #include "memorial_logger.h"
 #include "messages.h"
 #include "mission.h"
+#include "mod_engine.h"
 #include "monster.h"
 #include "mtype.h"
 #include "music.h"
@@ -106,6 +107,7 @@ namespace turn_handler
 {
 bool cleanup_at_end()
 {
+    mod_engine::shutdown_windows();
     avatar &u = get_avatar();
     if( g->uquit == QUIT_DIED || g->uquit == QUIT_SUICIDE ) {
         // Put (non-hallucinations) into the overmap so they are not lost.

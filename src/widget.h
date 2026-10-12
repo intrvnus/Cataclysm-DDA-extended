@@ -100,6 +100,7 @@ enum class widget_var : int {
     wielding_mode_text,  // Currently wielded weapon's firing mode
     wielding_ammo_text,  // Currently wielded weapon's ammo
     wind_text,      // Wind level and direction, color string
+    mod_text,       // Text made from the "mod_text" template of the widget (see MODDABLE_ENGINE.md)
     last // END OF ENUMS
 };
 
@@ -269,6 +270,8 @@ class widget
         widget_var _var = widget_var::last;
         // Specification for widget_var::custom
         widget_custom_var _custom_var;
+        // Template for widget_var::mod_text, e.g. "Now playing: {music_track}"
+        std::string _mod_text;
         // Minimum meaningful var value, set by set_default_var_range
         int _var_min = INT_MIN;
         // Maximum meaningful var value, set by set_default_var_range
@@ -333,6 +336,8 @@ class widget
         static void reset();
         // Get all widget instances from the factory
         static const std::vector<widget> &get_all();
+        // True if any loaded widget shows a "mod_text" (needs regular redraws)
+        static bool any_uses_mod_text();
         // Get this widget's id
         const widget_id &getId() const;
 

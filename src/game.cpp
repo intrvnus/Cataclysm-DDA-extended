@@ -151,6 +151,7 @@
 #include "memorial_logger.h"
 #include "messages.h"
 #include "mission.h"
+#include "mod_engine.h"
 #include "mod_manager.h"
 #include "monexamine.h"
 #include "mongroup.h"
@@ -2566,6 +2567,11 @@ bool game::handle_mouseview( input_context &ctxt, std::string &action )
 
     do {
         action = ctxt.handle_input();
+        if( action == "MOUSE_MOVE" && mod_engine::handle_mouse( ctxt, action ) ) {
+            // A floating window of a mod is being dragged
+            ui_manager::redraw_invalidated();
+            continue;
+        }
         if( action == "MOUSE_MOVE" ) {
             const std::optional<tripoint_bub_ms> mouse_pos = ctxt.get_coordinates( w_terrain,
                     ter_view_p.raw().xy(),

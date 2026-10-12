@@ -975,8 +975,54 @@ void worldfactory::show_active_world_mods( const std::vector<mod_id> &world_mods
     }
 }
 
+bool worldfactory::edit_world_mods( WORLD *world )
+{
+    if( world == nullptr ) {
+        return false;
+    }
+    if( !query_yn( _( "Changing the mods of an existing world can break saves that use content from "
+                      "a mod you remove.  Make a backup of the world first.  Continue?" ) ) ) {
+        return false;
+    }
+    const std::vector<mod_id> before = world->active_mod_order;
+
+    catacurses::window win;
+    ui_adaptor ui;
+    const auto init_windows = [&]( ui_adaptor & ui ) {
+        const int iMinScreenWidth = std::max( FULL_SCREEN_WIDTH, TERMX / 2 );
+        const int iOffsetX = TERMX > FULL_SCREEN_WIDTH ? ( TERMX - iMinScreenWidth ) / 2 : 0;
+        win = catacurses::newwin( TERMY, iMinScreenWidth, point( iOffsetX, 0 ) );
+        ui.position_from_window( win );
+    };
+    init_windows( ui );
+    ui.on_screen_resize( init_windows );
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        wnoutrefresh( win );
+    } );
+
+    show_worldgen_tab_modselection( win, world, false,
+                                    string_format( _( "< Mods of world \"%s\" >" ), world->world_name ) );
+
+    if( world->active_mod_order == before ) {
+        return false;
+    }
+    for( const mod_id &checked_mod : world->active_mod_order ) {
+        if( !mman_ui->confirm_mod_compatibility( checked_mod, world->active_mod_order ) ) {
+            popup( _( "Some of the active mods are incompatible, the mod list was not changed." ) );
+            world->active_mod_order = before;
+            return false;
+        }
+    }
+    if( !query_yn( _( "Save the new list of mods for this world?" ) ) ) {
+        world->active_mod_order = before;
+        return false;
+    }
+    mman->save_mods_list( world );
+    return true;
+}
+
 int worldfactory::show_worldgen_tab_modselection( const catacurses::window &win, WORLD *world,
-        bool with_tabs )
+        bool with_tabs, const std::string &title )
 {
     // Use active_mod_order of the world,
     // saves us from writing 'world->active_mod_order' all the time.
@@ -1173,6 +1219,9 @@ int worldfactory::show_worldgen_tab_modselection( const catacurses::window &win,
             top_tab_map = draw_worldgen_tabs( win, sel_top_tab );
         } else {
             werase( win );
+            if( !title.empty() ) {
+                draw_border( win, BORDER_COLOR, title, c_white );
+            }
             draw_border_below_tabs( win );
             wattron( win, c_light_gray );
             mvwaddch( win, point( 0, 2 ), LINE_OXXO ); // .-

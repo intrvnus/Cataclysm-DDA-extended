@@ -26,6 +26,7 @@
 #include "generic_factory.h"
 #include "magic.h"
 #include "magic_enchantment.h"
+#include "mod_engine.h"
 #include "npc.h"
 #include "output.h"
 #include "panels.h"
@@ -76,6 +77,16 @@ void widget::reset()
 const std::vector<widget> &widget::get_all()
 {
     return widget_factory.get_all();
+}
+
+bool widget::any_uses_mod_text()
+{
+    for( const widget &w : widget_factory.get_all() ) {
+        if( w._var == widget_var::mod_text ) {
+            return true;
+        }
+    }
+    return false;
 }
 
 const widget_id &widget::getId() const
@@ -234,6 +245,8 @@ std::string enum_to_string<widget_var>( widget_var data )
             return "wielding_ammo_text";
         case widget_var::wind_text:
             return "wind_text";
+        case widget_var::mod_text:
+            return "mod_text";
         // Fall-through - invalid
         case widget_var::last:
             break;
@@ -509,6 +522,10 @@ void widget::load( const JsonObject &jo, std::string_view )
 
     if( _var == widget_var::custom ) {
         mandatory( jo, was_loaded, "custom_var", _custom_var );
+    }
+
+    if( _var == widget_var::mod_text ) {
+        mandatory( jo, was_loaded, "mod_text", _mod_text );
     }
 
     if( jo.has_string( "bodypart" ) ) {
@@ -1170,6 +1187,7 @@ bool widget::uses_text_function() const
         case widget_var::wielding_mode_text:
         case widget_var::wielding_ammo_text:
         case widget_var::wind_text:
+        case widget_var::mod_text:
             return true;
         default:
             return false;
@@ -1334,6 +1352,10 @@ std::string widget::color_text_function_string( const avatar &ava, unsigned int 
             break;
         case widget_var::wind_text:
             desc = display::wind_text_color( ava );
+            break;
+        case widget_var::mod_text:
+            desc.first = mod_engine::expand_text( _mod_text );
+            apply_color = false; // The template may contain color tags itself
             break;
         case widget_var::compass_text:
             desc.first = display::colorized_compass_text( _direction, _width );

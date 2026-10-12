@@ -2005,6 +2005,7 @@ void sfx::load_playlist( const JsonObject & ) { }
 void sfx::load_mod_playlist( const JsonObject &, const std::string &, const cata_path &,
                              const cata_path & ) { }
 void sfx::unload_mod_music() { }
+void sfx::play_sound_file( const std::string &, int ) { }
 void sfx::play_variant_sound( const std::string &, const std::string &, int, units::angle, double,
                               double ) { }
 void sfx::play_variant_sound( const std::string &, const std::string &, int ) { }

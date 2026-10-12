@@ -81,6 +81,20 @@ static bool within_autopickup_limits( const item *pickup_item )
  */
 static rule_state get_autopickup_rule( const item *pickup_item )
 {
+    // Marks (json_flags) can decide on their own: "auto_pickup": "pickup" or "ignore"
+    bool flagged_pickup = false;
+    for( const json_flag &jf : json_flag::get_all() ) {
+        if( jf.auto_pickup_mode().empty() || !pickup_item->has_flag( jf.id ) ) {
+            continue;
+        }
+        if( jf.auto_pickup_mode() == "ignore" ) {
+            return rule_state::BLACKLISTED;
+        }
+        flagged_pickup = true;
+    }
+    if( flagged_pickup ) {
+        return rule_state::WHITELISTED;
+    }
     std::string item_name = pickup_item->tname( 1, false );
     rule_state pickup_state = get_auto_pickup().check_item( item_name );
 

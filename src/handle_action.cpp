@@ -68,6 +68,7 @@
 #include "math_parser_diag_value.h"
 #include "mdarray.h"
 #include "messages.h"
+#include "mod_engine.h"
 #include "monster.h"
 #include "move_mode.h"
 #include "mtype.h"
@@ -434,16 +435,21 @@ input_context game::get_player_input( std::string &action )
                 g->invalidate_main_ui_adaptor();
             }
 
+            mod_engine::tick();
             ui_manager::redraw_invalidated();
         } while( handle_mouseview( ctxt, action ) && uquit != QUIT_WATCH
                  && ( action != "TIMEOUT" || !current_turn.has_timeout_elapsed() ) );
         ctxt.reset_timeout();
     } else {
         ctxt.set_timeout( 125 );
+        mod_engine::tick();
+        ui_manager::redraw_invalidated();
         while( handle_mouseview( ctxt, action ) ) {
             if( action == "TIMEOUT" && current_turn.has_timeout_elapsed() ) {
                 break;
             }
+            mod_engine::tick();
+            ui_manager::redraw_invalidated();
         }
         ctxt.reset_timeout();
     }
@@ -3142,6 +3148,11 @@ bool game::handle_action()
     }
 
     if( act == ACTION_NULL ) {
+        if( ( action == "SELECT" || action == "CLICK_AND_DRAG" || action == "SEC_SELECT" ) &&
+            mod_engine::handle_mouse( ctxt, action ) ) {
+            // A floating window of a mod used the mouse click.
+            return false;
+        }
         act = look_up_action( action );
 
         if( act == ACTION_NULL && mod_actions::try_run( action ) ) {

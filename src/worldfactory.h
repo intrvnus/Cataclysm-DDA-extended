@@ -147,6 +147,12 @@ class worldfactory
         static std::map<size_t, inclusive_rectangle<point>> draw_worldgen_tabs( const catacurses::window &w,
                 size_t current );
         void show_active_world_mods( const std::vector<mod_id> &world_mods );
+        /**
+         * Let the player change the mods of an existing world (main menu > world > change mods).
+         * The new list is written to the world's mods.json after a confirmation.
+         * @return true if the list was changed and saved.
+         */
+        bool edit_world_mods( WORLD *world );
 
         const std::map<std::string, std::unique_ptr<WORLD>> &get_all_worlds() const;
 
@@ -157,7 +163,8 @@ class worldfactory
 
         std::string pick_random_name();
         int show_worldgen_tab_options( const catacurses::window &win, WORLD *world, bool with_tabs );
-        int show_worldgen_tab_modselection( const catacurses::window &win, WORLD *world, bool with_tabs );
+        int show_worldgen_tab_modselection( const catacurses::window &win, WORLD *world, bool with_tabs,
+                                            const std::string &title = std::string() );
         int show_worldgen_basic( WORLD *world );
         int show_worldgen_advanced( WORLD *world );
 

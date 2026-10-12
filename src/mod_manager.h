@@ -32,9 +32,11 @@ mod_id get_mod_base_id_from_src( mod_id src );
  * Feature level of the "moddable engine" patch.  A mod can write "requires_engine": <number> in its
  * MOD_INFO; if that is higher than this number the mod is not loaded and a message says why.
  * Level 1: item marks, mod_action hotkeys.  Level 2: music playlists / music_control, new events,
- * inventory hotkeys.
+ * inventory hotkeys.  Level 3: "music_albums" (album folders become items), music_control choose_album.
+ * Level 4: floating windows ("mod_window"), "realtime_eoc", "mod_option", mod_text sidebar widgets, file effects,
+ * music pause/volume, play_sound_file, new events, mark "auto_pickup", editing mods of an existing world.
  */
-constexpr int moddable_engine_level = 2;
+constexpr int moddable_engine_level = 4;
 
 struct MOD_INFORMATION {
     private:

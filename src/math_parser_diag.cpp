@@ -35,6 +35,7 @@
 #include "map.h"
 #include "math_parser_diag_value.h"
 #include "math_parser_type.h"
+#include "mod_engine.h"
 #include "mod_manager.h"
 #include "mongroup.h"
 #include "monster.h"
@@ -123,7 +124,12 @@ void u_val_ass( double val, dialogue &d, char scope, std::vector<diag_value> con
 double option_eval( const_dialogue const &d, char /* scope */,
                     std::vector<diag_value> const &params, diag_kwargs const & /* kwargs */ )
 {
-    return get_option<float>( params[0].str( d ), true );
+    const std::string name = params[0].str( d );
+    if( name.rfind( "mod:", 0 ) == 0 ) {
+        // Option of a mod ("mod_option" JSON type): game_option('mod:<id>')
+        return mod_engine::option_get_number( name.substr( 4 ) );
+    }
+    return get_option<float>( name, true );
 }
 
 double addiction_intensity_eval( const_dialogue const &d, char scope,

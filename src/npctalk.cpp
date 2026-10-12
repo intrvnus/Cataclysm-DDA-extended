@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <exception>
+#include <filesystem>
 #include <iterator>
 #include <list>
 #include <map>
@@ -58,6 +59,7 @@
 #include "faction.h"
 #include "faction_camp.h"
 #include "field.h"
+#include "filesystem.h"
 #include "flag.h"
 #include "flat_set.h"
 #include "flexbuffer_json.h"
@@ -96,6 +98,8 @@
 #include "mongroup.h"
 #include "monster.h"
 #include "mtype.h"
+#include "mod_engine.h"
+#include "music.h"
 #include "mutation.h"
 #include "npc.h"
 #include "npc_class.h"
@@ -107,6 +111,7 @@
 #include "overmap_ui.h"
 #include "overmapbuffer.h"
 #include "pimpl.h"
+#include "path_info.h"
 #include "player_activity.h"
 #include "pocket_type.h"
 #include "point.h"
@@ -5567,13 +5572,21 @@ talk_effect_fun_t::func f_sound_effect( const JsonObject &jo, std::string_view m
 talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view member,
         std::string_view )
 {
-    // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan", "playlist": "<id>" }
+    // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan" | "choose_album" | "restore_album" |
+    //                    "pause" | "resume" | "toggle_pause" | "volume_up" | "volume_down" | "set_volume",
+    //   "playlist": "<id>", "value": <number> }
     str_or_var command = get_str_or_var( jo.get_member( member ), member, true );
     str_or_var playlist;
     if( jo.has_member( "playlist" ) ) {
         playlist = get_str_or_var( jo.get_member( "playlist" ), "playlist", false );
     }
-    return [command, playlist]( dialogue & d ) {
+    dbl_or_var value;
+    bool has_value = false;
+    if( jo.has_member( "value" ) ) {
+        value = get_dbl_or_var( jo, "value", false );
+        has_value = true;
+    }
+    return [command, playlist, value, has_value]( dialogue & d ) {
         const std::string cmd = command.evaluate( d );
         if( cmd == "next" || cmd == "previous" ) {
             const std::string track = music_skip( cmd == "next" ? 1 : -1 );
@@ -5591,12 +5604,192 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
             music_force_playlist( playlist.evaluate( d ) );
         } else if( cmd == "auto" ) {
             music_force_playlist( std::string() );
+        } else if( cmd == "pause" ) {
+            music_set_paused( true );
+        } else if( cmd == "resume" ) {
+            music_set_paused( false );
+        } else if( cmd == "toggle_pause" ) {
+            music_set_paused( !music_is_paused() );
+        } else if( cmd == "volume_up" || cmd == "volume_down" ) {
+            const int step = has_value ? std::max( 1, static_cast<int>( value.evaluate( d ) ) ) : 10;
+            music_set_volume( music_volume() + ( cmd == "volume_up" ? step : -step ) );
+        } else if( cmd == "set_volume" ) {
+            music_set_volume( static_cast<int>( value.evaluate( d ) ) );
         } else if( cmd == "rescan" ) {
             music_rescan_user_folder();
+        } else if( cmd == "choose_album" ) {
+            // Menu of the albums (items made from "music_albums" folders) the player carries.
+            avatar &you = get_avatar();
+            std::vector<const music::album_info *> carried;
+            for( const music::album_info &album : music::album_list() ) {
+                if( you.has_amount( itype_id( album.item_id ), 1 ) ) {
+                    carried.push_back( &album );
+                }
+            }
+            const std::string current = music_get_mp3_album();
+            uilist menu;
+            menu.text = _( "Which album should the mp3 player play?" );
+            menu.addentry( 0, true, MENU_AUTOASSIGN,
+                           current.empty() ? _( "Normal playlist (current)" ) : _( "Normal playlist" ) );
+            for( size_t i = 0; i < carried.size(); i++ ) {
+                menu.addentry( static_cast<int>( i ) + 1, true, MENU_AUTOASSIGN,
+                               carried[i]->playlist == current ? string_format( _( "%s (current)" ), carried[i]->name ) :
+                               carried[i]->name );
+            }
+            if( carried.empty() ) {
+                add_msg( m_info, _( "You carry no albums.  Zombies sometimes have some on them." ) );
+            }
+            menu.query();
+            if( menu.ret < 0 || menu.ret > static_cast<int>( carried.size() ) ) {
+                return;
+            }
+            const std::string chosen = menu.ret == 0 ? std::string() : carried[menu.ret - 1]->playlist;
+            music_set_mp3_album( chosen );
+            you.set_value( "own_music_album", chosen );
+            if( chosen.empty() ) {
+                add_msg( m_info, _( "The mp3 player plays its normal playlist." ) );
+            } else {
+                add_msg( m_info, _( "The mp3 player will play the album \"%s\"." ),
+                         carried[menu.ret - 1]->name );
+            }
+        } else if( cmd == "restore_album" ) {
+            // After loading a game: pick the album the player had chosen.
+            const diag_value *saved = get_avatar().maybe_get_value( "own_music_album" );
+            if( saved != nullptr && saved->is_str() ) {
+                music_set_mp3_album( saved->str() );
+            }
         } else {
-            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto or rescan)",
+            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto, rescan, choose_album, restore_album, pause, resume, toggle_pause, volume_up, volume_down or set_volume)",
                       cmd );
         }
+    };
+}
+
+talk_effect_fun_t::func f_window_control( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "window_control": "open" | "close" | "toggle" | "close_all" | "reset_position", "window": "<mod_window id>" }
+    str_or_var command = get_str_or_var( jo.get_member( member ), member, true );
+    str_or_var window;
+    if( jo.has_member( "window" ) ) {
+        window = get_str_or_var( jo.get_member( "window" ), "window", false );
+    }
+    return [command, window]( dialogue & d ) {
+        mod_engine::window_command( command.evaluate( d ), window.evaluate( d ) );
+    };
+}
+
+talk_effect_fun_t::func f_file_write( const JsonObject &jo, std::string_view member,
+                                      std::string_view )
+{
+    // { "file_write": "<text>", "file": "name.txt", "append": true, "newline": true, "expand": true }
+    str_or_var text = get_str_or_var( jo.get_member( member ), member, true );
+    str_or_var file = get_str_or_var( jo.get_member( "file" ), "file", true );
+    const bool append = jo.get_bool( "append", false );
+    const bool newline = jo.get_bool( "newline", false );
+    const bool expand = jo.get_bool( "expand", false );
+    return [text, file, append, newline, expand]( dialogue & d ) {
+        std::string content = text.evaluate( d );
+        if( expand ) {
+            content = mod_engine::expand_text( content );
+        }
+        if( newline ) {
+            content += "\n";
+        }
+        const std::string name = file.evaluate( d );
+        if( !mod_engine::file_write( name, content, append ) ) {
+            debugmsg( "file_write: could not write the file \"%s\".  File names may only contain letters, digits, _ - . / and spaces (no \"..\"), and the files must stay small.",
+                      name );
+        }
+    };
+}
+
+talk_effect_fun_t::func f_file_read( const JsonObject &jo, std::string_view member,
+                                     std::string_view )
+{
+    // { "file_read": "name.txt", "target_var": { "context_val": "x" }, "default": "<text if the file does not exist>" }
+    str_or_var file = get_str_or_var( jo.get_member( member ), member, true );
+    var_info target_var = read_var_info( jo.get_object( "target_var" ) );
+    str_or_var fallback;
+    if( jo.has_member( "default" ) ) {
+        fallback = get_str_or_var( jo.get_member( "default" ), "default", false );
+    }
+    return [file, target_var, fallback]( dialogue & d ) {
+        const std::optional<std::string> content = mod_engine::file_read( file.evaluate( d ) );
+        write_var_value( target_var.type, target_var.name, &d, content ? *content : fallback.evaluate( d ) );
+    };
+}
+
+talk_effect_fun_t::func f_mod_option_get( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "mod_option_get": "<option id>", "target_var": { "context_val": "x" } }
+    // switches and numbers are written as numbers (1 / 0 for a switch), lists and texts as text
+    str_or_var id = get_str_or_var( jo.get_member( member ), member, true );
+    var_info target_var = read_var_info( jo.get_object( "target_var" ) );
+    return [id, target_var]( dialogue & d ) {
+        const std::string option = id.evaluate( d );
+        const std::string kind = mod_engine::option_kind( option );
+        if( kind.empty() ) {
+            debugmsg( "mod_option_get: there is no mod_option with the id \"%s\"", option );
+        } else if( kind == "bool" || kind == "int" ) {
+            write_var_value( target_var.type, target_var.name, &d, mod_engine::option_get_number( option ) );
+        } else {
+            write_var_value( target_var.type, target_var.name, &d, mod_engine::option_get( option ) );
+        }
+    };
+}
+
+talk_effect_fun_t::func f_mod_option_set( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "mod_option_set": "<option id>", "value": "<new value>" }
+    str_or_var id = get_str_or_var( jo.get_member( member ), member, true );
+    str_or_var value = get_str_or_var( jo.get_member( "value" ), "value", true );
+    return [id, value]( dialogue & d ) {
+        const std::string option = id.evaluate( d );
+        if( !mod_engine::option_set( option, value.evaluate( d ) ) ) {
+            debugmsg( "mod_option_set: the option \"%s\" does not exist or does not accept this value", option );
+        }
+    };
+}
+
+talk_effect_fun_t::func f_mod_options_menu( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "mod_options_menu": true }
+    jo.get_bool( member );
+    return []( dialogue const & ) {
+        mod_engine::options_menu();
+    };
+}
+
+talk_effect_fun_t::func f_play_sound_file( const JsonObject &jo, std::string_view member,
+        std::string_view )
+{
+    // { "play_sound_file": "mods/my_mod/sfx/click.ogg", "volume": 80 }
+    // The path is relative to the game folder (wav, ogg, mp3, flac).
+    str_or_var path = get_str_or_var( jo.get_member( member ), member, true );
+    dbl_or_var volume;
+    if( jo.has_member( "volume" ) ) {
+        volume = get_dbl_or_var( jo, "volume", false );
+    } else {
+        volume = dbl_or_var( 80 );
+    }
+    return [path, volume]( dialogue & d ) {
+        std::string rel = path.evaluate( d );
+        std::replace( rel.begin(), rel.end(), '\\', '/' );
+        if( rel.empty() || rel.front() == '/' || rel.find( ':' ) != std::string::npos ||
+            rel.find( ".." ) != std::string::npos ) {
+            debugmsg( "play_sound_file: the path \"%s\" is not allowed (use a path inside the game folder)", rel );
+            return;
+        }
+        const std::filesystem::path full = ( PATH_INFO::base_path() / rel ).get_unrelative_path();
+        if( !file_exist( full ) ) {
+            debugmsg( "play_sound_file: the file \"%s\" does not exist", rel );
+            return;
+        }
+        sfx::play_sound_file( full.u8string(), static_cast<int>( volume.evaluate( d ) ) );
     };
 }
 
@@ -8142,6 +8335,13 @@ parsers = {
     { "npc_first_topic", jarg::member, &talk_effect_fun::f_npc_first_topic },
     { "sound_effect", jarg::member, &talk_effect_fun::f_sound_effect },
     { "music_control", jarg::member, &talk_effect_fun::f_music_control },
+    { "window_control", jarg::member, &talk_effect_fun::f_window_control },
+    { "file_write", jarg::member, &talk_effect_fun::f_file_write },
+    { "file_read", jarg::member, &talk_effect_fun::f_file_read },
+    { "mod_option_get", jarg::member, &talk_effect_fun::f_mod_option_get },
+    { "mod_option_set", jarg::member, &talk_effect_fun::f_mod_option_set },
+    { "mod_options_menu", jarg::member, &talk_effect_fun::f_mod_options_menu },
+    { "play_sound_file", jarg::member, &talk_effect_fun::f_play_sound_file },
     { "give_achievement", jarg::member, &talk_effect_fun::f_give_achievment },
     { "assign_mission", jarg::member, &talk_effect_fun::f_assign_mission },
     { "finish_mission", jarg::member, &talk_effect_fun::f_finish_mission },

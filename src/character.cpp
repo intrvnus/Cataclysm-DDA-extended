@@ -7201,12 +7201,15 @@ bool Character::invoke_item( item *used, const std::string &method, const tripoi
         return false;
     }
 
+    // The item may be gone after it was used, so remember what it was.
+    const itype_id used_type = actually_used->typeId();
     std::optional<int> charges_used = actually_used->type->invoke( this, *actually_used,
                                       pt, method );
     if( !charges_used.has_value() ) {
         set_moves( pre_obtain_moves );
         return false;
     }
+    get_event_bus().send<event_type::character_uses_item>( getID(), used_type );
 
     if( charges_used.value() == 0 ) {
         // Not really used.

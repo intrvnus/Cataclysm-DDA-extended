@@ -306,6 +306,8 @@ static std::map<std::string, music_playlist> mod_playlists;
 static std::map<std::string, music_playlist> user_playlists;
 // When not empty, this playlist plays regardless of the automatic choice.
 static std::string forced_playlist;
+// Playlist (an album) the player picked for the mp3 player.  Empty = the normal "mp3" playlist.
+static std::string mp3_album;
 // File name (without folder and extension) of the track that is playing, for display.
 static std::string current_track_name;
 // Set while we replace the current track ourselves, so the "music finished" hook doesn't advance too.
@@ -323,11 +325,28 @@ static const music_playlist *find_playlist( const std::string &id )
     return nullptr;
 }
 
+/** The playlist that really plays when the game asks for "requested". */
+static std::string effective_playlist( const std::string &requested )
+{
+    if( !forced_playlist.empty() ) {
+        return forced_playlist;
+    }
+    if( requested == "mp3" && !mp3_album.empty() && find_playlist( mp3_album ) != nullptr ) {
+        return mp3_album;
+    }
+    return requested;
+}
+
 /** Make the built-in ids (mp3/instrument/sound) active or inactive according to what's available. */
 static void refresh_builtin_playlist_flags()
 {
     for( const char *id : { "mp3", "instrument", "sound" } ) {
-        music::update_music_id_is_empty_flag( std::string( id ), find_playlist( id ) != nullptr );
+        bool available = find_playlist( id ) != nullptr;
+        if( !available && std::string( id ) == "mp3" ) {
+            // an album picked for the mp3 player is enough to make it play
+            available = !mp3_album.empty() && find_playlist( mp3_album ) != nullptr;
+        }
+        music::update_music_id_is_empty_flag( std::string( id ), available );
     }
 }
 
@@ -438,8 +457,7 @@ void musicFinished()
     Mix_FreeMusic( current_music );
     current_music = nullptr;
 
-    const std::string new_playlist = forced_playlist.empty() ? music::get_music_id_string() :
-                                     forced_playlist;
+    const std::string new_playlist = effective_playlist( music::get_music_id_string() );
 
     if( current_playlist != new_playlist ) {
         play_music( new_playlist );
@@ -470,7 +488,7 @@ void musicFinished()
 void play_music( const std::string &requested_playlist )
 {
     // A playlist forced by a mod/EOC beats the automatic choice.
-    const std::string &playlist = forced_playlist.empty() ? requested_playlist : forced_playlist;
+    const std::string playlist = effective_playlist( requested_playlist );
     // Don't interrupt playlist that's already playing.
     if( playlist == current_playlist ) {
         return;
@@ -774,10 +792,127 @@ void sfx::load_mod_playlist( const JsonObject &jo, const std::string &/*src*/,
     refresh_builtin_playlist_flags();
 }
 
+void music_register_playlist( const std::string &id, const std::vector<std::string> &files,
+                              bool shuffle )
+{
+    if( !sound_init_success || files.empty() ) {
+        return;
+    }
+    music_playlist list;
+    list.shuffle = shuffle;
+    for( const std::string &file : files ) {
+        list.entries.push_back( { file, 100, true } );
+    }
+    mod_playlists[id] = std::move( list );
+    refresh_builtin_playlist_flags();
+}
+
+void music_set_mp3_album( const std::string &playlist )
+{
+    if( test_mode ) {
+        return;
+    }
+    const std::string old_playlist = effective_playlist( "mp3" );
+    mp3_album = playlist;
+    refresh_builtin_playlist_flags();
+    // Only switch right away if the mp3 player is what is playing at the moment.
+    if( !current_playlist.empty() && current_playlist == old_playlist && forced_playlist.empty() ) {
+        play_music( "mp3" );
+    }
+}
+
+std::string music_get_mp3_album()
+{
+    return mp3_album;
+}
+
+bool music_playlist_exists( const std::string &id )
+{
+    return find_playlist( id ) != nullptr;
+}
+
+bool music_is_paused()
+{
+    return !test_mode && sound_init_success && Mix_PausedMusic() != 0;
+}
+
+void music_set_paused( const bool paused )
+{
+    if( test_mode || !sound_init_success || current_music == nullptr ) {
+        return;
+    }
+    if( paused ) {
+        Mix_PauseMusic();
+    } else {
+        Mix_ResumeMusic();
+    }
+}
+
+double music_position_seconds()
+{
+    if( test_mode || !sound_init_success || current_music == nullptr ) {
+        return -1.0;
+    }
+#if SDL_MIXER_VERSION_ATLEAST(2, 6, 0)
+    return Mix_GetMusicPosition( current_music );
+#else
+    return -1.0;
+#endif
+}
+
+double music_duration_seconds()
+{
+    if( test_mode || !sound_init_success || current_music == nullptr ) {
+        return -1.0;
+    }
+#if SDL_MIXER_VERSION_ATLEAST(2, 6, 0)
+    return Mix_MusicDuration( current_music );
+#else
+    return -1.0;
+#endif
+}
+
+int music_volume()
+{
+    return get_option<int>( "MUSIC_VOLUME" );
+}
+
+void music_set_volume( const int volume )
+{
+    if( test_mode ) {
+        return;
+    }
+    get_options().get_option( "MUSIC_VOLUME" ).setValue( std::clamp( volume, 0, 128 ) );
+    // save() also applies the new volume to the running music
+    get_options().save();
+}
+
+void sfx::play_sound_file( const std::string &path, const int volume )
+{
+    if( test_mode || !check_sound( volume ) ) {
+        return;
+    }
+    static std::map<std::string, Mix_Chunk *> chunks;
+    auto it = chunks.find( path );
+    if( it == chunks.end() ) {
+        Mix_Chunk *chunk = Mix_LoadWAV( path.c_str() );
+        if( chunk == nullptr ) {
+            dbg( D_ERROR ) << "Failed to load sound file " << path << ": " << Mix_GetError();
+        }
+        it = chunks.emplace( path, chunk ).first;
+    }
+    if( it->second == nullptr ) {
+        return;
+    }
+    Mix_VolumeChunk( it->second, std::clamp( volume, 0, 100 ) * get_option<int>( "SOUND_EFFECT_VOLUME" ) / 100 );
+    Mix_PlayChannel( -1, it->second, 0 );
+}
+
 void sfx::unload_mod_music()
 {
     mod_playlists.clear();
     forced_playlist.clear();
+    mp3_album.clear();
     refresh_builtin_playlist_flags();
 }
 
@@ -824,7 +959,10 @@ void music_force_playlist( const std::string &playlist )
         return;
     }
     if( !playlist.empty() && find_playlist( playlist ) == nullptr ) {
-        dbg( D_WARNING ) << "music_control: no playlist called \"" << playlist << "\"";
+        // Unknown playlist (e.g. an album folder that does not exist): fall back to the normal music.
+        dbg( D_WARNING ) << "music_control: no playlist called \"" << playlist << "\", using the normal music";
+        forced_playlist.clear();
+        play_music( music::get_music_id_string() );
         return;
     }
     forced_playlist = playlist;

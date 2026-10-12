@@ -35,6 +35,7 @@
 #include "mapdata.h"
 #include "memory_fast.h"
 #include "messages.h"
+#include "mod_engine.h"
 #include "options.h"
 #include "output.h"
 #include "path_info.h"
@@ -1070,6 +1071,10 @@ action_id handle_main_menu()
     REGISTER_ACTION( ACTION_DISTRACTION_MANAGER );
     REGISTER_ACTION( ACTION_COLOR );
     REGISTER_ACTION( ACTION_WORLD_MODS );
+    if( mod_engine::has_options() ) {
+        // Not a real action: handled right below (value NUM_ACTIONS is outside of the action list).
+        entries.emplace_back( static_cast<int>( NUM_ACTIONS ), true, std::nullopt, _( "Mod options" ) );
+    }
     REGISTER_ACTION( ACTION_ACTIONMENU );
     REGISTER_ACTION( ACTION_QUICKSAVE );
     REGISTER_ACTION( ACTION_SAVE );
@@ -1081,6 +1086,10 @@ action_id handle_main_menu()
     smenu.query();
     int selection = smenu.ret;
 
+    if( selection == static_cast<int>( NUM_ACTIONS ) ) {
+        mod_engine::options_menu();
+        return ACTION_NULL;
+    }
     if( selection < 0 || selection >= NUM_ACTIONS ) {
         return ACTION_NULL;
     } else {

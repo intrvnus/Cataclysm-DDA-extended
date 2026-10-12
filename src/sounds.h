@@ -147,6 +147,8 @@ void load_mod_playlist( const JsonObject &jsobj, const std::string &src, const c
                         const cata_path &full_path );
 /** Forget playlists and music overrides that came from mods (called when mods are unloaded). */
 void unload_mod_music();
+/** Play an audio file (full path) once as a sound effect; volume is 0 - 100. */
+void play_sound_file( const std::string &path, int volume );
 void play_variant_sound( const std::string &id, const std::string &variant, int volume,
                          units::angle angle, double pitch_min = -1.0, double pitch_max = -1.0 );
 void play_variant_sound( const std::string &id, const std::string &variant,

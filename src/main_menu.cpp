@@ -502,7 +502,7 @@ void main_menu::init_strings()
     }
 
     vWorldSubItems.clear();
-    vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Sh<o|O>w World Mods" ) );
+    vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Change World <M|m>ods" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Copy World Sett<i|I>ngs" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Character to Tem<p|P>late" ) );
     vWorldSubItems.emplace_back( pgettext( "Main Menu|World", "Toggle World <C|c>ompression" ) );
@@ -1187,9 +1187,8 @@ void main_menu::world_tab( const std::string &worldname )
     };
 
     switch( opt_val ) {
-        case 0: // Active World Mods
-            world_generator->show_active_world_mods(
-                world_generator->get_world( worldname )->active_mod_order );
+        case 0: // Change the mods of this world
+            world_generator->edit_world_mods( world_generator->get_world( worldname ) );
             break;
         case 1: // Copy World settings
             world_generator->make_new_world( true, worldname );

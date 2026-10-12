@@ -1676,6 +1676,8 @@ Every event EOC passes context vars with each of their key value pairs that the 
 | character_picks_up_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item picked up (moved from the map or a container into the inventory) |
 | character_drops_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item dropped on purpose (drop command, multidrop) |
 | character_performs_action | | { "character", `character_id` },<br/> { "action", `string` }, | character / name of the game action (for example `"pickup"`, `"sleep"`, `"inventory"`); idle ticks are not reported |
+| character_uses_item | triggers after an item's use action ran | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item used |
+| character_crafts_item | triggers when a craft is finished | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / crafted item |
 | character_wears_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item to wear |
 | character_armor_destroyed | triggers when a worn armor is set to be destroyed from damage. The armor still exists but will be destroyed immediately after the EOCs finish running. | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / item to wear |
 | consumes_marloss_item | | { "character", `character_id` },<br/> { "itype", `itype_id` }, | character / NONE |

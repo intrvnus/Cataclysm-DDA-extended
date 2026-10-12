@@ -1163,6 +1163,8 @@ void memorial_logger::notify( const cata::event &e )
         case event_type::character_picks_up_item:
         case event_type::character_drops_item:
         case event_type::character_performs_action:
+        case event_type::character_uses_item:
+        case event_type::character_crafts_item:
             break;
         case event_type::num_event_types: {
             debugmsg( "Invalid event type" );

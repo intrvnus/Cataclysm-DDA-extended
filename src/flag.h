@@ -479,6 +479,12 @@ class json_flag
             return protect_from_drop_;
         }
 
+        /** "pickup": items with this flag are always picked up by autopickup,
+         *  "ignore": they never are.  Empty: the normal autopickup rules decide. */
+        const std::string &auto_pickup_mode() const {
+            return auto_pickup_mode_;
+        }
+
         /** Is this a valid (non-null) flag */
         explicit operator bool() const;
 
@@ -503,6 +509,7 @@ class json_flag
         bool user_mark_ = false;
         int sort_priority_ = 0;
         bool protect_from_drop_ = false;
+        std::string auto_pickup_mode_;
 
         /** Load flag definition from JSON */
         void load( const JsonObject &jo, std::string_view src );

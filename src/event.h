@@ -134,6 +134,8 @@ enum class event_type : int {
     character_picks_up_item,
     character_drops_item,
     character_performs_action,
+    character_uses_item,
+    character_crafts_item,
     num_event_types // last
 };
 
@@ -194,7 +196,7 @@ struct event_spec_character_item {
     };
 };
 
-static_assert( static_cast<int>( event_type::num_event_types ) == 110,
+static_assert( static_cast<int>( event_type::num_event_types ) == 112,
                "This static_assert is to remind you to add a specialization for your new "
                "event_type below" );
 
@@ -543,6 +545,12 @@ struct event_spec<event_type::character_picks_up_item> : event_spec_character_it
 
 template<>
 struct event_spec<event_type::character_drops_item> : event_spec_character_item {};
+
+template<>
+struct event_spec<event_type::character_uses_item> : event_spec_character_item {};
+
+template<>
+struct event_spec<event_type::character_crafts_item> : event_spec_character_item {};
 
 template<>
 struct event_spec<event_type::character_performs_action> {

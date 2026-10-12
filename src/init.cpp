@@ -74,6 +74,7 @@
 #include "material.h"
 #include "math_parser_jmath.h"
 #include "mission.h"
+#include "mod_engine.h"
 #include "mod_manager.h"
 #include "mod_tileset.h"
 #include "monfaction.h"
@@ -83,6 +84,7 @@
 #include "morale_types.h"
 #include "move_mode.h"
 #include "mtype.h"
+#include "music.h"
 #include "mutation.h"
 #include "npc.h"
 #include "npc_class.h"
@@ -266,6 +268,9 @@ void DynamicDataLoader::initialize()
     add( "option_slider", &option_slider::load_option_sliders );
     add( "json_flag", &json_flag::load_all );
     add( "mod_action", &mod_actions::load );
+    add( "realtime_eoc", &mod_engine::load_realtime_eoc );
+    add( "mod_window", &mod_engine::load_window );
+    add( "mod_option", &mod_engine::load_option );
     add( "jmath_function", &jmath_func::load_func );
     add( "var_migration", &global_variables::load_migrations );
     add( "connect_group", &connect_group::load );
@@ -432,6 +437,7 @@ void DynamicDataLoader::initialize()
     add( "sound_effect_preload", &sfx::load_sound_effect_preload );
     add( "playlist", &sfx::load_playlist );
     add( "music_playlist", &sfx::load_mod_playlist );
+    add( "music_albums", &music::load_albums );
 
     add( "gate", &gates::load );
     add( "overlay_order", &load_overlay_ordering );
@@ -577,6 +583,13 @@ void DynamicDataLoader::load_mod_interaction_files_from_path( const cata_path &p
     }
 }
 
+void DynamicDataLoader::load_generated_json( const std::string &json_text, const std::string &src,
+        const cata_path &base_path, const cata_path &full_path )
+{
+    JsonValue jsin = json_loader::from_string( json_text );
+    load_all_from_json( jsin, src, base_path, full_path );
+}
+
 void DynamicDataLoader::load_all_from_json( const JsonValue &jsin, const std::string &src,
         const cata_path &base_path, const cata_path &full_path )
 {
@@ -642,7 +655,9 @@ void DynamicDataLoader::unload_data()
     jmath_func::reset();
     json_flag::reset();
     mod_actions::reset();
+    mod_engine::reset();
     sfx::unload_mod_music();
+    music::reset_albums();
     connect_group::reset();
     limb_score::reset();
     mapgen_palette::reset();
