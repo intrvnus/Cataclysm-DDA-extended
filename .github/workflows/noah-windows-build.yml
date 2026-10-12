@@ -1,0 +1,59 @@
+name: "Windows Tiles build (manual)"
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Windows Tiles x64 MSVC
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+      - name: Install dependencies (1/4)
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+      - name: Install dependencies (2/4)
+        uses: microsoft/setup-msbuild@v2
+      - name: Install dependencies (3/4)
+        uses: lukka/run-vcpkg@v11
+        id: runvcpkg
+        with:
+          vcpkgDirectory: '${{ runner.workspace }}/b/vcpkg'
+          vcpkgGitCommitId: 'f6672d8e480ccdecddfad3fd1b838ba369ffe6cd'
+      - name: Install dependencies (4/4)
+        run: |
+          vcpkg integrate install --vcpkg-root '${{ runner.workspace }}\b\vcpkg'
+      - name: Install msys2 (for translations)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: mingw64
+          install: >-
+            gettext
+            make
+      - name: Create VERSION.TXT
+        shell: bash
+        run: |
+          cat >VERSION.txt <<EOL
+          build type: windows-with-graphics-x64 (custom)
+          commit sha: ${{ github.sha }}
+          EOL
+      - name: Compile translations
+        shell: msys2 {0}
+        run: |
+          lang/compile_mo.sh all
+      - name: Build CDDA
+        env:
+          BACKTRACE: 1
+          CDDA_RELEASE_BUILD: 1
+          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}\.github\vcpkg_triplets
+        run: |
+          msbuild -m -p:Configuration=Release -p:Platform=x64 "-target:Cataclysm-vcpkg-static;JsonFormatter-vcpkg-static;zzip" msvc-full-features\Cataclysm-vcpkg-static.sln
+          .\build-scripts\windist.ps1
+      - name: Upload the finished game
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdda-windows-tiles-custom
+          path: cataclysmdda-0.I.zip
+          retention-days: 30
