@@ -1,0 +1,50 @@
+name: Linux check (engine compile + mod data)
+
+# Fast sanity check that does not need a Windows build:
+#  1. compiles the game (curses, no tests) on Linux
+#  2. copies noah_mods/* into data/mods
+#  3. loads all of the custom mods with `cataclysm --check-mods`
+# Triggered manually or by pushes to claude/** branches.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libncursesw5-dev ccache gettext
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-linux-check-${{ github.sha }}
+          restore-keys: ccache-linux-check-
+
+      - name: Build game (curses, release)
+        env:
+          CCACHE_MAXSIZE: 1G
+        run: |
+          ccache --zero-stats
+          make -j"$(nproc)" RELEASE=1 TILES=0 SOUND=0 LOCALIZE=0 CCACHE=1 cataclysm
+          ccache --show-stats
+
+      - name: Install custom mods into data/mods
+        run: cp -r noah_mods/* data/mods/
+
+      - name: Check custom mods load
+        run: |
+          mods=""
+          for d in noah_mods/*/; do mods="$mods $(basename "$d")"; done
+          echo "Checking:$mods"
+          ./cataclysm --check-mods --user-dir=check_user_dir/ $mods

@@ -1,0 +1,221 @@
+[
+  {
+    "type": "item_group",
+    "subtype": "distribution",
+    "id": "atomic_gadgets_rare",
+    "//": "One roll = one rare atomic gadget.  Tune the weights here.",
+    "items": [
+      {
+        "item": "atomic_mp3",
+        "prob": 14
+      },
+      {
+        "item": "atomic_smartphone",
+        "prob": 14,
+        "contents-group": "civilian_smartphone_efiles"
+      },
+      {
+        "item": "atomic_laptop",
+        "prob": 8,
+        "contents-group": "civilian_laptop_efiles"
+      },
+      {
+        "item": "atomic_eink_tablet_pc",
+        "prob": 10,
+        "contents-group": "civilian_einktablet_efiles"
+      },
+      {
+        "item": "atomic_portable_game",
+        "prob": 10
+      },
+      {
+        "item": "atomic_radio",
+        "prob": 10
+      },
+      {
+        "item": "atomic_camera",
+        "prob": 8
+      },
+      {
+        "item": "atomic_smart_watch",
+        "prob": 10
+      },
+      {
+        "item": "atomic_soldering_iron",
+        "prob": 4
+      },
+      {
+        "item": "atomic_electric_blanket",
+        "prob": 4
+      }
+    ]
+  },
+  {
+    "type": "item_group",
+    "id": "home_hw",
+    "copy-from": "home_hw",
+    "subtype": "distribution",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "livingroom",
+    "copy-from": "livingroom",
+    "subtype": "distribution",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "kitchen",
+    "copy-from": "kitchen",
+    "subtype": "distribution",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "bedroom",
+    "copy-from": "bedroom",
+    "subtype": "distribution",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 4
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "tools_robotics",
+    "copy-from": "tools_robotics",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "pawn",
+    "copy-from": "pawn",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "arcade_prizes",
+    "copy-from": "arcade_prizes",
+    "subtype": "distribution",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "elecsto_lights",
+    "copy-from": "elecsto_lights",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "hospital_bed",
+    "copy-from": "hospital_bed",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "subway",
+    "copy-from": "subway",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "lab_dorm",
+    "copy-from": "lab_dorm",
+    "subtype": "old",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 6
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "NC_JUNK_SHOPKEEP_misc",
+    "copy-from": "NC_JUNK_SHOPKEEP_misc",
+    "subtype": "collection",
+    "extend": {
+      "items": [
+        {
+          "group": "atomic_gadgets_rare",
+          "prob": 2
+        }
+      ]
+    }
+  }
+]

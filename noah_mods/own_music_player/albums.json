@@ -1,0 +1,176 @@
+[
+  {
+    "type": "music_albums",
+    "folder": "albums",
+    "zombie_drop_weight": 1
+  },
+  {
+    "type": "json_flag",
+    "id": "OWN_MUSIC_ALBUM",
+    "info": "This is a music album.  Carry it or store it in an mp3 player to listen to it."
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_CHOOSE_ALBUM",
+    "effect": [
+      {
+        "music_control": "choose_album"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_PREVIOUS_ALBUM",
+    "effect": [
+      {
+        "music_control": "previous_album"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_NEXT_ALBUM",
+    "effect": [
+      {
+        "music_control": "next_album"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_RESTORE_ALBUM",
+    "eoc_type": "EVENT",
+    "required_event": "game_load",
+    "effect": [
+      {
+        "music_control": "restore_album"
+      }
+    ]
+  },
+  {
+    "id": "mp3",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "copy-from": "mp3",
+    "name": {
+      "str": "mp3 player (off)",
+      "str_pl": "mp3 players (off)"
+    },
+    "use_action": [
+      "MP3",
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Choose album",
+        "description": "Pick which album this mp3 player plays.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_CHOOSE_ALBUM"
+        ]
+      },
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Music window",
+        "description": "Show or hide the small music player window.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_TOGGLE_WINDOW"
+        ]
+      },
+      {
+        "type": "link_up",
+        "cable_length": 2,
+        "charge_rate": "5 W"
+      }
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "MAGAZINE",
+        "rigid": true,
+        "ammo_restriction": {
+          "battery": 50
+        }
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "name": "Album slots",
+        "description": "Room for a few music albums.",
+        "max_contains_volume": "5 ml",
+        "max_contains_weight": "1 kg",
+        "rigid": true,
+        "moves": 50,
+        "flag_restriction": [
+          "OWN_MUSIC_ALBUM"
+        ]
+      }
+    ],
+    "delete": {
+      "flags": [
+        "NO_UNLOAD",
+        "NO_RELOAD"
+      ]
+    }
+  },
+  {
+    "id": "mp3_on",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "copy-from": "mp3_on",
+    "name": {
+      "str": "mp3 player (on)",
+      "str_pl": "mp3 players (on)"
+    },
+    "use_action": [
+      "MP3_DEACTIVATE",
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Choose album",
+        "description": "Pick which album this mp3 player plays.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_CHOOSE_ALBUM"
+        ]
+      },
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Music window",
+        "description": "Show or hide the small music player window.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_TOGGLE_WINDOW"
+        ]
+      },
+      {
+        "type": "link_up",
+        "cable_length": 2,
+        "charge_rate": "5 W"
+      }
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "MAGAZINE",
+        "rigid": true,
+        "ammo_restriction": {
+          "battery": 50
+        }
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "name": "Album slots",
+        "description": "Room for a few music albums.",
+        "max_contains_volume": "5 ml",
+        "max_contains_weight": "1 kg",
+        "rigid": true,
+        "moves": 50,
+        "flag_restriction": [
+          "OWN_MUSIC_ALBUM"
+        ]
+      }
+    ],
+    "delete": {
+      "flags": [
+        "NO_UNLOAD",
+        "NO_RELOAD"
+      ]
+    }
+  }
+]

@@ -1,0 +1,209 @@
+[
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_VOLUME_DOWN_10",
+    "effect": [
+      {
+        "music_control": "volume_down",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_VOLUME_UP_10",
+    "effect": [
+      {
+        "music_control": "volume_up",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_VOLUME_DOWN_5",
+    "effect": [
+      {
+        "music_control": "volume_down",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_VOLUME_UP_5",
+    "effect": [
+      {
+        "music_control": "volume_up",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_NEXT",
+    "effect": [
+      {
+        "music_control": "next"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_PREVIOUS",
+    "effect": [
+      {
+        "music_control": "previous"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_INFO",
+    "effect": [
+      {
+        "music_control": "info"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "OWN_MUSIC_NEXT",
+    "name": "Next song",
+    "eoc": "EOC_OWN_MUSIC_NEXT",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F7"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F7"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "OWN_MUSIC_PREVIOUS",
+    "name": "Previous song",
+    "eoc": "EOC_OWN_MUSIC_PREVIOUS",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F8"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F8"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "OWN_MUSIC_INFO",
+    "name": "Show current song",
+    "eoc": "EOC_OWN_MUSIC_INFO",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F9"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F9"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_TOGGLE_PAUSE",
+    "effect": [
+      {
+        "music_control": "toggle_pause"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_TOGGLE_WINDOW",
+    "effect": [
+      {
+        "window_control": "toggle",
+        "window": "OWN_MUSIC_WINDOW"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_CLOSE_WINDOW",
+    "effect": [
+      {
+        "window_control": "close",
+        "window": "OWN_MUSIC_WINDOW"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "OWN_MUSIC_TOGGLE_WINDOW",
+    "name": "Show / hide music window",
+    "eoc": "EOC_OWN_MUSIC_TOGGLE_WINDOW",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F10"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F10"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "OWN_MUSIC_TOGGLE_PAUSE",
+    "name": "Pause / resume music",
+    "eoc": "EOC_OWN_MUSIC_TOGGLE_PAUSE",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F11"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F11"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_TOGGLE_SHUFFLE",
+    "effect": [
+      {
+        "music_control": "toggle_shuffle"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_CYCLE_REPEAT",
+    "effect": [
+      {
+        "music_control": "cycle_repeat"
+      }
+    ]
+  },
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_OWN_MUSIC_TOGGLE_SONG_LIST",
+    "effect": [
+      {
+        "math": [
+          "u_music_show_list",
+          "=",
+          "1 - u_music_show_list"
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {
+    "type": "MOD_INFO",
+    "id": "item_marks",
+    "name": "Item Marks (Keep / Trade / Junk)",
+    "authors": [
+      "Noah",
+      "Claude"
+    ],
+    "description": "Needs the moddable-engine build (level 5).  Three marks for your items: [K] Keep (the game asks before you drop, throw, disassemble or sell it, crafting avoids it, 'move all' leaves it), [T] Trade goods (not picked by 'select all' in drop menus) and [J] Junk (sorted to the bottom).  In any inventory menu: F2 = Keep, F3 = Trade, F4 = Junk (keys can be changed in the keybinding menu; '#' still opens the full mark menu).  F6 in the game view drops everything marked Junk after asking.  Junk is also set automatically for broken items, empty cans / cups / bottles and wet clothes you are not wearing; every rule can be switched off in Esc -> Mod options, and a mark you remove by hand is never set again on that item.",
+    "category": "content",
+    "requires_engine": 5,
+    "dependencies": [
+      "dda"
+    ]
+  }
+]

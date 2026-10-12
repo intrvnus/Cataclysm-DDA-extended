@@ -1,0 +1,264 @@
+[
+  {
+    "type": "recipe",
+    "category": "CC_ELECTRONIC",
+    "subcategory": "CSC_ELECTRONIC_TOOLS",
+    "skill_used": "chemistry",
+    "skills_required": [
+      [
+        "fabrication",
+        10
+      ],
+      [
+        "electronics",
+        6
+      ]
+    ],
+    "difficulty": 10,
+    "activity_level": "LIGHT_EXERCISE",
+    "reversible": true,
+    "book_learn": [
+      [
+        "advanced_electronics",
+        8
+      ],
+      [
+        "textbook_electronics",
+        8
+      ]
+    ],
+    "proficiencies": [
+      {
+        "proficiency": "prof_elec_soldering"
+      },
+      {
+        "proficiency": "prof_elec_semiconductors"
+      }
+    ],
+    "qualities": [
+      {
+        "id": "SCREW",
+        "level": 1
+      },
+      {
+        "id": "CUT",
+        "level": 2
+      }
+    ],
+    "using": [
+      [
+        "soldering_standard",
+        20
+      ]
+    ],
+    "result": "atomic_radio",
+    "time": "3 h",
+    "components": [
+      [
+        [
+          "radio",
+          1
+        ]
+      ],
+      [
+        [
+          "betavoltaic",
+          4
+        ]
+      ],
+      [
+        [
+          "power_supply",
+          1
+        ]
+      ],
+      [
+        [
+          "cable",
+          5
+        ]
+      ]
+    ]
+  },
+  {
+    "type": "recipe",
+    "category": "CC_ELECTRONIC",
+    "subcategory": "CSC_ELECTRONIC_TOOLS",
+    "skill_used": "chemistry",
+    "skills_required": [
+      [
+        "fabrication",
+        10
+      ],
+      [
+        "electronics",
+        6
+      ]
+    ],
+    "difficulty": 10,
+    "activity_level": "LIGHT_EXERCISE",
+    "reversible": true,
+    "book_learn": [
+      [
+        "advanced_electronics",
+        8
+      ],
+      [
+        "textbook_electronics",
+        8
+      ]
+    ],
+    "proficiencies": [
+      {
+        "proficiency": "prof_elec_soldering"
+      },
+      {
+        "proficiency": "prof_elec_semiconductors"
+      }
+    ],
+    "qualities": [
+      {
+        "id": "SCREW",
+        "level": 1
+      },
+      {
+        "id": "CUT",
+        "level": 2
+      }
+    ],
+    "using": [
+      [
+        "soldering_standard",
+        20
+      ]
+    ],
+    "result": "atomic_soldering_iron",
+    "time": "2 h",
+    "components": [
+      [
+        [
+          "soldering_iron",
+          1
+        ],
+        [
+          "soldering_iron_portable",
+          1
+        ]
+      ],
+      [
+        [
+          "betavoltaic",
+          3
+        ]
+      ],
+      [
+        [
+          "power_supply",
+          1
+        ]
+      ],
+      [
+        [
+          "cable",
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "type": "recipe",
+    "category": "CC_ELECTRONIC",
+    "subcategory": "CSC_ELECTRONIC_TOOLS",
+    "skill_used": "chemistry",
+    "skills_required": [
+      [
+        "fabrication",
+        10
+      ],
+      [
+        "electronics",
+        6
+      ]
+    ],
+    "difficulty": 10,
+    "activity_level": "LIGHT_EXERCISE",
+    "reversible": true,
+    "book_learn": [
+      [
+        "advanced_electronics",
+        8
+      ],
+      [
+        "textbook_electronics",
+        8
+      ]
+    ],
+    "proficiencies": [
+      {
+        "proficiency": "prof_elec_soldering"
+      },
+      {
+        "proficiency": "prof_elec_semiconductors"
+      }
+    ],
+    "qualities": [
+      {
+        "id": "SCREW",
+        "level": 1
+      },
+      {
+        "id": "CUT",
+        "level": 2
+      }
+    ],
+    "using": [
+      [
+        "soldering_standard",
+        20
+      ]
+    ],
+    "result": "atomic_electric_blanket",
+    "time": "4 h",
+    "components": [
+      [
+        [
+          "electric_blanket",
+          1
+        ]
+      ],
+      [
+        [
+          "betavoltaic",
+          8
+        ]
+      ],
+      [
+        [
+          "power_supply",
+          2
+        ]
+      ],
+      [
+        [
+          "cable",
+          8
+        ]
+      ]
+    ]
+  },
+  {
+    "type": "requirement",
+    "id": "soldering_standard",
+    "//": "The atomic soldering iron needs no charges.",
+    "extend": {
+      "tools": [
+        [
+          [
+            "atomic_soldering_iron",
+            -1
+          ]
+        ]
+      ]
+    }
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "type": "json_flag",
+    "id": "MARK_KEEP",
+    "name": "Keep",
+    "info": "<good>Marked KEEP</good>: the game asks before you drop, throw, disassemble or sell it, crafting does not use it unless you agree, and 'move all' leaves it with you.",
+    "item_prefix": "<color_light_green>[K]</color> ",
+    "user_mark": true,
+    "protect_from_drop": true,
+    "guard": true,
+    "sort_priority": 10
+  },
+  {
+    "type": "json_flag",
+    "id": "MARK_TRADE",
+    "name": "Trade goods",
+    "info": "Marked as trade goods: 'select all' in drop menus skips it.",
+    "item_prefix": "<color_yellow>[T]</color> ",
+    "user_mark": true,
+    "protect_from_drop": true,
+    "sort_priority": 5
+  },
+  {
+    "type": "json_flag",
+    "id": "MARK_JUNK",
+    "name": "Junk",
+    "info": "<bad>Marked JUNK</bad>: sorted to the bottom; one key drops everything marked junk.",
+    "item_prefix": "<color_dark_gray>[J]</color> ",
+    "user_mark": true,
+    "sort_priority": -10
+  }
+]

@@ -1,0 +1,92 @@
+[
+  {
+    "type": "item_group",
+    "id": "music_shop",
+    "copy-from": "music_shop",
+    "subtype": "old",
+    "//": "Mall music shop: the one place where albums are normal stock (about 8% of its picks).",
+    "extend": {
+      "items": [
+        {
+          "group": "music_albums_pool",
+          "prob": 10
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "elecsto_persele",
+    "copy-from": "elecsto_persele",
+    "subtype": "old",
+    "//": "Electronics store personal electronics shelf (about 2% of its picks).",
+    "extend": {
+      "items": [
+        {
+          "group": "music_albums_pool",
+          "prob": 8
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "consumer_electronics",
+    "copy-from": "consumer_electronics",
+    "subtype": "old",
+    "//": "Generic consumer electronics (same chance as an mp3 player there, about 0.5%).",
+    "extend": {
+      "items": [
+        {
+          "group": "music_albums_pool",
+          "prob": 6
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "pawn",
+    "copy-from": "pawn",
+    "subtype": "old",
+    "//": "Pawn shops take anything, collectors' albums too (about 0.2%).",
+    "extend": {
+      "items": [
+        {
+          "group": "music_albums_pool",
+          "prob": 8
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "lab_dorm",
+    "copy-from": "lab_dorm",
+    "subtype": "old",
+    "//": "Dorm rooms: students have music (about 0.2%).",
+    "extend": {
+      "items": [
+        {
+          "group": "music_albums_pool",
+          "prob": 6
+        }
+      ]
+    }
+  },
+  {
+    "type": "item_group",
+    "id": "bedroom",
+    "copy-from": "bedroom",
+    "subtype": "distribution",
+    "//": "Bedrooms (about 0.1% of picks, a bit less than an mp3 player).",
+    "extend": {
+      "entries": [
+        {
+          "group": "music_albums_pool",
+          "prob": 5
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "type": "item_mark_rule",
+    "id": "MARKS_RULE_BROKEN",
+    "mark": "MARK_JUNK",
+    "option": "item_marks.auto_broken",
+    "broken": true
+  },
+  {
+    "type": "item_mark_rule",
+    "id": "MARKS_RULE_EMPTY",
+    "mark": "MARK_JUNK",
+    "option": "item_marks.auto_empty",
+    "empty_container": true,
+    "item_ids": [
+      "can_drink",
+      "can_food",
+      "can_food_big",
+      "cup_plastic",
+      "bottle_plastic",
+      "bottle_plastic_small",
+      "bottle_plastic_tiny",
+      "bottle_twoliter",
+      "bottle_glass"
+    ]
+  },
+  {
+    "type": "item_mark_rule",
+    "id": "MARKS_RULE_WET",
+    "mark": "MARK_JUNK",
+    "option": "item_marks.auto_wet",
+    "armor_only": true,
+    "has_flag": [
+      "WET"
+    ]
+  }
+]

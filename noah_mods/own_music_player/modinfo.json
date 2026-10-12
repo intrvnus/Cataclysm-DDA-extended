@@ -1,0 +1,17 @@
+[
+  {
+    "type": "MOD_INFO",
+    "id": "own_music_player",
+    "name": "Own Music Player (mp3)",
+    "authors": [
+      "Noah",
+      "Claude"
+    ],
+    "description": "Needs the moddable-engine build (level 5).  Your own songs in the in-game mp3 player.  Songs lying directly in the game's \"music\" folder are the normal playlist.  Every folder inside this mod's \"albums\" folder is an album: a rare, weightless collectible that zombies sometimes carry and that turns up in music shops, electronics shops, pawn shops, bedrooms and dorm rooms.  The mp3 player ONLY plays albums: carry an album (or store up to 5 inside the mp3 player), use the mp3 player and choose \"Choose album\" first (without an album it will not turn on).  A small movable player window with the album cover and buttons (previous, play/pause, next, switch album, volume) opens by itself when you switch an mp3 player on; F10 shows/hides it.  Covers are found automatically (cover.jpg in the album folder, or the picture inside the mp3 files).  F7 = next song, F8 = previous song, F9 = show what is playing, F10 = show/hide the music window, F11 = pause/resume.  The window has volume buttons for -10, -5, +5 and +10, a battery display, shuffle and repeat buttons (repeat: whole album, one song, off) and a [Songs] button that shows or hides a clickable list of the album's songs.",
+    "category": "content",
+    "requires_engine": 5,
+    "dependencies": [
+      "dda"
+    ]
+  }
+]

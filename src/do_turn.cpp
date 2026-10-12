@@ -89,6 +89,8 @@ static const bionic_id bio_alarm( "bio_alarm" );
 
 static const itype_id itype_afs_atomic_smartphone_music( "afs_atomic_smartphone_music" );
 static const itype_id itype_afs_atomic_wraitheon_music( "afs_atomic_wraitheon_music" );
+static const itype_id itype_atomic_mp3_on( "atomic_mp3_on" );
+static const itype_id itype_atomic_smartphone_music( "atomic_smartphone_music" );
 static const itype_id itype_mp3_on( "mp3_on" );
 static const itype_id itype_smartphone_music( "smartphone_music" );
 
@@ -571,7 +573,9 @@ bool do_turn()
     if( music::music_id_list[music::music_id::mp3].second &&
         !u.has_active_item( itype_mp3_on ) && !u.has_active_item( itype_smartphone_music ) &&
         !u.has_active_item( itype_afs_atomic_smartphone_music ) &&
-        !u.has_active_item( itype_afs_atomic_wraitheon_music ) ) {
+        !u.has_active_item( itype_afs_atomic_wraitheon_music ) &&
+        !u.has_active_item( itype_atomic_mp3_on ) &&
+        !u.has_active_item( itype_atomic_smartphone_music ) ) {
         music::deactivate_music_id( music::music_id::mp3 );
         mod_engine::mp3_state_changed( false );
     }

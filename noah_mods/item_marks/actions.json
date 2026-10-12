@@ -1,0 +1,70 @@
+[
+  {
+    "type": "mod_action",
+    "id": "MARKS_TOGGLE_KEEP",
+    "name": "Mark / unmark item: Keep",
+    "context": "INVENTORY",
+    "toggle_mark": "MARK_KEEP",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F2"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F2"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "MARKS_TOGGLE_TRADE",
+    "name": "Mark / unmark item: Trade goods",
+    "context": "INVENTORY",
+    "toggle_mark": "MARK_TRADE",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F3"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F3"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "MARKS_TOGGLE_JUNK",
+    "name": "Mark / unmark item: Junk",
+    "context": "INVENTORY",
+    "toggle_mark": "MARK_JUNK",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F4"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F4"
+      }
+    ]
+  },
+  {
+    "type": "mod_action",
+    "id": "MARKS_DROP_JUNK",
+    "name": "Drop everything marked Junk",
+    "context": "DEFAULTMODE",
+    "drop_marked": "MARK_JUNK",
+    "bindings": [
+      {
+        "input_method": "keyboard_char",
+        "key": "F6"
+      },
+      {
+        "input_method": "keyboard_code",
+        "key": "F6"
+      }
+    ]
+  }
+]
