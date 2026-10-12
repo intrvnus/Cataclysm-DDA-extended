@@ -49,4 +49,5 @@ jobs:
           mods=""
           for d in noah_mods/*/; do mods="$mods $(basename "$d")"; done
           echo "Checking:$mods"
-          ./cataclysm --check-mods --user-dir=check_user_dir/ $mods
+          # --check-mods takes every following argument as a mod id, so it goes last
+          ./cataclysm --user-dir=check_user_dir/ --check-mods $mods
