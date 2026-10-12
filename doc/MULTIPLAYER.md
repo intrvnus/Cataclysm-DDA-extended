@@ -1,6 +1,9 @@
 # Experimental multiplayer (milestone 1)
 
-Status: compiles; not yet tested in game.
+Status: compiles (Linux CI). Tested on Linux, curses build, host + 1 client on localhost:
+connect/join, client movement seen on the host, client view following, pick up reply,
+time running on both sides with nobody pressing keys. Not yet tested: attacking monsters,
+the Windows tiles build, more than one client.
 
 ## How to start
 
