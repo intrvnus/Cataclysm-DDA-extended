@@ -50,6 +50,14 @@ bool handle_mouse( input_context &ctxt, const std::string &action );
 /** commands: "open", "close", "toggle", "close_all", "reset_position". The id is ignored for close_all. */
 void window_command( const std::string &command, const std::string &id );
 bool window_is_open( const std::string &id );
+/** The mp3 player was switched on / off: windows with "show_while": "mp3" open / close. */
+void mp3_state_changed( bool on );
+
+// ---- albums of the mp3 player ----
+/** Menu of the albums the player carries; sets the one picked.  True if an album was picked. */
+bool choose_album();
+/** Switch to the next (direction 1) or previous (-1) album the player carries. */
+void cycle_album( int direction );
 
 // ---- text templates ----
 /** Replace the {placeholders} of a text by their current values. */

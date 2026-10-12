@@ -331,10 +331,20 @@ static std::string effective_playlist( const std::string &requested )
     if( !forced_playlist.empty() ) {
         return forced_playlist;
     }
-    if( requested == "mp3" && !mp3_album.empty() && find_playlist( mp3_album ) != nullptr ) {
-        return mp3_album;
+    if( requested == "mp3" ) {
+        // The mp3 player only plays an album.  No album chosen = no music.
+        if( !mp3_album.empty() && find_playlist( mp3_album ) != nullptr ) {
+            return mp3_album;
+        }
+        return std::string();
     }
-    return requested;
+    // No ambient music: the "title" playlist is what plays when nothing else does (no condition at all),
+    // so it is silent.  Music that has a reason (instruments, car stereos) still plays.
+    // A playlist forced by a mod (music_control "play") still plays; see above.
+    if( requested == "title" ) {
+        return std::string();
+    }
+    return requested; // an album / playlist id that is already resolved
 }
 
 /** Make the built-in ids (mp3/instrument/sound) active or inactive according to what's available. */
@@ -342,8 +352,8 @@ static void refresh_builtin_playlist_flags()
 {
     for( const char *id : { "mp3", "instrument", "sound" } ) {
         bool available = find_playlist( id ) != nullptr;
-        if( !available && std::string( id ) == "mp3" ) {
-            // an album picked for the mp3 player is enough to make it play
+        if( std::string( id ) == "mp3" ) {
+            // only an album picked for the mp3 player makes it play
             available = !mp3_album.empty() && find_playlist( mp3_album ) != nullptr;
         }
         music::update_music_id_is_empty_flag( std::string( id ), available );

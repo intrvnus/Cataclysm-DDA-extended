@@ -54,12 +54,16 @@ New option, Interface: **Sort favorites first** (`INV_FAVORITES_FIRST`, default 
   `{ "music_control": "next" }`, `"previous"`, `"info"` (shows the current song),
   `{ "music_control": "play", "playlist": "<id>" }` (forces a playlist), `"auto"` (back to the automatic choice), `"rescan"` (re-read `music/`),
   `"choose_album"` (menu of the albums the player carries; the pick is what mp3 players play and is saved with the character),
+  `"next_album"` / `"previous_album"` (switch to the next / previous album the player carries),
   `"restore_album"` (re-apply the saved pick; run it from a `game_load` event EOC),
   level 4: `"pause"`, `"resume"`, `"toggle_pause"`, `"volume_up"` / `"volume_down"` (step = `"value"`, default 10), `"set_volume"` (`"value"`, 0 - 128, 100 = normal;
   this is the game's "Music volume" option and is saved).  `"value"` can be a number or `{ "math": [ "..." ] }`.
   `"play"` with a playlist that does not exist falls back to the normal music (and writes a warning to the debug log).
 * **Albums** (`music_albums`, engine level 3): every sub folder of `folder` (relative to the JSON file, default `albums`) that holds audio files becomes
   * a playlist and an item type `album_<folder name>` (letters/digits only, lower case) named `album: <folder name>`, 0 g and 0 ml,
+  * an item group `music_albums_pool` with every album (equal chance each) that mods can put into loot piles, e.g.
+    `{ "type": "item_group", "id": "music_shop", "copy-from": "music_shop", "subtype": "old", "extend": { "items": [ { "group": "music_albums_pool", "prob": 10 } ] } }`
+    (see `album_loot.json` of the own_music_player mod),
   * an entry in what zombies carry: all albums together get the weight `zombie_drop_weight` (default 1, 0 = no drops) in `default_zombie_items`.
   ```json
   { "type": "music_albums", "folder": "albums", "zombie_drop_weight": 1 }
@@ -85,6 +89,10 @@ Small windows on top of the game that show live text and have clickable buttons.
 * `width` is in character cells (10 or more); the height is the number of rows + 2.  `x` / `y` = first position (cells from the top left).
 * A row is a text (color tags allowed, clipped to the width), or an object with `text` or `buttons`, and `align` (`left`, `center`, `right`).
 * `eoc` of a button: an effect_on_condition id or an inline EOC.  It runs with the player as talker when the button is clicked (press and release on the same button).
+* A row `{ "image": "album_cover", "height": 11, "image_width": 22, "align": "center" }` shows the cover of the album the mp3 player plays
+  (graphical build only; a grey square if the album has no cover).  The cover is found automatically: a `cover.jpg` / `folder.png` / ... in the album folder,
+  else the picture stored inside the mp3 files (ID3 "attached picture").  Nothing has to be prepared for new albums.  `height` = rows, `image_width` = cells.
+* `show_while`: `"mp3"` = the window opens when an mp3 player is switched on and closes when it is switched off.
 * `remember_open`: the window comes back by itself when it was open the last time the game was left.
 * Control from effects: `{ "window_control": "open" | "close" | "toggle" | "close_all" | "reset_position", "window": "<id>" }`
   (it takes effect within a fraction of a second; the windows update while the game waits for input, not during long activities).
@@ -157,4 +165,17 @@ Existing vanilla events that mods can use as well: `character_kills_monster`, `c
 
 Main menu -> **World** -> pick the world -> **Change World Mods** (key `M`): the usual mod selection screen opens for that world.  The change is saved in the world's `mods.json`.
 Take a backup of the world first; removing a mod that added items or terrain to a save can break that save.
+
+## Device window (phones, laptops, tablets)
+
+Using a device with the `E_FILE_DEVICE` action (smartphone, laptop, tablet, ...) opens one window instead of the old chain of menus:
+
+* top: the device, its charge and memory; its other apps (music, camera, games, ...) as buttons;
+* left: all e-devices the player carries or can reach (the one in use first), with memory and file count;
+* right: the files of the picked device with check boxes (after the device was browsed);
+* bottom: Browse / Browse all / Browse all + move every file here, Read file, Copy and Move (to or from the device in use), Wipe.
+  Hovering a button shows why it is greyed out, or how long the transfer takes.
+
+The work is done by the normal e-file activity, so the rules (time, charges, memory, compatibility) are those of the old menus.
+The "Old menu" button opens the old menu chain.  No JSON is needed for this.
 

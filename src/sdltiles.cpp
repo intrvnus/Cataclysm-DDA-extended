@@ -69,6 +69,7 @@
 #include "sdl_wrappers.h"
 #include "sdl_font.h"
 #include "sdl_gamepad.h"
+#include "mod_gfx.h"
 #include "sdlsound.h"
 #include "string_formatter.h"
 #include "uistate.h"
@@ -535,6 +536,73 @@ SDL_Rect get_android_render_rect( float DisplayBufferWidth, float DisplayBufferH
 }
 
 #endif
+
+// ---- pictures for mod windows (album covers), see mod_gfx.h ----
+namespace
+{
+struct mod_picture {
+    SDL_Texture_Ptr texture; // empty = the bytes could not be decoded
+    int width = 0;
+    int height = 0;
+};
+std::map<std::string, mod_picture> &mod_pictures()
+{
+    static std::map<std::string, mod_picture> pics;
+    return pics;
+}
+} // namespace
+
+void mod_gfx_forget_images()
+{
+    mod_pictures().clear();
+}
+
+bool mod_gfx_draw_image( const std::string &key, const std::vector<unsigned char> &data,
+                         const point &cell_pos, const point &cell_size )
+{
+    if( test_mode || !renderer || cell_size.x <= 0 || cell_size.y <= 0 ) {
+        return false;
+    }
+    const SDL_Rect area = { cell_pos.x *fontwidth, cell_pos.y *fontheight,
+                            cell_size.x *fontwidth, cell_size.y *fontheight
+                          };
+    std::map<std::string, mod_picture> &pics = mod_pictures();
+    auto it = pics.find( key );
+    if( it == pics.end() ) {
+        if( pics.size() > 80 ) {
+            pics.clear();
+        }
+        mod_picture pic;
+        if( !data.empty() ) {
+            SDL_RWops *rw = SDL_RWFromConstMem( data.data(), static_cast<int>( data.size() ) );
+            if( rw != nullptr ) {
+                SDL_Surface_Ptr surface( IMG_Load_RW( rw, 1 ) );
+                if( surface ) {
+                    pic.width = surface->w;
+                    pic.height = surface->h;
+                    pic.texture = CreateTextureFromSurface( renderer, surface );
+                }
+            }
+        }
+        it = pics.emplace( key, std::move( pic ) ).first;
+    }
+    const mod_picture &pic = it->second;
+    if( !pic.texture || pic.width <= 0 || pic.height <= 0 ) {
+        // grey placeholder square
+        const int side = std::min( area.w, area.h );
+        const SDL_Rect box = { area.x + ( area.w - side ) / 2, area.y + ( area.h - side ) / 2, side, side };
+        SetRenderDrawColor( renderer, 48, 48, 48, 255 );
+        RenderFillRect( renderer, &box );
+        return false;
+    }
+    const double scale = std::min( static_cast<double>( area.w ) / pic.width,
+                                   static_cast<double>( area.h ) / pic.height );
+    const int dw = std::max( 1, static_cast<int>( pic.width * scale ) );
+    const int dh = std::max( 1, static_cast<int>( pic.height * scale ) );
+    const SDL_Rect dst = { area.x + ( area.w - dw ) / 2, area.y + ( area.h - dh ) / 2, dw, dh };
+    RenderCopy( renderer, pic.texture, nullptr, &dst );
+    return true;
+}
 
 void refresh_display()
 {

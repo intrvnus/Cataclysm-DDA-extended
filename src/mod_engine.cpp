@@ -21,12 +21,14 @@
 #include "cursesdef.h"
 #include "debug.h"
 #include "dialogue.h"
+#include "filesystem.h"
 #include "effect_on_condition.h"
 #include "game.h"
 #include "global_vars.h"
 #include "input_context.h"
 #include "json.h"
 #include "json_loader.h"
+#include "mod_gfx.h"
 #include "math_parser_diag_value.h"
 #include "music.h"
 #include "output.h"
@@ -112,6 +114,9 @@ void ensure_option_values()
         return;
     }
     option_values_loaded() = true;
+    if( !file_exist( config_file( "mod_options.json" ) ) ) {
+        return; // first run: nothing saved yet
+    }
     const std::optional<std::string> text = read_whole_file( config_file( "mod_options.json" ) );
     if( !text || text->empty() ) {
         return;
@@ -146,6 +151,9 @@ void ensure_window_states()
         return;
     }
     window_states_loaded() = true;
+    if( !file_exist( config_file( "mod_windows.json" ) ) ) {
+        return; // first run: nothing saved yet
+    }
     const std::optional<std::string> text = read_whole_file( config_file( "mod_windows.json" ) );
     if( !text || text->empty() ) {
         return;
@@ -224,6 +232,10 @@ struct row_def {
     std::string text;
     std::vector<button_def> buttons;
     align_type align = align_type::left;
+    // A picture row ("image": "album_cover") takes "height" rows and "image_width" cells.
+    std::string image;
+    int height = 1;
+    int image_width = 0;
 };
 
 struct window_def {
@@ -232,8 +244,20 @@ struct window_def {
     int width = 32;
     point default_pos = point( 2, 2 );
     bool remember_open = false;
+    // "mp3": the window opens when the player switches on an mp3 player and closes when it is
+    // switched off.
+    std::string show_while;
     std::vector<row_def> rows;
 };
+
+int window_height( const window_def &def )
+{
+    int h = 2;
+    for( const row_def &row : def.rows ) {
+        h += std::max( 1, row.height );
+    }
+    return h;
+}
 
 std::map<std::string, window_def> &window_registry()
 {
@@ -250,6 +274,9 @@ struct button_layout {
 struct row_layout {
     std::string text;
     int text_x = 0;
+    int y = 0;
+    int height = 1;
+    std::string image_key; // picture rows: which album
     std::vector<button_layout> buttons;
 };
 
@@ -279,6 +306,12 @@ std::vector<std::pair<std::string, std::string>> &pending_commands()
 }
 
 bool &restore_needed()
+{
+    static bool need = true;
+    return need;
+}
+
+bool &restore_pending_show()
 {
     static bool need = true;
     return need;
@@ -331,9 +364,28 @@ bool refresh_layout( window_instance &w )
     std::vector<row_layout> layout;
     std::string sig;
     const int inner = w.width - 2;
+    int next_y = 0;
     for( const row_def &row : def.rows ) {
         row_layout rl;
-        if( row.buttons.empty() ) {
+        rl.y = next_y;
+        rl.height = std::max( 1, row.height );
+        next_y += rl.height;
+        if( !row.image.empty() ) {
+            const int image_w = row.image_width > 0 ? row.image_width : rl.height * 2;
+            rl.image_key = music_get_mp3_album();
+            switch( row.align ) {
+                case align_type::left:
+                    rl.text_x = 0;
+                    break;
+                case align_type::center:
+                    rl.text_x = std::max( 0, ( inner - image_w ) / 2 );
+                    break;
+                case align_type::right:
+                    rl.text_x = std::max( 0, inner - image_w );
+                    break;
+            }
+            sig += "image:" + rl.image_key;
+        } else if( row.buttons.empty() ) {
             rl.text = expand_text( row.text );
             const int len = utf8_width( rl.text, true );
             switch( row.align ) {
@@ -394,7 +446,10 @@ void draw_window( window_instance &w )
     const int inner = w.width - 2;
     for( size_t r = 0; r < w.layout.size(); r++ ) {
         const row_layout &rl = w.layout[r];
-        const int y = static_cast<int>( r ) + 1;
+        const int y = rl.y + 1;
+        if( !def.rows[r].image.empty() ) {
+            continue; // the picture is drawn after the window, see below
+        }
         if( def.rows[r].buttons.empty() ) {
             trim_and_print( w.win, point( 1 + rl.text_x, y ), std::max( 1, inner - rl.text_x ), c_light_gray,
                             rl.text );
@@ -407,6 +462,19 @@ void draw_window( window_instance &w )
         }
     }
     wnoutrefresh( w.win );
+    // pictures go on top of the window that was just drawn
+    for( size_t r = 0; r < w.layout.size(); r++ ) {
+        if( def.rows[r].image.empty() ) {
+            continue;
+        }
+        const row_layout &rl = w.layout[r];
+        const int image_w = def.rows[r].image_width > 0 ? def.rows[r].image_width : rl.height * 2;
+        static const std::vector<unsigned char> no_picture;
+        const std::vector<unsigned char> &bytes = rl.image_key.empty() ? no_picture :
+                music::album_cover( rl.image_key );
+        mod_gfx_draw_image( "album:" + rl.image_key, bytes,
+                            point( w.pos.x + 1 + rl.text_x, w.pos.y + 1 + rl.y ), point( image_w, rl.height ) );
+    }
 }
 
 void place_window( window_instance &w )
@@ -432,7 +500,7 @@ void open_window( const std::string &id )
     std::unique_ptr<window_instance> w = std::make_unique<window_instance>();
     w->id = id;
     w->width = std::clamp( def.width, 10, std::max( 10, TERMX ) );
-    w->height = static_cast<int>( def.rows.size() ) + 2;
+    w->height = window_height( def );
     const window_state &saved = window_states()[id];
     w->pos = clamp_position( *w, saved.has_pos ? saved.pos : def.default_pos );
     refresh_layout( *w );
@@ -447,8 +515,10 @@ void open_window( const std::string &id )
     } );
     place_window( *w );
     open_windows().push_back( std::move( w ) );
-    window_states()[id].open = true;
-    save_window_states();
+    if( def.show_while.empty() ) {
+        window_states()[id].open = true;
+        save_window_states();
+    }
 }
 
 void close_window( const std::string &id, bool remember )
@@ -481,6 +551,10 @@ void apply_command( const std::string &cmd, const std::string &id )
         } else {
             open_window( id );
         }
+    } else if( cmd == "show" ) {
+        open_window( id );
+    } else if( cmd == "hide" ) {
+        close_window( id, false );
     } else if( cmd == "close_all" ) {
         std::vector<std::string> ids;
         for( const std::unique_ptr<window_instance> &w : open_windows() ) {
@@ -538,15 +612,19 @@ hit_result hit_test( const point &cell )
         res.win = &w;
         const int rx = cell.x - w.pos.x - 1;
         const int ry = cell.y - w.pos.y - 1;
-        if( ry >= 0 && ry < static_cast<int>( w.layout.size() ) ) {
-            const row_layout &rl = w.layout[ry];
+        for( size_t r = 0; r < w.layout.size(); r++ ) {
+            const row_layout &rl = w.layout[r];
+            if( ry < rl.y || ry >= rl.y + rl.height ) {
+                continue;
+            }
             for( size_t b = 0; b < rl.buttons.size(); b++ ) {
                 if( rx >= rl.buttons[b].x && rx < rl.buttons[b].x + rl.buttons[b].width ) {
-                    res.row = ry;
+                    res.row = static_cast<int>( r );
                     res.button = static_cast<int>( b );
                     break;
                 }
             }
+            break;
         }
         return res;
     }
@@ -603,7 +681,7 @@ std::string album_display_name()
 {
     const std::string current = music_get_mp3_album();
     if( current.empty() ) {
-        return _( "normal playlist" );
+        return _( "none" );
     }
     for( const music::album_info &album : music::album_list() ) {
         if( album.playlist == current ) {
@@ -709,6 +787,7 @@ void shutdown_windows()
     pending_commands().clear();
     open_windows().clear();
     restore_needed() = true;
+    restore_pending_show() = true;
 }
 
 void reset()
@@ -757,6 +836,10 @@ void load_window( const JsonObject &jo, const std::string &src )
         def.default_pos = point( jo.get_int( "x", 2 ), jo.get_int( "y", 2 ) );
     }
     def.remember_open = jo.get_bool( "remember_open", false );
+    def.show_while = jo.get_string( "show_while", "" );
+    if( !def.show_while.empty() && def.show_while != "mp3" ) {
+        jo.throw_error_at( "show_while", "show_while must be \"mp3\"" );
+    }
     const auto read_align = []( const JsonObject & obj ) {
         const std::string a = obj.get_string( "align", "left" );
         if( a == "center" ) {
@@ -775,7 +858,14 @@ void load_window( const JsonObject &jo, const std::string &src )
         } else {
             JsonObject ro = row_val.get_object();
             row.align = read_align( ro );
-            if( ro.has_array( "buttons" ) ) {
+            if( ro.has_string( "image" ) ) {
+                row.image = ro.get_string( "image" );
+                if( row.image != "album_cover" ) {
+                    ro.throw_error_at( "image", "image must be \"album_cover\"" );
+                }
+                row.height = std::clamp( ro.get_int( "height", 8 ), 1, 30 );
+                row.image_width = std::clamp( ro.get_int( "image_width", 0 ), 0, 60 );
+            } else if( ro.has_array( "buttons" ) ) {
                 for( JsonObject bo : ro.get_array( "buttons" ) ) {
                     button_def b;
                     b.text = bo.get_string( "text" );
@@ -872,6 +962,18 @@ void tick()
                 const auto st = window_states().find( def.first );
                 if( def.second.remember_open && st != window_states().end() && st->second.open ) {
                     open_window( def.first );
+                }
+            }
+        }
+
+        // 2b. windows that follow the mp3 player (open if one is playing already)
+        if( restore_pending_show() ) {
+            restore_pending_show() = false;
+            if( get_avatar().has_active_item( itype_id( "mp3_on" ) ) ) {
+                for( const std::pair<const std::string, window_def> &def : window_registry() ) {
+                    if( def.second.show_while == "mp3" ) {
+                        open_window( def.first );
+                    }
                 }
             }
         }
@@ -1027,6 +1129,81 @@ void window_command( const std::string &command, const std::string &id )
 bool window_is_open( const std::string &id )
 {
     return find_instance( id ) != nullptr;
+}
+
+void mp3_state_changed( bool on )
+{
+    for( const std::pair<const std::string, window_def> &def : window_registry() ) {
+        if( def.second.show_while == "mp3" ) {
+            pending_commands().emplace_back( on ? "show" : "hide", def.first );
+        }
+    }
+}
+
+namespace
+{
+std::vector<const music::album_info *> carried_albums()
+{
+    std::vector<const music::album_info *> carried;
+    const avatar &you = get_avatar();
+    for( const music::album_info &album : music::album_list() ) {
+        if( you.has_amount( itype_id( album.item_id ), 1 ) ) {
+            carried.push_back( &album );
+        }
+    }
+    return carried;
+}
+
+void select_album( const music::album_info &album )
+{
+    music_set_mp3_album( album.playlist );
+    get_avatar().set_value( "own_music_album", album.playlist );
+    add_msg( m_info, _( "The mp3 player will play the album \"%s\"." ), album.name );
+}
+} // namespace
+
+bool choose_album()
+{
+    const std::vector<const music::album_info *> carried = carried_albums();
+    if( carried.empty() ) {
+        add_msg( m_info,
+                 _( "You carry no albums, so the mp3 player has nothing to play.  Zombies sometimes have some on them." ) );
+        return false;
+    }
+    const std::string current = music_get_mp3_album();
+    uilist menu;
+    menu.text = _( "Which album should the mp3 player play?" );
+    for( size_t i = 0; i < carried.size(); i++ ) {
+        menu.addentry( static_cast<int>( i ), true, MENU_AUTOASSIGN,
+                       carried[i]->playlist == current ? string_format( _( "%s (current)" ), carried[i]->name ) :
+                       carried[i]->name );
+    }
+    menu.query();
+    if( menu.ret < 0 || menu.ret >= static_cast<int>( carried.size() ) ) {
+        return false;
+    }
+    select_album( *carried[menu.ret] );
+    return true;
+}
+
+void cycle_album( int direction )
+{
+    const std::vector<const music::album_info *> carried = carried_albums();
+    if( carried.empty() ) {
+        add_msg( m_info, _( "You carry no albums." ) );
+        return;
+    }
+    const std::string current = music_get_mp3_album();
+    int index = direction >= 0 ? -1 : 0;
+    for( size_t i = 0; i < carried.size(); i++ ) {
+        if( carried[i]->playlist == current ) {
+            index = static_cast<int>( i );
+            break;
+        }
+    }
+    const int count = static_cast<int>( carried.size() );
+    index = ( ( index + ( direction >= 0 ? 1 : -1 ) ) % count + count ) % count;
+    select_album( *carried[index] );
 }
 
 std::string expand_text( const std::string &text )

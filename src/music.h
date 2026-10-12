@@ -39,9 +39,17 @@ struct album_info {
     std::string item_id;   // item type id, also the id of the playlist
     std::string playlist;  // playlist id (same as item_id)
     std::string name;      // folder name, shown to the player
+    std::string folder;    // full path of the album folder
 };
 /** All albums found by "music_albums" JSON objects of the loaded mods. */
 const std::vector<album_info> &album_list();
+/**
+ * The cover picture of an album (bytes of a jpg / png file), or an empty vector if it has none.
+ * Looked for automatically: a picture file in the album folder (cover.jpg, folder.png, ...), else
+ * the picture stored inside the songs (the "attached picture" of the mp3 tags).  Nothing has to be
+ * prepared when new albums are added.
+ */
+const std::vector<unsigned char> &album_cover( const std::string &playlist );
 /** JSON type "music_albums": makes an item type and a playlist for every sub folder. */
 void load_albums( const JsonObject &jo, const std::string &src, const cata_path &base_path,
                   const cata_path &full_path );

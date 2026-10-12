@@ -88,7 +88,10 @@
 #include "mongroup.h"
 #include "monster.h"
 #include "mtype.h"
+#include "device_ui.h"
+#include "mod_engine.h"
 #include "music.h"
+#include "sdlsound.h"
 #include "mutation.h"
 #include "npc.h"
 #include "omdata.h"
@@ -3842,6 +3845,29 @@ std::optional<int> iuse::shocktonfa_on( Character *p, item *it, const tripoint_b
     return 0;
 }
 
+/** The mp3 player only plays an album the player still carries (moddable engine). */
+static bool mp3_album_ready( const Character &you )
+{
+#if defined(SDL_SOUND)
+    if( !sound_init_success ) {
+        return true; // no sound system: nothing to wait for
+    }
+    const std::string current = music_get_mp3_album();
+    if( current.empty() ) {
+        return false;
+    }
+    for( const music::album_info &album : music::album_list() ) {
+        if( album.playlist == current ) {
+            return you.has_amount( itype_id( album.item_id ), 1 );
+        }
+    }
+    return false;
+#else
+    static_cast<void>( you );
+    return true;
+#endif
+}
+
 std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
 {
     // TODO: avoid item id hardcoding to make this function usable for pure json-defined devices.
@@ -3851,6 +3877,9 @@ std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
                p->has_active_item( itype_afs_atomic_smartphone_music ) ||
                p->has_active_item( itype_afs_atomic_wraitheon_music ) ) {
         p->add_msg_if_player( m_info, _( "You are already listening to music!" ) );
+    } else if( !mp3_album_ready( *p ) && !( p->is_avatar() && mod_engine::choose_album() &&
+                                           mp3_album_ready( *p ) ) ) {
+        p->add_msg_if_player( m_info, _( "Without an album the mp3 player has nothing to play." ) );
     } else {
         p->add_msg_if_player( m_info, _( "You put in the earbuds and start listening to music." ) );
         if( it->typeId() == itype_mp3 ) {
@@ -3863,6 +3892,9 @@ std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
             it->convert( itype_afs_atomic_wraitheon_music, p ).active = true;
         }
         p->mod_moves( -200 );
+        if( p->is_avatar() ) {
+            mod_engine::mp3_state_changed( true );
+        }
     }
     return 1;
 }
@@ -3972,6 +4004,9 @@ std::optional<int> iuse::mp3_deactivate( Character *p, item *it, const tripoint_
     }
     p->mod_moves( -200 );
     music::deactivate_music_id( music::music_id::mp3 );
+    if( p->is_avatar() ) {
+        mod_engine::mp3_state_changed( false );
+    }
 
     return 0;
 
@@ -5685,6 +5720,10 @@ std::optional<int> iuse::efiledevice( Character *p, item *it, const tripoint_bub
     }
 
     item_location used_edevice( *p, it );
+    // The moddable engine has one window for all of this; "Old menu" in it comes back here.
+    if( p->is_avatar() && device_ui::run( *p, used_edevice ) == device_ui::result::done ) {
+        return std::nullopt;
+    }
     auto read_edevice = [&p, &used_edevice]( bool edevice_selection ) {
         avatar *a = p->as_avatar();
         item_location edevice = used_edevice;

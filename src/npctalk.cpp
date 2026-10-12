@@ -5572,7 +5572,7 @@ talk_effect_fun_t::func f_sound_effect( const JsonObject &jo, std::string_view m
 talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view member,
         std::string_view )
 {
-    // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan" | "choose_album" | "restore_album" |
+    // { "music_control": "next" | "previous" | "info" | "play" | "auto" | "rescan" | "choose_album" | "next_album" | "previous_album" | "restore_album" |
     //                    "pause" | "resume" | "toggle_pause" | "volume_up" | "volume_down" | "set_volume",
     //   "playlist": "<id>", "value": <number> }
     str_or_var command = get_str_or_var( jo.get_member( member ), member, true );
@@ -5619,39 +5619,9 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
             music_rescan_user_folder();
         } else if( cmd == "choose_album" ) {
             // Menu of the albums (items made from "music_albums" folders) the player carries.
-            avatar &you = get_avatar();
-            std::vector<const music::album_info *> carried;
-            for( const music::album_info &album : music::album_list() ) {
-                if( you.has_amount( itype_id( album.item_id ), 1 ) ) {
-                    carried.push_back( &album );
-                }
-            }
-            const std::string current = music_get_mp3_album();
-            uilist menu;
-            menu.text = _( "Which album should the mp3 player play?" );
-            menu.addentry( 0, true, MENU_AUTOASSIGN,
-                           current.empty() ? _( "Normal playlist (current)" ) : _( "Normal playlist" ) );
-            for( size_t i = 0; i < carried.size(); i++ ) {
-                menu.addentry( static_cast<int>( i ) + 1, true, MENU_AUTOASSIGN,
-                               carried[i]->playlist == current ? string_format( _( "%s (current)" ), carried[i]->name ) :
-                               carried[i]->name );
-            }
-            if( carried.empty() ) {
-                add_msg( m_info, _( "You carry no albums.  Zombies sometimes have some on them." ) );
-            }
-            menu.query();
-            if( menu.ret < 0 || menu.ret > static_cast<int>( carried.size() ) ) {
-                return;
-            }
-            const std::string chosen = menu.ret == 0 ? std::string() : carried[menu.ret - 1]->playlist;
-            music_set_mp3_album( chosen );
-            you.set_value( "own_music_album", chosen );
-            if( chosen.empty() ) {
-                add_msg( m_info, _( "The mp3 player plays its normal playlist." ) );
-            } else {
-                add_msg( m_info, _( "The mp3 player will play the album \"%s\"." ),
-                         carried[menu.ret - 1]->name );
-            }
+            mod_engine::choose_album();
+        } else if( cmd == "next_album" || cmd == "previous_album" ) {
+            mod_engine::cycle_album( cmd == "next_album" ? 1 : -1 );
         } else if( cmd == "restore_album" ) {
             // After loading a game: pick the album the player had chosen.
             const diag_value *saved = get_avatar().maybe_get_value( "own_music_album" );
@@ -5659,7 +5629,7 @@ talk_effect_fun_t::func f_music_control( const JsonObject &jo, std::string_view 
                 music_set_mp3_album( saved->str() );
             }
         } else {
-            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto, rescan, choose_album, restore_album, pause, resume, toggle_pause, volume_up, volume_down or set_volume)",
+            debugmsg( "music_control: unknown command \"%s\" (use next, previous, info, play, auto, rescan, choose_album, next_album, previous_album, restore_album, pause, resume, toggle_pause, volume_up, volume_down or set_volume)",
                       cmd );
         }
     };
