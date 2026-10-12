@@ -571,6 +571,25 @@ void map::clear_vehicle_list( const int zlev )
     }
 }
 
+void map::net_forget_vehicles()
+{
+    for( int gridz = -OVERMAP_DEPTH; gridz <= OVERMAP_HEIGHT; gridz++ ) {
+        level_cache *const ch = get_cache_lazy( gridz );
+        if( ch == nullptr ) {
+            continue;
+        }
+        for( vehicle *veh : ch->vehicle_list ) {
+            if( veh->tracking_on ) {
+                overmap_buffer.remove_vehicle( veh );
+            }
+        }
+        ch->vehicle_list.clear();
+        ch->zone_vehicles.clear();
+    }
+    dirty_vehicle_list.clear();
+    clear_vehicle_level_caches();
+}
+
 void map::update_vehicle_list( const submap *const to, const int zlev )
 {
     // Update vehicle data

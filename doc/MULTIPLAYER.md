@@ -1,9 +1,10 @@
 # Experimental multiplayer (milestone 1)
 
-Status: compiles (Linux CI). Tested on Linux, curses build, host + 1 client on localhost:
-connect/join, client movement seen on the host, client view following, pick up reply,
-time running on both sides with nobody pressing keys. Not yet tested: attacking monsters,
-the Windows tiles build, more than one client.
+Status: compiles (Linux CI incl. LOCALIZE). Tested on Linux, curses build, on localhost
+with the three custom mods enabled on all worlds: host + 2 clients at once, joining,
+client movement, attacking monsters (bump), monsters shown on the clients, items/corpses
+synced, pick up, leaving and rejoining, time running on all sides with nobody pressing keys.
+Not yet tested: the Windows tiles build.
 
 ## How to start
 
@@ -51,6 +52,12 @@ The default port is 7777 (UDP). After loading, the host's message log says
   still pause the world.
 - No sleep or long activities for clients.
 - Monsters on the client are recreated every update (no animations/effects shown).
+- The client only gets the host's messages about its own actions, and only what the host
+  can see (in the dark that is often just "You hear whack!").
+- If the host dies, the clients freeze until the host leaves the death screen; then they
+  get "connection lost".
+- Realtime turns ignore safe mode while a session is active (otherwise a monster in view
+  would stop time for everybody).
 - Parts of the client's map outside the host's reality bubble come from the client's
   own world.
 

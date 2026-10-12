@@ -433,7 +433,16 @@ bool host_drive_npc( npc &guy )
         }
         const command cmd = rp->commands.front();
         rp->commands.pop_front();
+        // Forward what the host's message log says about this action (e.g. combat).
+        const size_t messages_before = Messages::size();
         execute( guy, cmd );
+        const size_t messages_after = Messages::size();
+        if( messages_after > messages_before ) {
+            for( const std::pair<std::string, std::string> &m :
+                 Messages::recent_messages( messages_after - messages_before ) ) {
+                send_text( *rp, m.second );
+            }
+        }
     }
     if( guy.get_moves() > 0 && rp->commands.empty() ) {
         guy.pause();
@@ -475,10 +484,10 @@ void host_end_of_turn()
         if( rp.sent_submaps.empty() || calendar::once_every( 10_turns ) ) {
             send_submaps( rp, bubble_submaps( z_levels ) );
         } else {
-            std::vector<tripoint_abs_sm> near = submaps_around( guy->pos_abs(), 1 );
+            std::vector<tripoint_abs_sm> nearby = submaps_around( guy->pos_abs(), 1 );
             const std::vector<tripoint_abs_sm> near_host = submaps_around( get_avatar().pos_abs(), 1 );
-            near.insert( near.end(), near_host.begin(), near_host.end() );
-            send_submaps( rp, near );
+            nearby.insert( nearby.end(), near_host.begin(), near_host.end() );
+            send_submaps( rp, nearby );
         }
         send_state( rp, *guy );
     }

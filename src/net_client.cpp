@@ -119,6 +119,8 @@ void reload_map()
 
 void apply_submaps( const JsonArray &list )
 {
+    // The replaced submaps own their vehicles: the map must not keep pointers to them.
+    get_map().net_forget_vehicles();
     try {
         MAPBUFFER.net_replace_submaps( list );
     } catch( ... ) {
@@ -200,6 +202,11 @@ void apply_state( const JsonObject &msg )
         }
     }
     ( void )here;
+    // The client does not run do_turn(), so update what the player can see here, otherwise
+    // monsters stay invisible.
+    now.invalidate_visibility_cache();
+    now.build_map_cache( u.posz() );
+    g->mon_info_update();
     g->invalidate_main_ui_adaptor();
 }
 

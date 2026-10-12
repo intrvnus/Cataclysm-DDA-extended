@@ -2321,7 +2321,8 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_TIMEOUT:
-            if( check_safe_mode_allowed( false ) ) {
+            // Multiplayer: time must keep flowing for everybody, even with a monster in view.
+            if( net::active() || check_safe_mode_allowed( false ) ) {
                 player_character.pause();
             }
             break;

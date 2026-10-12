@@ -768,6 +768,9 @@ class map
         // clears and build vehicle level caches
         void rebuild_vehicle_level_caches();
         void clear_vehicle_list( int zlev );
+        /** Multiplayer client: forgets all vehicles of this map (lists, caches, tracking)
+         * because the submaps owning them are about to be replaced. Reload the map afterwards. */
+        void net_forget_vehicles();
         void update_vehicle_list( const submap *to, int zlev );
         //Returns true if vehicle zones are dirty and need to be recached
         bool check_vehicle_zones( int zlev );
