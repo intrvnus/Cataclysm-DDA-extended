@@ -1,4 +1,4 @@
-# Moddable engine additions (feature level 5)
+# Moddable engine additions (feature level 6)
 
 Everything here only exists in the custom "moddable engine" build.  A mod can declare
 `"requires_engine": 5` (or lower) in its `MOD_INFO`; builds with a lower level refuse to load such a mod and say why.
@@ -132,7 +132,7 @@ Windows (rows and button texts) and sidebar widgets can contain `{placeholders}`
 | `{music_bar:30}` | progress bar of the song, `[####------]`, 30 characters wide |
 | `{music_volume}` | volume, 100 = normal |
 | `{music_shuffle}` `{music_repeat}` | On / Off, Album / Song / Off (level 5) |
-| `{music_battery}` `{music_battery_bar:14}` | battery of the player or phone that plays the music: `73%` / `[#######---]`, `--` if unknown (level 5) |
+| `{music_battery}` `{music_battery_bar:14}` | battery of the player or phone that plays the music: `73%` / `[#######---]`, `--` if unknown, `inf` (full bar) for a device without any battery slot such as the atomic mp3 player (level 5, `inf` level 6) |
 | `{time}` `{day}` `{player_name}` | time of day, day number, character name |
 | `{var:name}` `{gvar:name}` | a character variable / a global variable (`u_name` in EOCs) |
 | `{option:id}` | value of a mod option |

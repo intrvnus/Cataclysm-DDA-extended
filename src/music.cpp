@@ -443,6 +443,27 @@ static std::string album_id_for( const std::string &folder_name, std::set<std::s
     return unique;
 }
 
+// Without any albums the pool still has to exist: mods refer to it from their loot groups.
+static void define_empty_album_pool( const std::string &src, const cata_path &base_path,
+                                     const cata_path &full_path )
+{
+    if( pool_exists ) {
+        return;
+    }
+    std::ostringstream pool_json;
+    JsonOut pool_out( pool_json );
+    pool_out.start_object();
+    pool_out.member( "type", "item_group" );
+    pool_out.member( "id", "music_albums_pool" );
+    pool_out.member( "subtype", "distribution" );
+    pool_out.member( "entries" );
+    pool_out.start_array();
+    pool_out.end_array();
+    pool_out.end_object();
+    DynamicDataLoader::get_instance().load_generated_json( pool_json.str(), src, base_path, full_path );
+    pool_exists = true;
+}
+
 void load_albums( const JsonObject &jo, const std::string &src, const cata_path &base_path,
                   const cata_path &full_path )
 {
@@ -453,6 +474,7 @@ void load_albums( const JsonObject &jo, const std::string &src, const cata_path 
                                       std::filesystem::u8path( folder_name );
     std::error_code ec;
     if( !std::filesystem::is_directory( dir, ec ) ) {
+        define_empty_album_pool( src, base_path, full_path );
         return;
     }
 
@@ -511,6 +533,7 @@ void load_albums( const JsonObject &jo, const std::string &src, const cata_path 
     }
 
     if( new_ids.empty() ) {
+        define_empty_album_pool( src, base_path, full_path );
         return;
     }
     // One group with every album (equal chance each).  Mods put it into loot piles with

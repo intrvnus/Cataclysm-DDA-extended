@@ -1,0 +1,26 @@
+[
+  {
+    "type": "mod_option",
+    "id": "item_marks.auto_broken",
+    "name": "Auto-mark broken items as junk",
+    "description": "Items you carry that are broken or completely worn out get the Junk mark.",
+    "kind": "bool",
+    "default": true
+  },
+  {
+    "type": "mod_option",
+    "id": "item_marks.auto_empty",
+    "name": "Auto-mark empty cans, cups and bottles as junk",
+    "description": "Empty cans, plastic cups and empty bottles get the Junk mark (it goes away when they are filled).",
+    "kind": "bool",
+    "default": true
+  },
+  {
+    "type": "mod_option",
+    "id": "item_marks.auto_wet",
+    "name": "Auto-mark wet clothes as junk",
+    "description": "Wet clothing you carry but do not wear gets the Junk mark until it is dry.",
+    "kind": "bool",
+    "default": true
+  }
+]

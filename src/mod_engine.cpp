@@ -294,6 +294,9 @@ struct row_layout {
 struct window_instance {
     std::string id;
     point pos;
+    // Where the player wants the window.  pos is this, pushed back onto the screen if the window
+    // is too big at the moment (e.g. the song list is open), so it returns when the window shrinks.
+    point anchor;
     int width = 0;
     int height = 0;
     catacurses::window win;
@@ -574,7 +577,7 @@ bool update_window( window_instance &w )
     bool changed = refresh_layout( w );
     if( changed && w.wanted_height >= 3 && w.wanted_height != w.height ) {
         w.height = w.wanted_height;
-        w.pos = clamp_position( w, w.pos );
+        w.pos = clamp_position( w, w.anchor );
         place_window( w );
     }
     return changed;
@@ -599,11 +602,12 @@ void open_window( const std::string &id )
     refresh_layout( *w );
     w->height = std::max( 3, w->wanted_height );
     const window_state &saved = window_states()[id];
-    w->pos = clamp_position( *w, saved.has_pos ? saved.pos : def.default_pos );
+    w->anchor = saved.has_pos ? saved.pos : def.default_pos;
+    w->pos = clamp_position( *w, w->anchor );
     w->ui = std::make_unique<ui_adaptor>();
     window_instance *raw = w.get();
     w->ui->on_screen_resize( [raw]( ui_adaptor & ) {
-        raw->pos = clamp_position( *raw, raw->pos );
+        raw->pos = clamp_position( *raw, raw->anchor );
         place_window( *raw );
     } );
     w->ui->on_redraw( [raw]( ui_adaptor & ) {
@@ -668,7 +672,8 @@ void apply_command( const std::string &cmd, const std::string &id )
         window_state &st = window_states()[id];
         st.has_pos = false;
         if( window_instance *w = find_instance( id ) ) {
-            w->pos = clamp_position( *w, def_it->second.default_pos );
+            w->anchor = def_it->second.default_pos;
+            w->pos = clamp_position( *w, w->anchor );
             place_window( *w );
         }
         save_window_states();
@@ -745,11 +750,12 @@ void bring_to_front( window_instance *w )
     // Moving the instance to the end of the list is not enough, the ui stack order is fixed when
     // the ui_adaptor is created, so the window is re-created on top.
     const std::string id = w->id;
-    const point pos = w->pos;
+    const point anchor = w->anchor;
     close_window( id, false );
     open_window( id );
     if( window_instance *nw = find_instance( id ) ) {
-        nw->pos = clamp_position( *nw, pos );
+        nw->anchor = anchor;
+        nw->pos = clamp_position( *nw, anchor );
         place_window( *nw );
     }
 }
@@ -800,7 +806,8 @@ std::string album_display_name()
 int music_device_battery()
 {
     static const std::vector<itype_id> ids = { itype_id( "mp3_on" ), itype_id( "smartphone_music" ),
-            itype_id( "afs_atomic_smartphone_music" ), itype_id( "afs_atomic_wraitheon_music" )
+            itype_id( "afs_atomic_smartphone_music" ), itype_id( "afs_atomic_wraitheon_music" ),
+            itype_id( "atomic_mp3_on" ), itype_id( "atomic_smartphone_music" )
                                              };
     const avatar &me = get_avatar();
     const std::vector<const item *> found = me.items_with( [&]( const item & it ) {
@@ -813,7 +820,8 @@ int music_device_battery()
     const int have = dev.ammo_remaining();
     const int total = have + dev.remaining_ammo_capacity();
     if( total <= 0 ) {
-        return -1;
+        // A device without any battery slot (the atomic ones) never runs out.
+        return 101;
     }
     return std::clamp( have * 100 / total, 0, 100 );
 }
@@ -866,13 +874,16 @@ std::optional<std::string> resolve_placeholder( const std::string &key )
         return std::string( mode == 2 ? _( "Song" ) : ( mode == 1 ? _( "Album" ) : _( "Off" ) ) );
     } else if( name == "music_battery" ) {
         const int pct = music_device_battery();
+        if( pct > 100 ) {
+            return std::string( "inf" );
+        }
         return pct < 0 ? std::string( "--" ) : string_format( "%d%%", pct );
     } else if( name == "music_battery_bar" ) {
         int width = 10;
         if( !arg.empty() ) {
             width = std::clamp( atoi( arg.c_str() ), 3, 40 );
         }
-        const int pct = music_device_battery();
+        const int pct = std::min( music_device_battery(), 100 );
         const int filled = pct < 0 ? 0 : std::clamp( static_cast<int>( std::round( ( width - 2 ) * pct / 100.0 ) ),
                            pct > 0 ? 1 : 0, width - 2 );
         return "[" + std::string( filled, '#' ) + std::string( ( width - 2 ) - filled, '-' ) + "]";
@@ -1120,7 +1131,7 @@ void tick()
         // 2b. windows that follow the mp3 player (open if one is playing already)
         if( restore_pending_show() ) {
             restore_pending_show() = false;
-            if( get_avatar().has_active_item( itype_id( "mp3_on" ) ) ) {
+            if( music_device_battery() != -1 ) {
                 for( const std::pair<const std::string, window_def> &def : window_registry() ) {
                     if( def.second.show_while == "mp3" ) {
                         open_window( def.first );
@@ -1187,6 +1198,7 @@ bool handle_mouse( input_context &ctxt, const std::string &action )
             }
             if( cell ) {
                 w->pos = clamp_position( *w, *cell - ds.grab );
+                w->anchor = w->pos;
                 place_window( *w );
             }
             return true;
@@ -1244,7 +1256,7 @@ bool handle_mouse( input_context &ctxt, const std::string &action )
             if( window_instance *w = find_instance( finished.id ) ) {
                 ensure_window_states();
                 window_state &st = window_states()[finished.id];
-                st.pos = w->pos;
+                st.pos = w->anchor;
                 st.has_pos = true;
                 save_window_states();
             }

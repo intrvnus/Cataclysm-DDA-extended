@@ -267,6 +267,10 @@ static const itype_id itype_afs_atomic_smartphone_music( "afs_atomic_smartphone_
 static const itype_id itype_afs_atomic_wraitheon_music( "afs_atomic_wraitheon_music" );
 static const itype_id itype_afs_wraitheon_smartphone( "afs_wraitheon_smartphone" );
 static const itype_id itype_apparatus( "apparatus" );
+static const itype_id itype_atomic_mp3( "atomic_mp3" );
+static const itype_id itype_atomic_mp3_on( "atomic_mp3_on" );
+static const itype_id itype_atomic_smartphone( "atomic_smartphone" );
+static const itype_id itype_atomic_smartphone_music( "atomic_smartphone_music" );
 static const itype_id itype_arcade_machine( "arcade_machine" );
 static const itype_id itype_atomic_coffeepot( "atomic_coffeepot" );
 static const itype_id itype_barometer( "barometer" );
@@ -3875,7 +3879,9 @@ std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
         p->add_msg_if_player( m_info, _( "The device's batteries are dead." ) );
     } else if( p->has_active_item( itype_mp3_on ) || p->has_active_item( itype_smartphone_music ) ||
                p->has_active_item( itype_afs_atomic_smartphone_music ) ||
-               p->has_active_item( itype_afs_atomic_wraitheon_music ) ) {
+               p->has_active_item( itype_afs_atomic_wraitheon_music ) ||
+               p->has_active_item( itype_atomic_mp3_on ) ||
+               p->has_active_item( itype_atomic_smartphone_music ) ) {
         p->add_msg_if_player( m_info, _( "You are already listening to music!" ) );
     } else if( !mp3_album_ready( *p ) && !( p->is_avatar() && mod_engine::choose_album() &&
                                            mp3_album_ready( *p ) ) ) {
@@ -3890,6 +3896,10 @@ std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
             it->convert( itype_afs_atomic_smartphone_music, p ).active = true;
         } else if( it->typeId() == itype_afs_wraitheon_smartphone ) {
             it->convert( itype_afs_atomic_wraitheon_music, p ).active = true;
+        } else if( it->typeId() == itype_atomic_mp3 ) {
+            it->convert( itype_atomic_mp3_on, p ).active = true;
+        } else if( it->typeId() == itype_atomic_smartphone ) {
+            it->convert( itype_atomic_smartphone_music, p ).active = true;
         }
         p->mod_moves( -200 );
         if( p->is_avatar() ) {
@@ -4001,6 +4011,12 @@ std::optional<int> iuse::mp3_deactivate( Character *p, item *it, const tripoint_
     } else if( it->typeId() == itype_afs_atomic_wraitheon_music ) {
         p->add_msg_if_player( _( "The phone turns off." ) );
         it->convert( itype_afs_wraitheon_smartphone, p ).active = false;
+    } else if( it->typeId() == itype_atomic_mp3_on ) {
+        p->add_msg_if_player( _( "The mp3 player turns off." ) );
+        it->convert( itype_atomic_mp3, p ).active = false;
+    } else if( it->typeId() == itype_atomic_smartphone_music ) {
+        p->add_msg_if_player( _( "The phone turns off." ) );
+        it->convert( itype_atomic_smartphone, p ).active = false;
     }
     p->mod_moves( -200 );
     music::deactivate_music_id( music::music_id::mp3 );

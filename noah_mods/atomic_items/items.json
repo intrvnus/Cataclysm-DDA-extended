@@ -1,0 +1,980 @@
+[
+  {
+    "id": "atomic_mp3",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic mp3 player (off)",
+      "str_pl": "atomic mp3 players (off)"
+    },
+    "description": "An mp3 player with a tiny nuclear cell instead of a battery.  Use it to turn it on; it never runs flat.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "130 g",
+    "volume": "44 ml",
+    "price": "2 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "use_action": [
+      "MP3",
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Choose album",
+        "description": "Pick which album this player plays.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_CHOOSE_ALBUM"
+        ]
+      },
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Music window",
+        "description": "Show or hide the small music player window.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_TOGGLE_WINDOW"
+        ]
+      }
+    ],
+    "flags": [
+      "WATER_BREAK_ACTIVE"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "name": "Album slots",
+        "description": "Room for a few music albums.",
+        "max_contains_volume": "5 ml",
+        "max_contains_weight": "1 kg",
+        "rigid": true,
+        "moves": 50,
+        "flag_restriction": [
+          "OWN_MUSIC_ALBUM"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "atomic_mp3_on",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic mp3 player (on)",
+      "str_pl": "atomic mp3 players (on)"
+    },
+    "description": "This atomic mp3 player is turned on and playing, raising your morale steadily while on your person.  It also obscures your hearing.  Use it to turn it off.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "130 g",
+    "volume": "44 ml",
+    "price": "2 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "revert_to": "atomic_mp3",
+    "use_action": [
+      "MP3_DEACTIVATE",
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Choose album",
+        "description": "Pick which album this player plays.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_CHOOSE_ALBUM"
+        ]
+      },
+      {
+        "type": "effect_on_conditions",
+        "menu_text": "Music window",
+        "description": "Show or hide the small music player window.",
+        "effect_on_conditions": [
+          "EOC_OWN_MUSIC_TOGGLE_WINDOW"
+        ]
+      }
+    ],
+    "tick_action": [
+      "MP3_ON"
+    ],
+    "flags": [
+      "WATER_BREAK",
+      "TRADER_AVOID"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "name": "Album slots",
+        "description": "Room for a few music albums.",
+        "max_contains_volume": "5 ml",
+        "max_contains_weight": "1 kg",
+        "rigid": true,
+        "moves": 50,
+        "flag_restriction": [
+          "OWN_MUSIC_ALBUM"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "atomic_smartphone",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic smartphone"
+    },
+    "description": "A smartphone that runs on a radioisotope cell and never needs charging.  Capable of taking photos, lighting an area with its flashlight app and playing music, with a clock, an alarm and a calorie tracker.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "290 g",
+    "volume": "111 ml",
+    "price": "5 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "phone",
+    "e_ports_banned": [
+      "USB-A"
+    ],
+    "looks_like": "smart_phone",
+    "use_action": [
+      {
+        "type": "transform",
+        "target": "atomic_smartphone_flashlight",
+        "msg": "You activate the flashlight app.",
+        "menu_text": "Turn on flashlight",
+        "active": true
+      },
+      "CAMERA",
+      "MP3",
+      "CALORIES_INTAKE_TRACKER",
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      "PORTABLE_GAME"
+    ],
+    "flags": [
+      "WATCH",
+      "ALARMCLOCK",
+      "CALORIES_INTAKE",
+      "CAN_USE_IN_DARK",
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "256 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_smartphone_flashlight",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic smartphone - Flashlight",
+      "str_pl": "atomic smartphones - Flashlight"
+    },
+    "description": "The flashlight app of this atomic smartphone is on.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "290 g",
+    "volume": "111 ml",
+    "price": "5 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "phone",
+    "e_ports_banned": [
+      "USB-A"
+    ],
+    "looks_like": "smart_phone",
+    "revert_to": "atomic_smartphone",
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      "PORTABLE_GAME",
+      {
+        "type": "transform",
+        "target": "atomic_smartphone",
+        "msg": "You deactivate the flashlight app.",
+        "menu_text": "Turn off flashlight"
+      }
+    ],
+    "flags": [
+      "WATCH",
+      "ALARMCLOCK",
+      "CALORIES_INTAKE",
+      "CAN_USE_IN_DARK",
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK",
+      "LIGHT_20",
+      "TRADER_AVOID"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "256 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_smartphone_music",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic smartphone - music",
+      "str_pl": "atomic smartphones - music"
+    },
+    "description": "This phone is playing music, steadily raising your morale.  You can't hear anything else while you're listening.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "290 g",
+    "volume": "111 ml",
+    "price": "5 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "phone",
+    "e_ports_banned": [
+      "USB-A"
+    ],
+    "looks_like": "smart_phone",
+    "revert_to": "atomic_smartphone",
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      "PORTABLE_GAME",
+      "MP3_DEACTIVATE"
+    ],
+    "tick_action": [
+      "MP3_ON"
+    ],
+    "flags": [
+      "WATCH",
+      "ALARMCLOCK",
+      "CALORIES_INTAKE",
+      "CAN_USE_IN_DARK",
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK",
+      "TRADER_AVOID"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "256 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_laptop",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic laptop computer"
+    },
+    "description": "A laptop computer powered by a radioisotope cell.  While you no longer have internet access, you can still load it with books and other useful software, and it never needs a charger.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "1550 g",
+    "volume": "760 ml",
+    "price": "9 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "aluminum",
+        "portion": 75
+      },
+      {
+        "type": "plastic",
+        "portion": 25
+      }
+    ],
+    "symbol": ",",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "laptop",
+    "category": "tools",
+    "longest_side": "322 mm",
+    "melee_damage": {
+      "bash": 6
+    },
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      "PORTABLE_GAME",
+      {
+        "type": "transform",
+        "target": "atomic_laptop_screen_lit",
+        "msg": "You light up the screen.",
+        "menu_text": "Light up the screen",
+        "active": true
+      }
+    ],
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATCH",
+      "WATER_BREAK",
+      "ALLOWS_REMOTE_USE",
+      "CAN_USE_IN_DARK"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "1 TB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_laptop_screen_lit",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic laptop computer - lit screen",
+      "str_pl": "atomic laptop computers - lit screen"
+    },
+    "description": "The screen of this atomic laptop is lit.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "1550 g",
+    "volume": "760 ml",
+    "price": "9 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "aluminum",
+        "portion": 75
+      },
+      {
+        "type": "plastic",
+        "portion": 25
+      }
+    ],
+    "symbol": ",",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "laptop",
+    "category": "tools",
+    "longest_side": "322 mm",
+    "melee_damage": {
+      "bash": 6
+    },
+    "revert_to": "atomic_laptop",
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      "PORTABLE_GAME",
+      {
+        "type": "transform",
+        "target": "atomic_laptop",
+        "msg": "You stop lighting up the screen.",
+        "menu_text": "Turn off"
+      }
+    ],
+    "tick_action": [
+      "EPIC_MUSIC"
+    ],
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATCH",
+      "WATER_BREAK",
+      "ALLOWS_REMOTE_USE",
+      "CAN_USE_IN_DARK",
+      "LIGHT_10",
+      "TRADER_AVOID"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "1 TB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_eink_tablet_pc",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic e-ink tablet PC"
+    },
+    "description": "A tablet PC with an e-ink display, powered by a radioisotope cell.  It can store and display books and files for years without a charger.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "260 g",
+    "volume": "140 ml",
+    "price": "3 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "aluminum",
+        "portion": 3
+      },
+      {
+        "type": "plastic",
+        "portion": 1
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "tablet",
+    "e_ports_banned": [
+      "USB-A"
+    ],
+    "longest_side": "158 mm",
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      {
+        "type": "transform",
+        "target": "atomic_eink_tablet_pc_on",
+        "msg": "You power up the screen.",
+        "menu_text": "Turn on the screen",
+        "active": true
+      }
+    ],
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATCH",
+      "WATER_BREAK"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "32 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_eink_tablet_pc_on",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic e-ink tablet PC (on)",
+      "str_pl": "atomic e-ink tablet PCs (on)"
+    },
+    "description": "The screen of this atomic e-ink tablet is on.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "260 g",
+    "volume": "140 ml",
+    "price": "3 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "aluminum",
+        "portion": 3
+      },
+      {
+        "type": "plastic",
+        "portion": 1
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "etransfer_rate": "30 MB",
+    "e_port": "tablet",
+    "e_ports_banned": [
+      "USB-A"
+    ],
+    "longest_side": "158 mm",
+    "revert_to": "atomic_eink_tablet_pc",
+    "use_action": [
+      "E_FILE_DEVICE",
+      "EBOOKSAVE",
+      {
+        "type": "transform",
+        "target": "atomic_eink_tablet_pc",
+        "msg": "You power down the screen.",
+        "menu_text": "Turn off the screen"
+      }
+    ],
+    "tick_action": [
+      "EPIC_MUSIC"
+    ],
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATCH",
+      "WATER_BREAK",
+      "LIGHT_10",
+      "TRADER_AVOID"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "32 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_portable_game",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic handheld game system"
+    },
+    "description": "A portable video game console with a backlit screen, running on a radioisotope cell.  Multiple game systems can be linked together for multiplayer games.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "480 g",
+    "volume": "341 ml",
+    "price": "2 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "use_action": [
+      "PORTABLE_GAME"
+    ],
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK"
+    ]
+  },
+  {
+    "id": "atomic_radio",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic radio (off)",
+      "str_pl": "atomic radios (off)"
+    },
+    "description": "A portable radio with a radioisotope power cell.  Using it turns it on.  It will pick up any nearby signals being broadcast and play them audibly.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "480 g",
+    "volume": "1 L",
+    "price": "1500 USD",
+    "price_postapoc": "40 USD",
+    "material": [
+      "plastic",
+      "aluminum"
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "use_action": [
+      {
+        "type": "transform",
+        "target": "atomic_radio_on",
+        "msg": "You turn the radio on.",
+        "menu_text": "Turn on",
+        "active": true
+      }
+    ],
+    "flags": [
+      "WATER_BREAK"
+    ]
+  },
+  {
+    "id": "atomic_radio_on",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic radio (on)",
+      "str_pl": "atomic radios (on)"
+    },
+    "description": "A portable radio that is turned on.  It is playing the broadcast being sent from any nearby radio towers.  Use it to pick a station or to turn it off.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "480 g",
+    "volume": "1 L",
+    "price": "1500 USD",
+    "price_postapoc": "40 USD",
+    "material": [
+      "plastic",
+      "aluminum"
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "revert_to": "atomic_radio",
+    "use_action": [
+      "RADIO_ON",
+      {
+        "type": "transform",
+        "target": "atomic_radio",
+        "msg": "You turn the radio off.",
+        "menu_text": "Turn off"
+      }
+    ],
+    "tick_action": [
+      "RADIO_TICK"
+    ],
+    "flags": [
+      "WATER_BREAK",
+      "TRADER_AVOID"
+    ]
+  },
+  {
+    "id": "atomic_camera",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic camera"
+    },
+    "description": "A point-and-shoot digital camera with a digital viewfinder, a backup 'iron-sight' and flash, powered by a radioisotope cell.  You can look at your photos on the digital screen, or transfer them with any standard electronic device.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "1050 g",
+    "volume": "260 ml",
+    "price": "4 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      "plastic",
+      "steel"
+    ],
+    "symbol": ";",
+    "color": "light_green",
+    "use_action": [
+      "CAMERA"
+    ],
+    "e_port": "camera",
+    "etransfer_rate": "20 MB",
+    "melee_damage": {
+      "bash": 1
+    },
+    "variables": {
+      "browsed": "true"
+    },
+    "flags": [
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK_ACTIVE"
+    ],
+    "pocket_data": [
+      {
+        "pocket_type": "E_FILE_STORAGE",
+        "rigid": true,
+        "max_contains_volume": "1 ml",
+        "max_contains_weight": "1 g",
+        "weight_multiplier": 0.0,
+        "ememory_max": "32 GB"
+      }
+    ]
+  },
+  {
+    "id": "atomic_smart_watch",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL",
+      "ARMOR"
+    ],
+    "name": {
+      "str": "atomic smart watch",
+      "str_pl": "atomic smart watches"
+    },
+    "description": "A touchscreen watch with a calendar, an alarm and a fitness app, for when you want to check your health on the go, powered by a radioisotope cell.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "90 g",
+    "volume": "125 ml",
+    "price": "2 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "aluminum",
+        "portion": 25
+      }
+    ],
+    "symbol": "[",
+    "color": "light_green",
+    "sided": true,
+    "category": "clothing",
+    "use_action": [
+      "CALORIES_INTAKE_TRACKER",
+      "FITNESS_CHECK",
+      "PORTABLE_GAME"
+    ],
+    "flags": [
+      "WATCH",
+      "ALARMCLOCK",
+      "BELTED",
+      "FRAGILE",
+      "ALLOWS_NATURAL_ATTACKS",
+      "OVERSIZE",
+      "NO_UNLOAD",
+      "NO_RELOAD",
+      "WATER_BREAK",
+      "CALORIE_BURN"
+    ],
+    "armor": [
+      {
+        "coverage": 100,
+        "covers": [
+          "hand_l",
+          "hand_r"
+        ],
+        "specifically_covers": [
+          "hand_wrist_l",
+          "hand_wrist_r"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "atomic_soldering_iron",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL"
+    ],
+    "name": {
+      "str": "atomic soldering iron"
+    },
+    "description": "A device with a metal tip that can get very hot, heated by a radioisotope cell.  It is necessary for advanced electronics crafting and can also be used to repair plastic and soft metal items.  It needs no battery and no cable.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "190 g",
+    "volume": "130 ml",
+    "price": "1500 USD",
+    "price_postapoc": "40 USD",
+    "material": [
+      {
+        "type": "plastic",
+        "portion": 75
+      },
+      {
+        "type": "copper",
+        "portion": 25
+      }
+    ],
+    "symbol": ",",
+    "color": "light_green",
+    "longest_side": "22 cm",
+    "use_action": [
+      {
+        "type": "repair_item",
+        "item_action_type": "repair_metal",
+        "materials": [
+          "plastic",
+          "lead",
+          "tin",
+          "zinc"
+        ],
+        "skill": "fabrication",
+        "cost_scaling": 0.1,
+        "move_cost": 1500
+      }
+    ],
+    "flags": [
+      "BELT_CLIP",
+      "ALLOWS_REMOTE_USE",
+      "WATER_BREAK"
+    ],
+    "to_hit": {
+      "grip": "solid",
+      "length": "hand",
+      "surface": "point",
+      "balance": "neutral"
+    },
+    "melee_damage": {
+      "stab": 2
+    }
+  },
+  {
+    "id": "atomic_electric_blanket",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL",
+      "ARMOR"
+    ],
+    "name": {
+      "str": "atomic electric blanket"
+    },
+    "description": "A heated blanket made of polyester with a radioisotope heating element.  The most comfortable thing on Earth, and it never needs batteries or a wall socket.  Use it to turn the heating on.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "1500 g",
+    "volume": "2500 ml",
+    "price": "6 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      "nylon"
+    ],
+    "symbol": "[",
+    "color": "light_green",
+    "warmth": 50,
+    "material_thickness": 1,
+    "environmental_protection": 2,
+    "use_action": [
+      {
+        "type": "transform",
+        "target": "atomic_electric_blanket_on",
+        "msg": "You turn the blanket's heating elements on.",
+        "menu_text": "Turn heating on",
+        "active": true
+      }
+    ],
+    "flags": [
+      "OVERSIZE",
+      "OUTER",
+      "ALLOWS_NATURAL_ATTACKS",
+      "WATER_BREAK"
+    ],
+    "armor": [
+      {
+        "encumbrance": 35,
+        "coverage": 100,
+        "covers": [
+          "torso",
+          "arm_l",
+          "arm_r",
+          "hand_l",
+          "hand_r",
+          "leg_l",
+          "leg_r",
+          "foot_l",
+          "foot_r"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "atomic_electric_blanket_on",
+    "type": "ITEM",
+    "subtypes": [
+      "TOOL",
+      "ARMOR"
+    ],
+    "name": {
+      "str": "atomic electric blanket (on)",
+      "str_pl": "atomic electric blankets (on)"
+    },
+    "description": "A heated blanket with a radioisotope heating element.  It's turned on, making it nice and toasty.  Use it to turn the heating off.  A sealed radioisotope power cell keeps it running forever.",
+    "weight": "1500 g",
+    "volume": "2500 ml",
+    "price": "6 kUSD",
+    "price_postapoc": "60 USD",
+    "material": [
+      "nylon"
+    ],
+    "symbol": "[",
+    "color": "light_green",
+    "warmth": 90,
+    "material_thickness": 1,
+    "environmental_protection": 2,
+    "revert_to": "atomic_electric_blanket",
+    "use_action": [
+      {
+        "type": "transform",
+        "target": "atomic_electric_blanket",
+        "msg": "You turn the blanket's heating elements off.",
+        "menu_text": "Turn heating off"
+      }
+    ],
+    "flags": [
+      "OVERSIZE",
+      "OUTER",
+      "ALLOWS_NATURAL_ATTACKS",
+      "WATER_BREAK",
+      "TRADER_AVOID"
+    ],
+    "armor": [
+      {
+        "encumbrance": 35,
+        "coverage": 100,
+        "covers": [
+          "torso",
+          "arm_l",
+          "arm_r",
+          "hand_l",
+          "hand_r",
+          "leg_l",
+          "leg_r",
+          "foot_l",
+          "foot_r"
+        ]
+      }
+    ]
+  }
+]

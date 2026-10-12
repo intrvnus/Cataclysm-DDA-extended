@@ -37,8 +37,10 @@ mod_id get_mod_base_id_from_src( mod_id src );
  * music pause/volume, play_sound_file, new events, mark "auto_pickup", editing mods of an existing world.
  * Level 5: item_mark_rule, mark "guard", toggle_mark / drop_marked, window rows with "show_if" and song
  * lists, music shuffle / repeat / play_index, battery placeholders, files in the title and loading art.
+ * Level 6: the atomic mp3 player / smartphone (ids "atomic_mp3", "atomic_smartphone") can play music;
+ * a music device without a battery slot shows "inf" in the music window's battery display.
  */
-constexpr int moddable_engine_level = 5;
+constexpr int moddable_engine_level = 6;
 
 struct MOD_INFORMATION {
     private:

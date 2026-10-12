@@ -1,0 +1,125 @@
+[
+  {
+    "type": "mod_window",
+    "id": "OWN_MUSIC_WINDOW",
+    "title": "Music player",
+    "width": 44,
+    "x": 2,
+    "y": 2,
+    "show_while": "mp3",
+    "rows": [
+      {
+        "image": "album_cover",
+        "height": 11,
+        "image_width": 22,
+        "align": "center"
+      },
+      {
+        "text": "{music_track}",
+        "align": "center"
+      },
+      {
+        "text": "{music_album}  ({music_state})",
+        "align": "center"
+      },
+      {
+        "text": "{music_bar:40}",
+        "align": "center"
+      },
+      {
+        "text": "{music_time}      Volume: {music_volume}",
+        "align": "center"
+      },
+      {
+        "text": "Battery {music_battery_bar:14} {music_battery}",
+        "align": "center"
+      },
+      {
+        "align": "center",
+        "buttons": [
+          {
+            "text": "[ |<< ]",
+            "eoc": "EOC_OWN_MUSIC_PREVIOUS"
+          },
+          {
+            "text": "[ {music_playpause} ]",
+            "eoc": "EOC_OWN_MUSIC_TOGGLE_PAUSE"
+          },
+          {
+            "text": "[ >>| ]",
+            "eoc": "EOC_OWN_MUSIC_NEXT"
+          }
+        ]
+      },
+      {
+        "align": "center",
+        "buttons": [
+          {
+            "text": "[ Shuffle: {music_shuffle} ]",
+            "eoc": "EOC_OWN_MUSIC_TOGGLE_SHUFFLE"
+          },
+          {
+            "text": "[ Repeat: {music_repeat} ]",
+            "eoc": "EOC_OWN_MUSIC_CYCLE_REPEAT"
+          },
+          {
+            "text": "[ Songs ]",
+            "eoc": "EOC_OWN_MUSIC_TOGGLE_SONG_LIST"
+          }
+        ]
+      },
+      {
+        "align": "center",
+        "buttons": [
+          {
+            "text": "[ < Album ]",
+            "eoc": "EOC_OWN_MUSIC_PREVIOUS_ALBUM"
+          },
+          {
+            "text": "[ Albums... ]",
+            "eoc": "EOC_OWN_MUSIC_CHOOSE_ALBUM"
+          },
+          {
+            "text": "[ Album > ]",
+            "eoc": "EOC_OWN_MUSIC_NEXT_ALBUM"
+          }
+        ]
+      },
+      {
+        "align": "center",
+        "buttons": [
+          {
+            "text": "[-10]",
+            "eoc": "EOC_OWN_MUSIC_VOLUME_DOWN_10"
+          },
+          {
+            "text": "[-5]",
+            "eoc": "EOC_OWN_MUSIC_VOLUME_DOWN_5"
+          },
+          {
+            "text": "[+5]",
+            "eoc": "EOC_OWN_MUSIC_VOLUME_UP_5"
+          },
+          {
+            "text": "[+10]",
+            "eoc": "EOC_OWN_MUSIC_VOLUME_UP_10"
+          },
+          {
+            "text": "[Close]",
+            "eoc": "EOC_OWN_MUSIC_CLOSE_WINDOW"
+          }
+        ]
+      },
+      {
+        "text": "- Songs (click one to play it) -",
+        "align": "center",
+        "show_if": "u_music_show_list"
+      },
+      {
+        "list": "music_queue",
+        "height": 8,
+        "show_if": "u_music_show_list"
+      }
+    ]
+  }
+]
