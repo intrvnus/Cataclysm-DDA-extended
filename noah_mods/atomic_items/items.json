@@ -3,12 +3,13 @@
     "id": "atomic_mp3",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic mp3 player (off)",
       "str_pl": "atomic mp3 players (off)"
     },
-    "description": "An mp3 player with a tiny nuclear cell instead of a battery.  Use it to turn it on; it never runs flat.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "An mp3 player with a tiny nuclear cell instead of a battery.  Use it to turn it on; it never runs flat.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "130 g",
     "volume": "44 ml",
     "price": "2 kUSD",
@@ -60,23 +61,19 @@
           "OWN_MUSIC_ALBUM"
         ]
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_mp3_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic mp3 player (on)",
       "str_pl": "atomic mp3 players (on)"
     },
-    "description": "This atomic mp3 player is turned on and playing, raising your morale steadily while on your person.  It also obscures your hearing.  Use it to turn it off.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "This atomic mp3 player is turned on and playing, raising your morale steadily while on your person.  It also obscures your hearing.  Use it to turn it off.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "130 g",
     "volume": "44 ml",
     "price": "2 kUSD",
@@ -93,11 +90,6 @@
     ],
     "symbol": ";",
     "color": "light_green",
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
-    ],
     "revert_to": "atomic_mp3",
     "use_action": [
       "MP3_DEACTIVATE",
@@ -144,11 +136,12 @@
     "id": "atomic_smartphone",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic smartphone"
     },
-    "description": "A smartphone that runs on a radioisotope cell and never needs charging.  Capable of taking photos, lighting an area with its flashlight app and playing music, with a clock, an alarm and a calorie tracker.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A smartphone that runs on a radioisotope cell and never needs charging.  Capable of taking photos, lighting an area with its flashlight app and playing music, with a clock, an alarm and a calorie tracker.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "290 g",
     "volume": "111 ml",
     "price": "5 kUSD",
@@ -204,23 +197,19 @@
         "weight_multiplier": 0.0,
         "ememory_max": "256 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_smartphone_flashlight",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic smartphone - Flashlight",
       "str_pl": "atomic smartphones - Flashlight"
     },
-    "description": "The flashlight app of this atomic smartphone is on.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "The flashlight app of this atomic smartphone is on.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "290 g",
     "volume": "111 ml",
     "price": "5 kUSD",
@@ -275,23 +264,19 @@
         "weight_multiplier": 0.0,
         "ememory_max": "256 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_smartphone_music",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic smartphone - music",
       "str_pl": "atomic smartphones - music"
     },
-    "description": "This phone is playing music, steadily raising your morale.  You can't hear anything else while you're listening.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "This phone is playing music, steadily raising your morale.  You can't hear anything else while you're listening.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "290 g",
     "volume": "111 ml",
     "price": "5 kUSD",
@@ -343,22 +328,18 @@
         "weight_multiplier": 0.0,
         "ememory_max": "256 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_laptop",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic laptop computer"
     },
-    "description": "A laptop computer powered by a radioisotope cell.  While you no longer have internet access, you can still load it with books and other useful software, and it never needs a charger.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A laptop computer powered by a radioisotope cell.  While you no longer have internet access, you can still load it with books and other useful software, and it never needs a charger.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "1550 g",
     "volume": "760 ml",
     "price": "9 kUSD",
@@ -411,23 +392,19 @@
         "weight_multiplier": 0.0,
         "ememory_max": "1 TB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_laptop_screen_lit",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic laptop computer - lit screen",
       "str_pl": "atomic laptop computers - lit screen"
     },
-    "description": "The screen of this atomic laptop is lit.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "The screen of this atomic laptop is lit.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "1550 g",
     "volume": "760 ml",
     "price": "9 kUSD",
@@ -485,22 +462,18 @@
         "weight_multiplier": 0.0,
         "ememory_max": "1 TB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_eink_tablet_pc",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic e-ink tablet PC"
     },
-    "description": "A tablet PC with an e-ink display, powered by a radioisotope cell.  It can store and display books and files for years without a charger.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A tablet PC with an e-ink display, powered by a radioisotope cell.  It can store and display books and files for years without a charger.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "260 g",
     "volume": "140 ml",
     "price": "3 kUSD",
@@ -549,23 +522,19 @@
         "weight_multiplier": 0.0,
         "ememory_max": "32 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_eink_tablet_pc_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic e-ink tablet PC (on)",
       "str_pl": "atomic e-ink tablet PCs (on)"
     },
-    "description": "The screen of this atomic e-ink tablet is on.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "The screen of this atomic e-ink tablet is on.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "260 g",
     "volume": "140 ml",
     "price": "3 kUSD",
@@ -619,22 +588,18 @@
         "weight_multiplier": 0.0,
         "ememory_max": "32 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_portable_game",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic handheld game system"
     },
-    "description": "A portable video game console with a backlit screen, running on a radioisotope cell.  Multiple game systems can be linked together for multiplayer games.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A portable video game console with a backlit screen, running on a radioisotope cell.  Multiple game systems can be linked together for multiplayer games.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "480 g",
     "volume": "341 ml",
     "price": "2 kUSD",
@@ -658,23 +623,19 @@
       "NO_UNLOAD",
       "NO_RELOAD",
       "WATER_BREAK"
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_radio",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic radio (off)",
       "str_pl": "atomic radios (off)"
     },
-    "description": "A portable radio with a radioisotope power cell.  Using it turns it on.  It will pick up any nearby signals being broadcast and play them audibly.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A portable radio with a radioisotope power cell.  Using it turns it on.  It will pick up any nearby signals being broadcast and play them audibly.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "480 g",
     "volume": "1 L",
     "price": "1500 USD",
@@ -696,23 +657,19 @@
     ],
     "flags": [
       "WATER_BREAK"
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_radio_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic radio (on)",
       "str_pl": "atomic radios (on)"
     },
-    "description": "A portable radio that is turned on.  It is playing the broadcast being sent from any nearby radio towers.  Use it to pick a station or to turn it off.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A portable radio that is turned on.  It is playing the broadcast being sent from any nearby radio towers.  Use it to pick a station or to turn it off.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "480 g",
     "volume": "1 L",
     "price": "1500 USD",
@@ -739,22 +696,18 @@
     "flags": [
       "WATER_BREAK",
       "TRADER_AVOID"
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_camera",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic camera"
     },
-    "description": "A point-and-shoot digital camera with a digital viewfinder, a backup 'iron-sight' and flash, powered by a radioisotope cell.  You can look at your photos on the digital screen, or transfer them with any standard electronic device.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A point-and-shoot digital camera with a digital viewfinder, a backup 'iron-sight' and flash, powered by a radioisotope cell.  You can look at your photos on the digital screen, or transfer them with any standard electronic device.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "1050 g",
     "volume": "260 ml",
     "price": "4 kUSD",
@@ -790,11 +743,6 @@
         "weight_multiplier": 0.0,
         "ememory_max": "32 GB"
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
@@ -802,12 +750,13 @@
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR", "ARTIFACT" ],
+      "ARMOR"
+    ],
     "name": {
       "str": "atomic smart watch",
       "str_pl": "atomic smart watches"
     },
-    "description": "A touchscreen watch with a calendar, an alarm and a fitness app, for when you want to check your health on the go, powered by a radioisotope cell.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A touchscreen watch with a calendar, an alarm and a fitness app, for when you want to check your health on the go, powered by a radioisotope cell.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "90 g",
     "volume": "125 ml",
     "price": "2 kUSD",
@@ -855,22 +804,18 @@
           "hand_wrist_r"
         ]
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
     "id": "atomic_soldering_iron",
     "type": "ITEM",
     "subtypes": [
-      "TOOL", "ARTIFACT" ],
+      "TOOL"
+    ],
     "name": {
       "str": "atomic soldering iron"
     },
-    "description": "A device with a metal tip that can get very hot, heated by a radioisotope cell.  It is necessary for advanced electronics crafting and can also be used to repair plastic and soft metal items.  It needs no battery and no cable.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A device with a metal tip that can get very hot, heated by a radioisotope cell.  It is necessary for advanced electronics crafting and can also be used to repair plastic and soft metal items.  It needs no battery and no cable.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "190 g",
     "volume": "130 ml",
     "price": "1500 USD",
@@ -916,23 +861,19 @@
     },
     "melee_damage": {
       "stab": 2
-    },
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
-    ]
+    }
   },
   {
     "id": "atomic_electric_blanket",
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR", "ARTIFACT" ],
+      "ARMOR"
+    ],
     "name": {
       "str": "atomic electric blanket"
     },
-    "description": "A heated blanket made of polyester with a radioisotope heating element.  The most comfortable thing on Earth, and it never needs batteries or a wall socket.  Use it to turn the heating on.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A heated blanket made of polyester with a radioisotope heating element.  The most comfortable thing on Earth, and it never needs batteries or a wall socket.  Use it to turn the heating on.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "1500 g",
     "volume": "2500 ml",
     "price": "6 kUSD",
@@ -976,11 +917,6 @@
           "foot_r"
         ]
       }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
-      }
     ]
   },
   {
@@ -988,12 +924,13 @@
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR", "ARTIFACT" ],
+      "ARMOR"
+    ],
     "name": {
       "str": "atomic electric blanket (on)",
       "str_pl": "atomic electric blankets (on)"
     },
-    "description": "A heated blanket with a radioisotope heating element.  It's turned on, making it nice and toasty.  Use it to turn the heating off.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
+    "description": "A heated blanket with a radioisotope heating element.  It's turned on, making it nice and toasty.  Use it to turn the heating off.  A sealed radioisotope power cell keeps it running forever.",
     "weight": "1500 g",
     "volume": "2500 ml",
     "price": "6 kUSD",
@@ -1037,11 +974,6 @@
           "foot_l",
           "foot_r"
         ]
-      }
-    ],
-    "passive_effects": [
-      {
-        "id": "atomic_rtg_aura"
       }
     ]
   }
