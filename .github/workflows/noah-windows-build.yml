@@ -43,6 +43,9 @@ jobs:
         shell: msys2 {0}
         run: |
           lang/compile_mo.sh all
+      - name: Install custom mods into data/mods
+        shell: bash
+        run: cp -r noah_mods/* data/mods/
       - name: Build CDDA
         env:
           BACKTRACE: 1
