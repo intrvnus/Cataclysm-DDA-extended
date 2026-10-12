@@ -566,6 +566,11 @@ void ensure_term_size()
     const int minHeight = EVEN_MINIMUM_TERM_HEIGHT;
     const int minWidth = EVEN_MINIMUM_TERM_WIDTH;
 
+    // Tests and --check-mods run without a terminal: nobody could resize it.
+    if( test_mode ) {
+        return;
+    }
+
     while( TERMY < minHeight || TERMX < minWidth ) {
         catacurses::erase();
         if( TERMY < minHeight && TERMX < minWidth ) {
