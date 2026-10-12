@@ -3,8 +3,7 @@
     "id": "atomic_mp3",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic mp3 player (off)",
       "str_pl": "atomic mp3 players (off)"
@@ -72,8 +71,7 @@
     "id": "atomic_mp3_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic mp3 player (on)",
       "str_pl": "atomic mp3 players (on)"
@@ -146,8 +144,7 @@
     "id": "atomic_smartphone",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic smartphone"
     },
@@ -218,8 +215,7 @@
     "id": "atomic_smartphone_flashlight",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic smartphone - Flashlight",
       "str_pl": "atomic smartphones - Flashlight"
@@ -290,8 +286,7 @@
     "id": "atomic_smartphone_music",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic smartphone - music",
       "str_pl": "atomic smartphones - music"
@@ -359,11 +354,9 @@
     "id": "atomic_laptop",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
-      "str": "atomic laptop computer",
-      "str_pl": "atomic laptop computers"
+      "str": "atomic laptop computer"
     },
     "description": "A laptop computer powered by a radioisotope cell.  While you no longer have internet access, you can still load it with books and other useful software, and it never needs a charger.  A sealed radioisotope power cell keeps it running forever, and it gives off a faint, harmless-looking trickle of radiation while you carry it.",
     "weight": "1550 g",
@@ -429,8 +422,7 @@
     "id": "atomic_laptop_screen_lit",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic laptop computer - lit screen",
       "str_pl": "atomic laptop computers - lit screen"
@@ -504,8 +496,7 @@
     "id": "atomic_eink_tablet_pc",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic e-ink tablet PC"
     },
@@ -569,8 +560,7 @@
     "id": "atomic_eink_tablet_pc_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic e-ink tablet PC (on)",
       "str_pl": "atomic e-ink tablet PCs (on)"
@@ -640,8 +630,7 @@
     "id": "atomic_portable_game",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic handheld game system"
     },
@@ -680,8 +669,7 @@
     "id": "atomic_radio",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic radio (off)",
       "str_pl": "atomic radios (off)"
@@ -719,8 +707,7 @@
     "id": "atomic_radio_on",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic radio (on)",
       "str_pl": "atomic radios (on)"
@@ -763,8 +750,7 @@
     "id": "atomic_camera",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic camera"
     },
@@ -816,8 +802,7 @@
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR"
-    ],
+      "ARMOR", "ARTIFACT" ],
     "name": {
       "str": "atomic smart watch",
       "str_pl": "atomic smart watches"
@@ -881,8 +866,7 @@
     "id": "atomic_soldering_iron",
     "type": "ITEM",
     "subtypes": [
-      "TOOL"
-    ],
+      "TOOL", "ARTIFACT" ],
     "name": {
       "str": "atomic soldering iron"
     },
@@ -944,8 +928,7 @@
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR"
-    ],
+      "ARMOR", "ARTIFACT" ],
     "name": {
       "str": "atomic electric blanket"
     },
@@ -1005,8 +988,7 @@
     "type": "ITEM",
     "subtypes": [
       "TOOL",
-      "ARMOR"
-    ],
+      "ARMOR", "ARTIFACT" ],
     "name": {
       "str": "atomic electric blanket (on)",
       "str_pl": "atomic electric blankets (on)"
