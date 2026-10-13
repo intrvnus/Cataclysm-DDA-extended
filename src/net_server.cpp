@@ -183,13 +183,20 @@ void send_text( remote_player &rp, const std::string &text )
 
 void resync_player( remote_player &rp, const npc &guy );
 
-void send_talk_turn( remote_player &rp )
+void send_talk_turn( remote_player &rp, npc &guy )
 {
     if( !rp.talk ) {
         return;
     }
     remote_conversation::turn_data td;
-    if( !rp.talk->turn( td ) ) {
+    // what the NPC says may open windows: they are not shown on the host
+    bool more = false;
+    {
+        remote_ui::replay_scope replay( std::vector<remote_ui::entry>(), guy,
+                                        guy.getID().get_value() );
+        more = rp.talk->turn( td );
+    }
+    if( !more ) {
         rp.talk.reset();
         impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "talk" );
@@ -262,7 +269,7 @@ void start_talk( remote_player &rp, npc &guy )
         send_text( rp, string_format( _( "%s doesn't want to talk to you." ), best->get_name() ) );
         return;
     }
-    send_talk_turn( rp );
+    send_talk_turn( rp, guy );
 }
 
 // The player answered: the NPC reacts.
@@ -304,7 +311,7 @@ void pick_talk( remote_player &rp, npc &guy, int index )
             return;
         }
     }
-    send_talk_turn( rp );
+    send_talk_turn( rp, guy );
 }
 
 // The player closed the trading window.
@@ -340,7 +347,7 @@ void finish_trade( remote_player &rp, npc &guy, const JsonObject &msg )
             send_text( rp, _( "The trade is no longer acceptable." ) );
         }
     }
-    send_talk_turn( rp );
+    send_talk_turn( rp, guy );
 }
 
 // ---- spawning the NPC of a new client ----

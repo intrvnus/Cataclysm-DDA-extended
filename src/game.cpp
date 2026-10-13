@@ -14589,6 +14589,11 @@ achievements_tracker &get_achievements()
 
 Character &get_player_character()
 {
+    // multiplayer: while the host does an action of a client (see remote_ui.h) "the player"
+    // is the body of that client
+    if( Character *actor = remote_ui::actor() ) {
+        return *actor;
+    }
     return g->u;
 }
 
