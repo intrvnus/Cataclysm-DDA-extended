@@ -228,7 +228,7 @@ void poll()
 void pace_turn()
 {
     static std::chrono::steady_clock::time_point last_end = std::chrono::steady_clock::now();
-    if( !is_host() || fluid::enabled() ) {
+    if( !is_host() || fluid::enabled() || everyone_asleep() ) {
         last_end = std::chrono::steady_clock::now();
         return;
     }

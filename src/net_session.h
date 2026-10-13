@@ -88,6 +88,9 @@ bool host_prevent_death( npc &guy );
 /** Walking into a downed player helps them up.  Returns true if @p p held a downed player
  * (the step is used up by helping). */
 bool host_try_revive( Character &helper, const tripoint_abs_ms &p );
+/** B6: true while every player (host avatar and all clients) sleeps: time may then run as
+ * fast as the machine allows until somebody wakes up. */
+bool everyone_asleep();
 /** Is @p who played by a connected client? */
 bool is_remote_player( const Character &who );
 /** Warns the player who controls @p who (host avatar: locally; remote player: on their

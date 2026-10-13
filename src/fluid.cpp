@@ -889,6 +889,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     if( who.is_dead_state() ) {
         return;
     }
+    // B6: a sleeping remote player wakes up by moving
+    if( !who.is_avatar() && who.in_sleep_state() &&
+        ( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) ) {
+        who.wake_up();
+    }
     // B7: moving or the cancel key stops a timed action (crafting, eating ...) at once
     if( who.activity && who.activity.is_interruptible_with_kb() &&
         ( in.move_x != 0 || in.move_y != 0 || in.cancel ) ) {
@@ -1042,7 +1047,8 @@ void begin_turn()
     avatar &player = get_avatar();
     // Single player: long activities and sleep run as fast as the machine allows.  Not in
     // multiplayer: that would fast-forward the world for everybody (sleep: see B6).
-    if( !net::active() && ( player.activity || player.in_sleep_state() ) ) {
+    if( ( !net::active() && ( player.activity || player.in_sleep_state() ) ) ||
+        net::everyone_asleep() ) {
         clk().valid = false;
         return;
     }

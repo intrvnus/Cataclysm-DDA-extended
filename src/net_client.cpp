@@ -49,6 +49,8 @@ namespace
 {
 
 struct client_state {
+    // B6: the own character sleeps on the host (any key wakes it up)
+    bool asleep = false;
     bool connected = false;
     bool welcomed = false;
     bool lost = false;
@@ -179,6 +181,14 @@ void apply_state( const JsonObject &msg )
             u.set_part_hp_cur( bp, std::max( 1, hp.get_int( bp.id().str() ) ) );
         }
     }
+    const bool asleep = you.get_bool( "asleep", false );
+    if( asleep && !cstate().asleep ) {
+        alerts::warn( _( "You are asleep.  The night passes faster when everybody sleeps.  Press a key to wake up." ),
+                      alerts::level::notice );
+    } else if( !asleep && cstate().asleep ) {
+        alerts::warn( _( "You wake up." ), alerts::level::notice );
+    }
+    cstate().asleep = asleep;
     if( you.get_bool( "dead", false ) && !cstate().lost ) {
         cstate().lost = true;
         add_msg( m_bad, _( "Multiplayer: you died on the host." ) );
@@ -262,6 +272,11 @@ bool handle_input()
         // movement and the mouse buttons are read as held state, see fluid::client_frame
         return false;
     }
+    if( cstate().asleep ) {
+        // B6: any key wakes the own character
+        send_action( "wake" );
+        return false;
+    }
     const action_id act = look_up_action( action );
     switch( act ) {
         case ACTION_MOVE_FORTH:
@@ -280,6 +295,9 @@ bool handle_input()
         case ACTION_PICKUP:
         case ACTION_PICKUP_ALL:
             send_action( "pickup" );
+            break;
+        case ACTION_SLEEP:
+            send_action( "sleep" );
             break;
         case ACTION_TOGGLE_RUN:
             send_action( "run" );

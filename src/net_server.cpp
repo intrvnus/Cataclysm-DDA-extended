@@ -249,6 +249,7 @@ void send_state( remote_player &rp, const npc &guy )
         jo.member( "pos" );
         write_pos( jo, guy.pos_abs() );
         jo.member( "dead", guy.is_dead() );
+        jo.member( "asleep", guy.in_sleep_state() );
         jo.member( "hp" );
         jo.start_object();
         for( const bodypart_id &bp : guy.get_all_body_parts() ) {
@@ -351,6 +352,21 @@ void execute( npc &guy, const command &cmd )
         }
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
+    } else if( cmd.action == "sleep" ) {
+        // B6: sleep until morning (the time skips when everybody sleeps)
+        if( !guy.in_sleep_state() ) {
+            const time_point now = calendar::turn;
+            time_point wake = now - time_past_midnight( now ) + 7_hours;
+            if( wake <= now + 1_hours ) {
+                wake += 1_days;
+            }
+            guy.fall_asleep( std::min( wake - now, 10_hours ) );
+            alerts::warn( string_format( _( "%s went to sleep." ), guy.get_name() ), alerts::level::notice );
+        }
+    } else if( cmd.action == "wake" ) {
+        if( guy.in_sleep_state() ) {
+            guy.wake_up();
+        }
     } else if( cmd.action == "run" || cmd.action == "crouch" || cmd.action == "prone" ) {
         // movement mode toggles (B4): pressing the same one again goes back to walking
         const move_mode_id wanted( cmd.action );
@@ -695,6 +711,26 @@ void host_send_events( const std::vector<fluid::event> &events )
             impl::send_json( rp.peer, json );
         }
     }
+}
+
+bool everyone_asleep()
+{
+    if( !is_host() ) {
+        return false;
+    }
+    if( !get_avatar().in_sleep_state() ) {
+        return false;
+    }
+    for( const remote_player &rp : clients() ) {
+        if( !rp.npc_id.is_valid() ) {
+            continue;
+        }
+        const npc *guy = g->find_npc( rp.npc_id );
+        if( guy != nullptr && !guy->in_sleep_state() ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool is_remote_player( const Character &who )
