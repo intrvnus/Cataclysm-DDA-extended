@@ -5204,6 +5204,8 @@ void game::knockback( std::vector<tripoint_bub_ms> &traj, int stun, int dam_mult
 void game::use_computer( const tripoint_bub_ms &p )
 {
     map &here = get_map();
+    // multiplayer: the body of the player at the console
+    Character &u = remote_ui::acting_player();
 
     if( u.has_trait( trait_ILLITERATE ) ) {
         add_msg( m_info, _( "You can not read a computer screen!" ) );
@@ -5236,7 +5238,7 @@ void game::use_computer( const tripoint_bub_ms &p )
     if( used->eocs.empty() ) {
         computer_session( *used ).use();
     } else {
-        dialogue d( get_talker_for( get_avatar() ), get_talker_for( used ) );
+        dialogue d( get_talker_for( get_player_character() ), get_talker_for( used ) );
         for( const effect_on_condition_id &eoc : used->eocs ) {
             eoc->activate( d );
         }
@@ -6409,10 +6411,6 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
     };
 
     if( mp_player && get_creature_tracker().creature_at( examp ) != nullptr ) {
-        mp_unavailable();
-        return;
-    }
-    if( mp_player && here.has_flag( ter_furn_flag::TFLAG_CONSOLE, examp ) ) {
         mp_unavailable();
         return;
     }

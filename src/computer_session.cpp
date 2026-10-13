@@ -171,7 +171,8 @@ void computer_session::use()
         refresh();
     } );
 
-    avatar &player_character = get_avatar();
+    // multiplayer: the body of the player at the console
+    Character &player_character = get_player_character();
     // Login
     print_line( _( "Logging into %s…" ), comp.name );
     if( comp.security > 0 ) {
@@ -303,7 +304,7 @@ static item *pick_estorage( units::ememory can_hold_ememory )
         return it.is_estorage() && it.remaining_ememory() >= can_hold_ememory;
     };
 
-    item_location loc = game_menus::inv::titled_filter_menu( filter, get_avatar(),
+    item_location loc = game_menus::inv::titled_filter_menu( filter, get_player_character(),
                         _( "Choose device:" ) );
     if( loc ) {
         return &*loc;

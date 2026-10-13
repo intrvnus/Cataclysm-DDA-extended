@@ -28,6 +28,7 @@
 
 #include "cached_options.h"
 #include "cata_assert.h"
+#include "net_session.h"
 #include "cata_scope_helpers.h"
 #include "cata_utility.h"
 #include "color.h"
@@ -530,6 +531,11 @@ void realDebugmsg( const char *filename, const char *line, const char *funcname,
     }
 
     if( test_mode ) {
+        return;
+    }
+
+    // Multiplayer host: a popup would stop the world for every player; the message is in the log.
+    if( net::is_host() ) {
         return;
     }
 
