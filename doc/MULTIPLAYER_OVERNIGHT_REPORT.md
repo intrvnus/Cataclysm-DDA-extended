@@ -17,12 +17,13 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 ## Found and fixed on the way
 - The host (and now clients) never show a blocking debug popup in multiplayer; they log instead (a popup froze the world / ate the keys).
 - NPCs loaded without a template id logged "invalid npc: NC_NONE" every second (client bodies are such NPCs): made the lookup safe.
-- A test binary was committed by mistake three times (about 100 MB in history); it is untracked now. Removing it from history needs a force-push: decision for you.
+- A test binary was committed by mistake (about 100 MB in history). As you allowed, I removed it from the branch history of `claude/fluid-proto` only: checked that the final tree is identical, the 25 commit messages are the same, and every rewritten commit differed from its old version ONLY in that file (`cataclysm-tiles.next`); then force-pushed with a lease. A local-only backup branch `backup-before-scrub` still has the old history.
 - Test-environment bugs (not game bugs): missing UTF-8 locale crashed the client on "90°"; SDL only delivers keys to the focused window when two clients run; stale game processes held the port.
 
 ## Not done / decisions for you
 - Grab/drag: needs a rewrite of `game::walk_move` for any character (about 1000 lines tied to the host avatar). Not attempted on the main branch.
-- Host chat key, dialogue side-column commands (look at / size up / yell), spells (not needed), the faction rework (C4), per-player bubbles (C2).
+- (Host chat: F2 say / F4 player list now exist for the host too.)
+-  dialogue side-column commands (look at / size up / yell), spells (not needed), the faction rework (C4), per-player bubbles (C2).
 - Zombie check is only partly verified: in one run it walked from 9 to 3 tiles toward a client with line of sight, in another it wandered off while out of sight. Monsters use the nearest player now; a cleaner test is still missing.
 - Balance/gameplay: nothing changed.
 
