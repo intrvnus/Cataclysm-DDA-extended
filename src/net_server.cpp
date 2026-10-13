@@ -2076,9 +2076,9 @@ void host_end_of_turn()
                 continue;
             }
             rp.npc_id = guy->getID();
-            spawn_test_npc( *guy );
             place_on_test_stairs( *guy );
             place_test_vehicle( *guy );
+            spawn_test_npc( *guy );
             spawn_test_zombie( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
             impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
