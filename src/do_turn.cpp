@@ -70,6 +70,7 @@
 #include "sdlsound.h"
 #include "simple_pathfinding.h"
 #include "sounds.h"
+#include "stations.h"
 #include "stats_tracker.h"
 #include "string_formatter.h"
 #include "timed_event.h"
@@ -867,6 +868,8 @@ bool do_turn()
     u.power_balance = u.get_power_level() - u.power_prev_turn;
     u.power_prev_turn = u.get_power_level();
 
+    // B3: crafts left on workbenches keep working
+    stations::process();
     net::host_end_of_turn();
     net::pace_turn();
 

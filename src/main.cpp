@@ -57,6 +57,7 @@
 #include "output.h"
 #include "path_info.h"
 #include "rng.h"
+#include "stations.h"
 #include "system_locale.h"
 #include "translations.h"
 #include "type_id.h"
@@ -904,6 +905,7 @@ int main( int argc, const char *argv[] )
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
         alerts::set_in_game( false );
+        stations::reset();
     }
 
     exit_handler( -999 );

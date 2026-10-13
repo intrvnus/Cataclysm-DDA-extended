@@ -190,6 +190,7 @@
 #include "sdltiles.h" // IWYU pragma: keep
 #include "sounds.h"
 #include "start_location.h"
+#include "stations.h"
 #include "stats_tracker.h"
 #include "string_formatter.h"
 #include "string_input_popup.h"
@@ -3694,6 +3695,8 @@ bool game::save()
 {
     // Multiplayer (A4): the characters of connected players are saved with the world.
     net::host_save_players();
+    // B3: the places of crafts on stations
+    stations::save();
     std::chrono::seconds time_since_load =
         std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::steady_clock::now() - time_of_last_load );
