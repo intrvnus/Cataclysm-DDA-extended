@@ -116,6 +116,9 @@ struct remote_player {
     // down instead of dead (C1): helped up by a friend, or dies when the time runs out
     bool downed = false;
     bool allow_death = false;
+    // test helper (CATA_MP_TEST_DOWN): where we are in the down/revive/bleed-out cycle
+    int test_stage = 0;
+    fluid::ms_t test_at = 0;
     fluid::ms_t bleed_out_at = 0;
     int revive_progress = 0;
     fluid::ms_t last_revive_step = 0;
@@ -540,6 +543,55 @@ bool load_body( npc &guy, std::string json )
 // For testing: with the environment variable CATA_MP_TEST_NPC set, an NPC appears next to
 // every player who joins (so that conversations and trading can be tried without the debug menu).
 // Test helper: a zombie a few steps from the player (tests whether monsters go for clients).
+// Test helper: kills the player's body now and then, helps it up, lets it bleed out, and logs
+// what happened (C1: downed players, help, respawn).
+void test_downed_cycle( remote_player &rp, npc &guy )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_DOWN" ) != nullptr;
+    if( !on ) {
+        return;
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    switch( rp.test_stage ) {
+        case 0:
+            rp.test_at = now + 20000;
+            rp.test_stage = 1;
+            break;
+        case 1:
+        case 3:
+            if( now >= rp.test_at ) {
+                guy.die( &get_map(), nullptr );
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: body killed, downed=" << rp.downed <<
+                                           " dead=" << guy.is_dead();
+                rp.test_at = now + ( rp.test_stage == 1 ? 8000 : 75000 );
+                rp.test_stage++;
+            }
+            break;
+        case 2:
+            if( now >= rp.test_at ) {
+                bool helped = false;
+                for( int i = 0; i < 10; i++ ) {
+                    helped = host_try_revive( get_avatar(), guy.pos_abs() ) || helped;
+                }
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: helped=" << helped << " downed=" <<
+                                           rp.downed << " dead=" << guy.is_dead();
+                rp.test_at = now + 8000;
+                rp.test_stage = 3;
+            }
+            break;
+        case 4:
+            if( now >= rp.test_at ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: after bleeding out downed=" << rp.downed <<
+                                           " allow_death=" << rp.allow_death << " dead=" << guy.is_dead() <<
+                                           " body id " << guy.getID().get_value();
+                rp.test_stage = 5;
+            }
+            break;
+        default:
+            break;
+    }
+}
+
 void report_test_vehicle( const npc &near )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_VEHICLE" ) != nullptr;
@@ -1209,6 +1261,21 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 ( option == game::npc_opt_use_item || option == game::npc_opt_disarm ||
                   option == game::npc_opt_steal ) ) {
                 g->npc_menu_choice( guy, *other, option );
+            }
+        } else if( what == "npc_sort_armor" ) {
+            // the layer order of a friend's clothes, sorted on the client
+            const int id = std::atoi( remote_ui::answer( "n" ).value_or( "-1" ).c_str() );
+            const std::string order_text = remote_ui::answer( "s" ).value_or( "" );
+            npc *other = g->find_npc( character_id( id ) );
+            if( other != nullptr && !other->is_dead() && other->is_player_ally() &&
+                rl_dist( guy.pos_abs(), other->pos_abs() ) <= 1 ) {
+                std::istringstream is( order_text );
+                std::vector<int> order;
+                int i = 0;
+                while( is >> i ) {
+                    order.push_back( i );
+                }
+                other->reorder_worn( order );
             }
         } else if( what == "control_vehicle" ) {
             g->mp_control_vehicle();
@@ -2135,6 +2202,7 @@ void host_end_of_turn()
         if( guy != nullptr ) {
             report_test_zombie( *guy );
             report_test_vehicle( *guy );
+            test_downed_cycle( rp, *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
             // overmap knowledge is shared by all players: what anybody sees is known to everybody

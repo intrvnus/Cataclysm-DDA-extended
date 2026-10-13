@@ -736,6 +736,25 @@ void run_npc_menu()
             return;
         }
     }
+    if( menu.ret == game::npc_opt_sort_armor ) {
+        // sorted here on the copy of that NPC; the new order is sent to the host
+        if( npc *other = g->find_npc( character_id( m.id ) ) ) {
+            send_ui( "npc_sort_armor", [other]() {
+                const std::vector<const item *> before = other->worn_item_order();
+                other->worn.sort_armor( *other );
+                std::string order;
+                for( const item *it : other->worn_item_order() ) {
+                    const auto found = std::find( before.begin(), before.end(), it );
+                    if( found != before.end() ) {
+                        order += std::to_string( found - before.begin() ) + " ";
+                    }
+                }
+                remote_ui::record( "n", std::to_string( other->getID().get_value() ) );
+                remote_ui::record( "s", order );
+            } );
+            return;
+        }
+    }
     if( menu.ret == game::npc_opt_use_item || menu.ret == game::npc_opt_disarm ||
         menu.ret == game::npc_opt_steal ) {
         // what is asked on the way (the item, "really?") is answered here on the copy of that NPC,
