@@ -540,6 +540,25 @@ bool load_body( npc &guy, std::string json )
 // For testing: with the environment variable CATA_MP_TEST_NPC set, an NPC appears next to
 // every player who joins (so that conversations and trading can be tried without the debug menu).
 // Test helper: a zombie a few steps from the player (tests whether monsters go for clients).
+void report_test_vehicle( const npc &near )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_VEHICLE" ) != nullptr;
+    if( !on || !calendar::once_every( 5_seconds ) ) {
+        return;
+    }
+    map &here = get_map();
+    if( const optional_vpart_position vp = here.veh_at( near.pos_bub( here ) ) ) {
+        const vehicle &veh = vp->vehicle();
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car at " << veh.pos_abs().to_string() <<
+                                   " velocity " << veh.velocity << " engine " << veh.engine_on <<
+                                   " body at " << near.pos_abs().to_string() << " controlling " <<
+                                   near.controlling_vehicle;
+    } else {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test body is not in a car, at " <<
+                                   near.pos_abs().to_string();
+    }
+}
+
 void report_test_zombie( const npc &near )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_ZOMBIE" ) != nullptr;
@@ -615,6 +634,7 @@ void spawn_test_npc( const npc &near )
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test NPC " << temp->get_name() << " spawned";
         return;
     }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no free spot in sight for a test NPC";
 }
 
 // For testing: with CATA_MP_TEST_STAIRS set, a player who joins stands on the nearest stairs.
@@ -2110,6 +2130,7 @@ void host_end_of_turn()
         }
         if( guy != nullptr ) {
             report_test_zombie( *guy );
+            report_test_vehicle( *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
             // overmap knowledge is shared by all players: what anybody sees is known to everybody
