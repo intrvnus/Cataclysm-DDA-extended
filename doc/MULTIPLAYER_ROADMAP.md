@@ -19,6 +19,12 @@ when a batch is worth playing.
 * C1: implement. C2: every player gets their own reality bubble. C3: implement.
 * C4: reworked faction menu: players can ally with each other and do missions as a faction.
 * C5, C6: implement. C7: not a concern (everything is faster).
+* Missions/factions (Noah, client menus): missions are per player, but mission progress is shared
+  inside a faction: one completion counts for every member (no separate runs, no duplicate
+  quest-item spawns).
+* Zones/loot sorting/basecamps (C6): shared zones for the whole group, edited from any client.
+* Grab/drag: done together with vehicles (C3).
+* Overmap knowledge is shared by every player of the same faction.
 * C15: faction UI: only allied players see each other's health.
 
 ---
