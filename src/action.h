@@ -714,5 +714,7 @@ std::string toggle_mark_of( const std::string &action );
 void smash_menu();
 /** the hauling menu (a multiplayer client records its answers) */
 void haul_menu();
+/** the loot sorting menu (creates zones) */
+void loot_menu();
 
 #endif // CATA_SRC_ACTION_H

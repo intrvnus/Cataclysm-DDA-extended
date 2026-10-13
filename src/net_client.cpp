@@ -37,6 +37,7 @@
 #include "safemode_ui.h"
 #include "worldfactory.h"
 #include "avatar.h"
+#include "clzones.h"
 #include "construction.h"
 #include "diary.h"
 #include "character_martial_arts.h"
@@ -665,6 +666,52 @@ bool &omap_arrived()
     return b;
 }
 
+std::string &missions_text()
+{
+    static std::string t;
+    return t;
+}
+
+std::string &zones_json()
+{
+    static std::string t;
+    return t;
+}
+
+// Zones belong to the group: the host's are fetched, edited here and sent back.
+void edit_zones( const std::function<void()> &menu )
+{
+    impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+        jo.member( "t", "zones_req" );
+    } ) );
+    zones_json().clear();
+    for( int wait = 0; wait < 100 && zones_json().empty(); wait++ ) {
+        poll();
+        std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+    }
+    if( zones_json().empty() ) {
+        add_msg( m_info, _( "The host did not answer." ) );
+        return;
+    }
+    try {
+        JsonValue jv = json_loader::from_string( zones_json() );
+        zone_manager::get_manager().deserialize( jv );
+        zone_manager::get_manager().cache_data();
+    } catch( const std::exception & ) {
+        add_msg( m_bad, _( "Could not read the zones of the group." ) );
+        return;
+    }
+    menu();
+    std::ostringstream os;
+    JsonOut zjo( os );
+    zone_manager::get_manager().serialize( zjo );
+    const std::string mine = os.str();
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "zones_set" );
+        jo.member( "zones", mine );
+    } ) );
+}
+
 std::deque<npc_view_msg> &npc_view_queue()
 {
     static std::deque<npc_view_msg> q;
@@ -982,6 +1029,28 @@ bool handle_input()
                 }
                 remote_ui::record( "s", order );
             }, true );
+            break;
+        case ACTION_MISSIONS: {
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+                jo.member( "t", "missions_req" );
+            } ) );
+            missions_text().clear();
+            for( int wait = 0; wait < 100 && missions_text().empty(); wait++ ) {
+                poll();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+            }
+            popup( missions_text().empty() ? _( "The host did not answer." ) : missions_text() );
+            break;
+        }
+        case ACTION_ZONES:
+            edit_zones( [] {
+                g->zones_manager();
+            } );
+            break;
+        case ACTION_LOOT:
+            edit_zones( [] {
+                loot_menu();
+            } );
             break;
         case ACTION_WORKOUT:
             send_ui( "workout", [] {} );
@@ -1415,6 +1484,10 @@ void client_on_message( const JsonObject &msg )
             m.entries.push_back( e );
         }
         npc_menu_queue().push_back( m );
+    } else if( type == "zones" ) {
+        zones_json() = msg.get_string( "zones", "" );
+    } else if( type == "missions" ) {
+        missions_text() = msg.get_string( "text", "" );
     } else if( type == "omap" ) {
         // terrain of the overmap around this player: what is near is seen
         omap_arrived() = true;

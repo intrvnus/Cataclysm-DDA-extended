@@ -1495,7 +1495,7 @@ static void sleep()
     player_character.try_to_sleep( try_sleep_dur );
 }
 
-static void loot()
+void loot_menu()
 {
     enum ZoneFlags {
         None = 1,
@@ -2611,7 +2611,7 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_LOOT:
-            loot();
+            loot_menu();
             break;
 
         case ACTION_INVENTORY:

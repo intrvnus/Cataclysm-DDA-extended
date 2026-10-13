@@ -26,6 +26,7 @@
 #include "avatar.h"
 #include "construction.h"
 #include "calendar.h"
+#include "clzones.h"
 #include "cata_path.h"
 #include "cata_utility.h"
 #include "character.h"
@@ -1481,6 +1482,46 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             find_client( other->getID() ) == nullptr &&
             rl_dist( guy->pos_abs(), other->pos_abs() ) <= 2 ) {
             do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
+        }
+    } else if( type == "missions_req" && rp->npc_id.is_valid() ) {
+        // the missions are the group's: they are kept on the host's avatar
+        std::string text = _( "Missions of the group" ) + std::string( "\n\n" );
+        const std::vector<mission *> active = get_avatar().get_active_missions();
+        if( active.empty() ) {
+            text += _( "No active missions." ) + std::string( "\n" );
+        }
+        for( const mission *m : active ) {
+            text += "* " + m->name() + "\n  " + m->get_description() + "\n";
+            if( m->has_deadline() ) {
+                text += string_format( _( "  Deadline: %s\n" ),
+                                       to_string( m->get_deadline() - calendar::turn ) );
+            }
+        }
+        text += string_format( _( "\nCompleted: %d   Failed: %d" ),
+                               static_cast<int>( get_avatar().get_completed_missions().size() ),
+                               static_cast<int>( get_avatar().get_failed_missions().size() ) );
+        impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "missions" );
+            jo.member( "text", text );
+        } ) );
+    } else if( type == "zones_req" && rp->npc_id.is_valid() ) {
+        // zones are shared by the whole group: the client edits a copy and sends it back
+        std::ostringstream os;
+        JsonOut zjo( os );
+        zone_manager::get_manager().serialize( zjo );
+        const std::string zones_json = os.str();
+        impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "zones" );
+            jo.member( "zones", zones_json );
+        } ) );
+    } else if( type == "zones_set" && rp->npc_id.is_valid() ) {
+        try {
+            JsonValue jv = json_loader::from_string( msg.get_string( "zones", "[]" ) );
+            zone_manager::get_manager().deserialize( jv );
+            zone_manager::get_manager().cache_data();
+        } catch( const std::exception &err ) {
+            DebugLog( D_WARNING, D_MAIN ) << "Multiplayer: bad zones from " << rp->name << ": " <<
+                                          err.what();
         }
     } else if( type == "omap_req" && rp->npc_id.is_valid() ) {
         // The overmap of a client is only a copy: send what the group knows around the body.

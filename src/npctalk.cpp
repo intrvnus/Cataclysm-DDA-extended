@@ -1609,7 +1609,7 @@ void avatar::talk_to( std::unique_ptr<talker> talk_with, bool radio_contact,
     dialogue_by_radio = radio_contact;
     d.actor( true )->check_missions();
     for( mission *&mission : d.actor( true )->assigned_missions() ) {
-        if( mission->get_assigned_player_id() == getID() ) {
+        if( mission->get_assigned_player_id() == mission::owner_of( *this ) ) {
             d.missions_assigned.push_back( mission );
         }
     }
@@ -8222,8 +8222,11 @@ void talk_effect_t::update_missions( dialogue &d )
     ma.clear();
     if( d.has_beta ) {
         // Update the missions we can talk about (must only be current, non-complete ones)
+        const Character *talking = d.actor( false )->get_character();
+        const character_id owner = talking != nullptr ? mission::owner_of( *talking ) :
+                                   d.actor( false )->getID();
         for( mission *&mission : d.actor( true )->assigned_missions() ) {
-            if( mission->get_assigned_player_id() == d.actor( false )->getID() ) {
+            if( mission->get_assigned_player_id() == owner ) {
                 ma.push_back( mission );
             }
         }
@@ -9322,7 +9325,7 @@ remote_conversation::remote_conversation( npc &you, npc &other )
     dialogue &d = *p->d;
     d.actor( true )->check_missions();
     for( mission *&mission : d.actor( true )->assigned_missions() ) {
-        if( mission->get_assigned_player_id() == you.getID() ) {
+        if( mission->get_assigned_player_id() == mission::owner_of( you ) ) {
             d.missions_assigned.push_back( mission );
         }
     }

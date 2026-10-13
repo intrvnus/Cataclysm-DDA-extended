@@ -365,6 +365,9 @@ class mission
          * player.
          */
         character_id get_assigned_player_id() const;
+        /** Whose missions @p who talks about: the bodies of multiplayer players share the missions of
+         * the group, which are kept on the host's avatar. */
+        static character_id owner_of( const Character &who );
         /*@}*/
 
         /**

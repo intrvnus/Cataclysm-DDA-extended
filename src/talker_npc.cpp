@@ -135,7 +135,7 @@ std::vector<std::string> talker_npc::get_topics( bool radio_contact ) const
     most_difficult_mission = 0;
     bool chosen_urgent = false;
     for( mission *&mission : me_npc->chatbin.missions_assigned ) {
-        if( mission->get_assigned_player_id() != player_character.getID() ) {
+        if( mission->get_assigned_player_id() != mission::owner_of( get_player_character() ) ) {
             // Not assigned to the player that is currently talking to the npc
             continue;
         }

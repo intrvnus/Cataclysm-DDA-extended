@@ -1,4 +1,5 @@
 #include "mission.h"
+#include "net_session.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -335,6 +336,14 @@ void mission::assign( avatar &u )
     }
 }
 
+character_id mission::owner_of( const Character &who )
+{
+    if( net::is_remote_player( who ) ) {
+        return get_avatar().getID();
+    }
+    return who.getID();
+}
+
 void mission::fail()
 {
     status = mission_status::failure;
@@ -381,8 +390,9 @@ void mission::step_complete( const int _step )
 
 void mission::wrap_up()
 {
-    avatar &player_character = get_avatar();
-    if( player_character.getID() != player_id ) {
+    // multiplayer: the items are taken from whoever hands the mission in, the list is the group's
+    Character &player_character = get_player_character();
+    if( owner_of( player_character ) != player_id ) {
         // This is called from npctalk.cpp, the npc should only offer the option to wrap up mission
         // that have been assigned to the current player.
         debugmsg( "mission::wrap_up called, player %d was assigned, but current player is %d",
@@ -390,7 +400,7 @@ void mission::wrap_up()
     }
 
     status = mission_status::success;
-    player_character.on_mission_finished( *this );
+    get_avatar().on_mission_finished( *this );
     std::vector<item_comp> comps;
     switch( type->goal ) {
         case MGOAL_FIND_ITEM_GROUP: {
@@ -484,7 +494,7 @@ bool mission::is_complete( const character_id &_npc_id ) const
         return true;
     }
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     switch( type->goal ) {
         case MGOAL_GO_TO: {
             const tripoint_abs_omt cur_pos = player_character.pos_abs_omt();
