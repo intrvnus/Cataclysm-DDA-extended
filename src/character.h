@@ -1441,6 +1441,10 @@ class Character : public Creature, public visitable
         bool can_power_mutation( const trait_id &mut ) const;
         /** Generates and handles the UI for player interaction with installed bionics */
         virtual void power_bionics() {}
+        /** Activates/deactivates a bionic chosen in the bionics menu; true if the menu closes. */
+        bool use_bionic_in_menu( bionic &bio, const std::function<void()> &close_menu_ui );
+        /** Multiplayer host: does what a client did in its bionics menu (see remote_ui.h). */
+        void replay_bionics_menu();
         /**
         * Check whether player has a bionic power armor interface.
         * @return true if player has an active bionic capable of powering armor, false otherwise.

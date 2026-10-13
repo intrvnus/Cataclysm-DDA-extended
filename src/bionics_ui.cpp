@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,6 +40,7 @@
 #include "translation.h"
 #include "translations.h"
 #include "type_id.h"
+#include "remote_ui.h"
 #include "ui_manager.h"
 #include "uilist.h"
 #include "uistate.h"
@@ -572,11 +574,119 @@ static nc_color get_bionic_text_color( const bionic &bio, const bool isHighlight
     return type;
 }
 
+// Activates or deactivates a bionic chosen in the bionics menu, asking what is needed.  The
+// host does the same on the body of a multiplayer player.  Returns true if the menu should close.
+bool Character::use_bionic_in_menu( bionic &bio, const std::function<void()> &close_menu_ui )
+{
+    const map &here = get_map();
+    const bionic_data &bio_data = bio.id.obj();
+    bionic *tmp = &bio;
+    if( tmp->powered ) {
+        deactivate_bionic( bio );
+        if( bio_data.deactivated_close_ui ) {
+            close_menu_ui();
+            return true;
+        }
+    } else {
+        bool activate = true;
+
+        if( bio.can_install_weapon() ) {
+            const bool has_weapon = bio.has_weapon();
+            activate = false;
+
+            uilist activate_action_menu;
+            activate_action_menu.title = _( "Select action" );
+            activate_action_menu.addentry( 0, has_weapon, 'a', _( "Activate" ) );
+            activate_action_menu.addentry( 1, has_weapon, 'u', _( "Uninstall weapon" ) );
+            activate_action_menu.addentry( 2, !has_weapon, 'i', _( "Install weapon" ) );
+
+            activate_action_menu.query();
+
+            switch( activate_action_menu.ret ) {
+                case 0:
+                    activate = true;
+                    break;
+                case 1:
+                    // TODO: Move to function, create activity and add tool requirements
+                    if( std::optional<item> weapon = bio.uninstall_weapon() ) {
+                        i_add_or_drop( *weapon );
+                    }
+                    break;
+                case 2: {
+                    // TODO: Move to activity, create activity, add tool requirements, improve UI
+                    uilist install_weapon_menu;
+                    install_weapon_menu.title = _( "Select weapon to install" );
+                    // TODO: Choose from items around, obtain items before installing
+                    std::vector<item *> valid_weapons = items_with( [&bio]( const item & it ) {
+                        return it.has_any_flag( bio.id->installable_weapon_flags );
+                    } );
+                    for( size_t i = 0; i < valid_weapons.size(); i++ ) {
+                        install_weapon_menu.addentry( i, true, MENU_AUTOASSIGN, valid_weapons[i]->tname() );
+                    }
+                    if( install_weapon_menu.entries.empty() ) {
+                        popup( _( "You don't have any items you can install in this bionic" ) );
+                    } else {
+                        install_weapon_menu.query();
+                        if( install_weapon_menu.ret >= 0 &&
+                            static_cast<size_t>( install_weapon_menu.ret ) < valid_weapons.size() ) {
+                            item &new_weapon = *valid_weapons[install_weapon_menu.ret];
+                            if( bio.can_install_weapon( new_weapon ) && bio.install_weapon( new_weapon ) ) {
+                                item_location loc( *this, &new_weapon );
+                                loc.remove_item();
+                            } else {
+                                popup( _( "Unable to install %s" ), new_weapon.tname() );
+                            }
+                        }
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+
+        if( activate ) {
+            bool close_ui = false;
+            if( bio_data.activated_close_ui ) {
+                close_menu_ui();
+                activate_bionic( bio, false, &close_ui );
+                return true;
+            } else {
+                activate_bionic( bio, false, &close_ui );
+                // Exit this ui if we are firing a complex bionic
+                if( close_ui && tmp->get_weapon().shots_remaining( here, this ) > 0 ) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void Character::replay_bionics_menu()
+{
+    while( remote_ui::next_is( "bio" ) ) {
+        std::istringstream is( remote_ui::answer( "bio" ).value_or( "" ) );
+        std::string kind;
+        int idx = -1;
+        is >> kind >> idx;
+        if( idx < 0 || idx >= static_cast<int>( my_bionics->size() ) ) {
+            remote_ui::tell( _( "Things changed while you were doing that: you stop." ) );
+            return;
+        }
+        bionic &bio = ( *my_bionics )[idx];
+        if( kind == "act" && bio.id->activated ) {
+            if( use_bionic_in_menu( bio, [] {} ) ) {
+                return;
+            }
+        } else if( kind == "fuel" && ( !bio.info().fuel_opts.empty() || bio.info().is_remote_fueled ) ) {
+            bio.toggle_safe_fuel_mod();
+        }
+    }
+}
+
 void avatar::power_bionics()
 {
-    // Required because available power includes electricity via cables.
-    const map &here = get_map();
-
     sorted_bionics passive = filtered_bionics( *my_bionics, TAB_PASSIVE );
     sorted_bionics active = filtered_bionics( *my_bionics, TAB_ACTIVE );
     bionic *bio_last = nullptr;
@@ -863,6 +973,7 @@ void avatar::power_bionics()
             if( !current_bionic_list->empty() ) {
                 tmp = bio_list[cursor];
                 if( !tmp->info().fuel_opts.empty() || tmp->info().is_remote_fueled ) {
+                    remote_ui::record( "bio", string_format( "fuel %d", static_cast<int>( tmp - my_bionics->data() ) ) );
                     tmp->toggle_safe_fuel_mod();
                     g->invalidate_main_ui_adaptor();
                 } else {
@@ -920,84 +1031,12 @@ void avatar::power_bionics()
                     bionic &bio = ( *my_bionics )[b];
                     hide = true;
                     ui.mark_resize();
-                    if( tmp->powered ) {
-                        deactivate_bionic( bio );
-                        if( bio_data.deactivated_close_ui ) {
-                            ui.reset();
-                            break;
-                        }
-                    } else {
-                        bool activate = true;
-
-                        if( bio.can_install_weapon() ) {
-                            const bool has_weapon = bio.has_weapon();
-                            activate = false;
-
-                            uilist activate_action_menu;
-                            activate_action_menu.title = _( "Select action" );
-                            activate_action_menu.addentry( 0, has_weapon, 'a', _( "Activate" ) );
-                            activate_action_menu.addentry( 1, has_weapon, 'u', _( "Uninstall weapon" ) );
-                            activate_action_menu.addentry( 2, !has_weapon, 'i', _( "Install weapon" ) );
-
-                            activate_action_menu.query();
-
-                            switch( activate_action_menu.ret ) {
-                                case 0:
-                                    activate = true;
-                                    break;
-                                case 1:
-                                    // TODO: Move to function, create activity and add tool requirements
-                                    if( std::optional<item> weapon = bio.uninstall_weapon() ) {
-                                        i_add_or_drop( *weapon );
-                                    }
-                                    break;
-                                case 2: {
-                                    // TODO: Move to activity, create activity, add tool requirements, improve UI
-                                    uilist install_weapon_menu;
-                                    install_weapon_menu.title = _( "Select weapon to install" );
-                                    // TODO: Choose from items around, obtain items before installing
-                                    std::vector<item *> valid_weapons = items_with( [&bio]( const item & it ) {
-                                        return it.has_any_flag( bio.id->installable_weapon_flags );
-                                    } );
-                                    for( size_t i = 0; i < valid_weapons.size(); i++ ) {
-                                        install_weapon_menu.addentry( i, true, MENU_AUTOASSIGN, valid_weapons[i]->tname() );
-                                    }
-                                    if( install_weapon_menu.entries.empty() ) {
-                                        popup( _( "You don't have any items you can install in this bionic" ) );
-                                    } else {
-                                        install_weapon_menu.query();
-                                        if( install_weapon_menu.ret >= 0 &&
-                                            static_cast<size_t>( install_weapon_menu.ret ) < valid_weapons.size() ) {
-                                            item &new_weapon = *valid_weapons[install_weapon_menu.ret];
-                                            if( bio.can_install_weapon( new_weapon ) && bio.install_weapon( new_weapon ) ) {
-                                                item_location loc( *this, &new_weapon );
-                                                loc.remove_item();
-                                            } else {
-                                                popup( _( "Unable to install %s" ), new_weapon.tname() );
-                                            }
-                                        }
-                                    }
-                                    break;
-                                }
-                                default:
-                                    break;
-                            }
-                        }
-
-                        if( activate ) {
-                            bool close_ui = false;
-                            if( bio_data.activated_close_ui ) {
-                                ui.reset();
-                                activate_bionic( bio, false, &close_ui );
-                                break;
-                            } else {
-                                activate_bionic( bio, false, &close_ui );
-                                // Exit this ui if we are firing a complex bionic
-                                if( close_ui && tmp->get_weapon().shots_remaining( here, this ) > 0 ) {
-                                    break;
-                                }
-                            }
-                        }
+                    // multiplayer: the host does the same on the body (see remote_ui.h)
+                    remote_ui::record( "bio", string_format( "act %d", b ) );
+                    if( use_bionic_in_menu( bio, [&ui]() {
+                    ui.reset();
+                } ) ) {
+                        break;
                     }
                     hide = false;
                     ui.mark_resize();

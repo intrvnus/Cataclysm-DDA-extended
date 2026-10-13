@@ -94,6 +94,8 @@ bool acts_as_player( const Character &who );
 
 /** A menu was answered (while recording). */
 void record( const std::string &kind, const std::string &value );
+/** While replaying: true if the next recorded answer is of @p kind (nothing is consumed). */
+bool next_is( const std::string &kind );
 /** The recorded answer to a menu of @p kind, or nothing (then the menu must cancel). */
 std::optional<std::string> answer( const std::string &kind );
 /** While replaying: a popup or message for the player instead of the host's screen. */

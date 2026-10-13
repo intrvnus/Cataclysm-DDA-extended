@@ -630,6 +630,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         if( what == "apply" ) {
             item_location loc;
             avatar_action::use_item( guy, loc );
+        } else if( what == "bionics" ) {
+            guy.replay_bionics_menu();
         } else if( what == "examine" || what == "examine_pickup" ) {
             g->examine( what == "examine_pickup" );
         } else if( what == "pickup" ) {

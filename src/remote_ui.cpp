@@ -158,6 +158,12 @@ void record( const std::string &kind, const std::string &value )
     }
 }
 
+bool next_is( const std::string &kind )
+{
+    const state &s = st();
+    return s.replaying && !s.failed && s.next < s.answers.size() && s.answers[s.next].first == kind;
+}
+
 std::optional<std::string> answer( const std::string &kind )
 {
     state &s = st();

@@ -528,6 +528,11 @@ bool handle_input()
                 avatar_action::use_item( get_avatar(), loc );
             } );
             break;
+        case ACTION_BIONICS:
+            send_ui( "bionics", [] {
+                get_avatar().power_bionics();
+            } );
+            break;
         case ACTION_ADVANCEDINV:
             // the item moves it starts are carried out by the host
             send_ui( "aim", [] {
