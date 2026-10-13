@@ -889,6 +889,12 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     if( who.is_dead_state() ) {
         return;
     }
+    // B7: moving or the cancel key stops a timed action (crafting, eating ...) at once
+    if( who.activity && who.activity.is_interruptible_with_kb() &&
+        ( in.move_x != 0 || in.move_y != 0 || in.cancel ) ) {
+        who.add_msg_if_player( m_alert, _( "You stop %s." ), who.activity.get_verb().translated() );
+        who.cancel_activity();
+    }
     const tuning &tn = tune();
     if( !st.initialised ) {
         st.initialised = true;
@@ -1034,8 +1040,9 @@ void begin_turn()
         return;
     }
     avatar &player = get_avatar();
-    if( player.activity || player.in_sleep_state() ) {
-        // long activities and sleep run as fast as the machine allows
+    // Single player: long activities and sleep run as fast as the machine allows.  Not in
+    // multiplayer: that would fast-forward the world for everybody (sleep: see B6).
+    if( !net::active() && ( player.activity || player.in_sleep_state() ) ) {
         clk().valid = false;
         return;
     }

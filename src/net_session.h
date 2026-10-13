@@ -66,6 +66,9 @@ inline bool active()
     return current_role() != role::none;
 }
 
+/** Host: makes a turn last at least the realtime turn length (activities would otherwise
+ * run the world as fast as the machine allows).  Keeps the network and the screen alive. */
+void pace_turn();
 /** Seconds per turn while waiting for input; @p option is the TURN_DURATION setting. */
 float turn_duration( float option );
 

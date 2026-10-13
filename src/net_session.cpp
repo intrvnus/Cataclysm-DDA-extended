@@ -1,16 +1,22 @@
 #include "net_session.h"
 
+#include <chrono>
+#include <cstdlib>
 #include <exception>
 #include <string>
+#include <thread>
 
 #include <enet/enet.h>
 
 #include "debug.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "json_loader.h"
 #include "messages.h"
 #include "net_protocol.h"
+#include "options.h"
 #include "translations.h"
+#include "ui_manager.h"
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ws2_32.lib")
@@ -217,6 +223,23 @@ void poll()
     if( s.host != nullptr ) {
         enet_host_flush( s.host );
     }
+}
+
+void pace_turn()
+{
+    static std::chrono::steady_clock::time_point last_end = std::chrono::steady_clock::now();
+    if( !is_host() || fluid::enabled() ) {
+        last_end = std::chrono::steady_clock::now();
+        return;
+    }
+    const auto turn = std::chrono::milliseconds( static_cast<int>( 1000 * turn_duration(
+                          get_option<float>( "TURN_DURATION" ) ) ) );
+    while( std::chrono::steady_clock::now() - last_end < turn ) {
+        poll();
+        ui_manager::redraw_invalidated();
+        std::this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+    }
+    last_end = std::chrono::steady_clock::now();
 }
 
 float turn_duration( float option )

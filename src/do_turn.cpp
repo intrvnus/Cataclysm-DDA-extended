@@ -252,6 +252,23 @@ void handle_key_blocking_activity()
         input_context ctxt = get_default_mode_input_context();
         const std::string action = ctxt.handle_input( 0 );
         bool refresh = true;
+        // Realtime / multiplayer (B7): one key stops an action at once, no question asked.
+        if( alerts::nonblocking() ) {
+            const action_id act = look_up_action( action );
+            const bool movement = act >= ACTION_MOVE_FORTH && act <= ACTION_MOVE_UP;
+            if( action == "pause" || action == "QUIT" || act == ACTION_MAIN_MENU || movement ) {
+                if( u.has_destination() ) {
+                    u.abort_automove();
+                }
+                if( u.activity && u.activity.is_interruptible_with_kb() ) {
+                    add_msg( m_alert, _( "You stop %s." ), u.activity.get_verb().translated() );
+                    u.cancel_activity();
+                }
+                ui_manager::redraw();
+                refresh_display();
+                return;
+            }
+        }
         if( action == "pause" ) {
             if( u.activity.is_interruptible_with_kb() ) {
                 g->cancel_activity_query( _( "Confirm:" ) );
@@ -581,8 +598,18 @@ bool do_turn()
     g->reset_light_level();
 
     g->perhaps_add_random_npc( /* ignore_spawn_timers_and_rates = */ false );
+    // Short days (A1/B7): activities (crafting, reading, butchering ...) progress in world
+    // time like everything else, so a 30 minute job takes 30 game minutes, not 30 turns.
+    const int world_step_turns = to_turns<int>( calendar::last_step() );
+    if( u.activity && world_step_turns > 1 && alerts::nonblocking() ) {
+        u.mod_moves( u.get_speed() * ( world_step_turns - 1 ) );
+    }
     while( u.get_moves() > 0 && u.activity ) {
         u.activity.do_turn( u );
+    }
+    if( world_step_turns > 1 && !u.activity && u.get_moves() > u.get_speed() ) {
+        // no burst of free actions after the activity ended
+        u.set_moves( u.get_speed() );
     }
 
     // Process NPC sound events before they move or they hear themselves talking
@@ -841,6 +868,7 @@ bool do_turn()
     u.power_prev_turn = u.get_power_level();
 
     net::host_end_of_turn();
+    net::pace_turn();
 
 #if defined(EMSCRIPTEN)
     // This will cause a prompt to be shown if the window is closed, until the
