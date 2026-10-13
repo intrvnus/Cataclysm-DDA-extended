@@ -697,6 +697,33 @@ void host_send_events( const std::vector<fluid::event> &events )
     }
 }
 
+bool is_remote_player( const Character &who )
+{
+    return is_host() && find_client( who.getID() ) != nullptr;
+}
+
+void alert_player( const Character &who, const std::string &text, int level,
+                   const std::optional<tripoint_abs_ms> &source )
+{
+    if( who.is_avatar() ) {
+        alerts::warn( text, static_cast<alerts::level>( level ), source );
+        return;
+    }
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    if( rp == nullptr ) {
+        return;
+    }
+    impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "alert" );
+        jo.member( "text", text );
+        jo.member( "lvl", level );
+        if( source ) {
+            jo.member( "src" );
+            write_pos( jo, *source );
+        }
+    } ) );
+}
+
 std::vector<npc *> remote_player_npcs()
 {
     std::vector<npc *> result;

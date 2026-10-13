@@ -12,6 +12,7 @@
 #include <enet/enet.h>
 
 #include "action.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "bodypart.h"
 #include "calendar.h"
@@ -360,6 +361,13 @@ void client_on_message( const JsonObject &msg )
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
     } else if( type == "state" ) {
         apply_state( msg );
+    } else if( type == "alert" ) {
+        std::optional<tripoint_abs_ms> source;
+        if( msg.has_array( "src" ) ) {
+            source = read_pos( msg.get_array( "src" ) );
+        }
+        alerts::warn( msg.get_string( "text", "" ),
+                      static_cast<alerts::level>( std::clamp( msg.get_int( "lvl", 1 ), 0, 2 ) ), source );
     } else if( type == "msg" ) {
         add_msg( m_info, msg.get_string( "text", "" ) );
     }

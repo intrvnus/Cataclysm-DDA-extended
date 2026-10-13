@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 
+#include "alerts.h"
 #include "avatar.h"
 #include "bodypart.h"
 #include "calendar.h"
@@ -25,6 +26,7 @@
 #include "effect_on_condition.h"
 #include "enums.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "game.h"
 #include "generic_factory.h"
 #include "gun_mode.h"
@@ -41,6 +43,7 @@
 #include "messages.h"
 #include "monster.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -1222,7 +1225,12 @@ bool gun_actor::try_target( monster &z, Creature &target ) const
         return false;
     }
 
-    const bool require_targeting = ( require_targeting_player && target.is_avatar() ) ||
+    // Realtime / multiplayer (B9): every player gets the targeting warning, not only the
+    // avatar, and the grace period is long enough (~2 s) to get out of the line of fire.
+    const bool realtime = alerts::nonblocking();
+    const bool target_is_player = target.is_avatar() ||
+                                  ( target.as_character() && net::is_remote_player( *target.as_character() ) );
+    const bool require_targeting = ( require_targeting_player && target_is_player ) ||
                                    ( require_targeting_npc && target.is_npc() ) ||
                                    ( require_targeting_monster && target.is_monster() );
     const bool not_targeted = require_targeting && !z.has_effect( effect_targeted );
@@ -1237,6 +1245,11 @@ bool gun_actor::try_target( monster &z, Creature &target ) const
         if( not_targeted ) {
             add_msg_debug( debugmode::DF_MATTACK, "%s targeted", target.disp_name() );
             z.add_effect( effect_targeted, time_duration::from_turns( targeting_timeout ) );
+            if( realtime && target_is_player ) {
+                net::alert_player( *target.as_character(),
+                                   string_format( _( "Hostile detected!  The %s is aiming at you!" ), z.name() ),
+                                   static_cast<int>( alerts::level::danger ), z.pos_abs() );
+            }
         }
         if( not_laser_locked ) {
             add_msg_debug( debugmode::DF_MATTACK, "%s laser-locked", target.disp_name() );
@@ -1246,7 +1259,13 @@ bool gun_actor::try_target( monster &z, Creature &target ) const
                                       _( "You're not sure why you've got a laser dot on you…" ) );
         }
 
-        z.mod_moves( -targeting_cost );
+        int cost = targeting_cost;
+        if( realtime && target_is_player ) {
+            // about two seconds of real time to react
+            const double turn_seconds = fluid::enabled() ? fluid::turn_ms() / 1000.0 : 1.0;
+            cost = std::max( cost, static_cast<int>( 2.0 / std::max( 0.05, turn_seconds ) * z.get_speed() ) );
+        }
+        z.mod_moves( -cost );
         return false;
     }
 

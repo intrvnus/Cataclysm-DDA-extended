@@ -2,6 +2,7 @@
 #ifndef CATA_SRC_NET_SESSION_H
 #define CATA_SRC_NET_SESSION_H
 
+#include <optional>
 #include <string>
 
 #include "coordinates.h"
@@ -84,6 +85,12 @@ bool host_prevent_death( npc &guy );
 /** Walking into a downed player helps them up.  Returns true if @p p held a downed player
  * (the step is used up by helping). */
 bool host_try_revive( Character &helper, const tripoint_abs_ms &p );
+/** Is @p who played by a connected client? */
+bool is_remote_player( const Character &who );
+/** Warns the player who controls @p who (host avatar: locally; remote player: on their
+ * client) with the alerts system (sound, coloured message, arrow to @p source). */
+void alert_player( const Character &who, const std::string &text, int level,
+                   const std::optional<tripoint_abs_ms> &source );
 /** The NPCs on the host that are played by connected clients (in the reality bubble). */
 std::vector<npc *> remote_player_npcs();
 /** Called once at the end of every turn: handles joins and sends the world state. */
