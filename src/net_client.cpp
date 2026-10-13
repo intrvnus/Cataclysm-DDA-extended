@@ -1076,6 +1076,18 @@ bool handle_input()
                 remote_ui::record( "s", order );
             }, true );
             break;
+        case ACTION_FACTIONS: {
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+                jo.member( "t", "factions_req" );
+            } ) );
+            missions_text().clear();
+            for( int wait = 0; wait < 100 && missions_text().empty(); wait++ ) {
+                poll();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+            }
+            popup( missions_text().empty() ? _( "The host did not answer." ) : missions_text() );
+            break;
+        }
         case ACTION_MISSIONS: {
             impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
                 jo.member( "t", "missions_req" );
@@ -1551,7 +1563,7 @@ void client_on_message( const JsonObject &msg )
         npc_menu_queue().push_back( m );
     } else if( type == "zones" ) {
         zones_json() = msg.get_string( "zones", "" );
-    } else if( type == "missions" ) {
+    } else if( type == "missions" || type == "factions" ) {
         missions_text() = msg.get_string( "text", "" );
     } else if( type == "omap" ) {
         // terrain of the overmap around this player: what is near is seen

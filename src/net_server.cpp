@@ -1681,6 +1681,30 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             rl_dist( guy->pos_abs(), other->pos_abs() ) <= 2 ) {
             do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
         }
+    } else if( type == "factions_req" && rp->npc_id.is_valid() ) {
+        // who the group knows (the group's standing is kept on the host's avatar)
+        std::string text = _( "Factions the group knows" ) + std::string( "\n\n" );
+        int shown = 0;
+        for( const auto &entry : g->faction_manager_ptr->all() ) {
+            const faction &fac = entry.second;
+            if( !fac.known_by_u ) {
+                continue;
+            }
+            shown++;
+            text += string_format( _( "* %s  (likes you: %d, respects you: %d, trusts you: %d)\n" ),
+                                   fac.name, fac.likes_u, fac.respects_u, fac.trusts_u );
+            const std::string desc = fac.desc.translated();
+            if( !desc.empty() ) {
+                text += "  " + desc + "\n";
+            }
+        }
+        if( shown == 0 ) {
+            text += _( "You have not met any factions yet." ) + std::string( "\n" );
+        }
+        impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "factions" );
+            jo.member( "text", text );
+        } ) );
     } else if( type == "missions_req" && rp->npc_id.is_valid() ) {
         // the missions are the group's: they are kept on the host's avatar
         std::string text = _( "Missions of the group" ) + std::string( "\n\n" );
