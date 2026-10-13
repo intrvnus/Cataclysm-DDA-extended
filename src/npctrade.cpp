@@ -289,6 +289,7 @@ bool npc_trading::trade( npc &np, int cost, const std::string &deal )
 {
     if( remote_ui::replaying() ) {
         // a conversation of a multiplayer player: the window opens on the player's computer
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trade requested with " << np.get_name();
         remote_ui::request_trade( np.getID().get_value(), cost, deal );
         return false;
     }

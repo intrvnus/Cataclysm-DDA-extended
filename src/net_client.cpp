@@ -450,6 +450,15 @@ std::deque<talk_msg> &talk_queue()
     return q;
 }
 
+struct trade_msg {
+    std::string npc_json;
+    int cost = 0;
+    std::string deal;
+};
+
+std::deque<trade_msg> &trade_queue();
+void run_trade_ui();
+
 // Shows one conversation until the host ends it.
 void run_talk_ui()
 {
@@ -466,9 +475,14 @@ void run_talk_ui()
     bool first = true;
     for( ;; ) {
         // the next turn comes from the host
-        const std::chrono::steady_clock::time_point waited = std::chrono::steady_clock::now();
+        std::chrono::steady_clock::time_point waited = std::chrono::steady_clock::now();
         while( talk_queue().empty() ) {
             poll();
+            if( !trade_queue().empty() ) {
+                // an answer opened the trading window; the conversation goes on after it
+                run_trade_ui();
+                waited = std::chrono::steady_clock::now();
+            }
             if( talk_queue().empty() ) {
                 if( std::chrono::steady_clock::now() - waited > std::chrono::seconds( 20 ) ||
                     !cstate().connected ) {
@@ -548,6 +562,7 @@ void run_talk_ui()
             }
             chosen = index;
         }
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: answering " << chosen;
         impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "talk_pick" );
             jo.member( "i", chosen );
@@ -556,12 +571,6 @@ void run_talk_ui()
 }
 
 // The trading window of a conversation: the host sent the trader, the deal goes back.
-struct trade_msg {
-    std::string npc_json;
-    int cost = 0;
-    std::string deal;
-};
-
 std::deque<trade_msg> &trade_queue()
 {
     static std::deque<trade_msg> q;

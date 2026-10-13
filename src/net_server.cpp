@@ -6,6 +6,7 @@
 #include <iterator>
 #include <cctype>
 #include <cstddef>
+#include <cstdlib>
 #include <deque>
 #include <functional>
 #include <map>
@@ -50,6 +51,7 @@
 #include "mapbuffer.h"
 #include "memory_fast.h"
 #include "messages.h"
+#include "mission.h"
 #include "monster.h"
 #include "mtype.h"
 #include "mutation.h"
@@ -251,7 +253,8 @@ void start_talk( remote_player &rp, npc &guy )
     int best_dist = 1000;
     for( npc *other : g->get_npcs_if( [&]( const npc & n ) {
     return &n != &guy && !n.is_dead() && find_client( n.getID() ) == nullptr &&
-           n.posz() == guy.posz() && guy.sees( get_map(), n );
+           n.posz() == guy.posz() &&
+           ( rl_dist( guy.pos_abs(), n.pos_abs() ) <= 3 || guy.sees( get_map(), n ) );
     } ) ) {
         const int dist = rl_dist( guy.pos_abs(), other->pos_abs() );
         if( dist <= SEEX * 2 && dist < best_dist ) {
@@ -275,6 +278,7 @@ void start_talk( remote_player &rp, npc &guy )
 // The player answered: the NPC reacts.
 void pick_talk( remote_player &rp, npc &guy, int index )
 {
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << rp.name << " answers " << index;
     if( !rp.talk ) {
         return;
     }
@@ -290,6 +294,7 @@ void pick_talk( remote_player &rp, npc &guy, int index )
     for( const std::string &text : texts ) {
         send_text( rp, text );
     }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: answer done, " << texts.size() << " texts";
     // an answer that starts trading: the window opens on the player's computer, the
     // conversation goes on when it is closed
     if( const std::optional<remote_ui::trade_request> tr = remote_ui::take_trade_request() ) {
@@ -420,6 +425,38 @@ bool load_body( npc &guy, std::string json )
         return false;
     }
     return true;
+}
+
+// For testing: with the environment variable CATA_MP_TEST_NPC set, an NPC appears next to
+// every player who joins (so that conversations and trading can be tried without the debug menu).
+void spawn_test_npc( const npc &near )
+{
+    if( std::getenv( "CATA_MP_TEST_NPC" ) == nullptr ) {
+        return;
+    }
+    map &here = get_map();
+    for( const tripoint_bub_ms &p : here.points_in_radius( near.pos_bub( here ), 3 ) ) {
+        if( rl_dist( p, near.pos_bub( here ) ) < 2 || !here.passable( p ) ||
+            get_creature_tracker().creature_at( p ) != nullptr ) {
+            continue;
+        }
+        shared_ptr_fast<npc> temp = make_shared_fast<npc>();
+        temp->normalize();
+        temp->randomize();
+        temp->spawn_at_precise( here.get_abs( p ) );
+        overmap_buffer.insert_npc( temp );
+        temp->form_opinion( get_avatar() );
+        temp->mission = NPC_MISSION_NULL;
+        temp->add_new_mission( mission::reserve_random( ORIGIN_ANY_NPC, temp->pos_abs_omt(),
+                               temp->getID() ) );
+        faction *solo = g->faction_manager_ptr->add_new_faction( temp->name,
+                        faction_id( "solo_" + temp->name + std::to_string( temp->getID().get_value() ) ),
+                        faction_id( "no_faction" ) );
+        temp->set_fac( solo ? solo->id : faction_id( "no_faction" ) );
+        g->load_npcs();
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test NPC " << temp->get_name() << " spawned";
+        return;
+    }
 }
 
 npc *spawn_remote_npc( remote_player &rp )
@@ -1610,6 +1647,7 @@ void host_end_of_turn()
                 continue;
             }
             rp.npc_id = guy->getID();
+            spawn_test_npc( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
             impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
                 jo.member( "t", "welcome" );
