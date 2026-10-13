@@ -944,6 +944,31 @@ bool handle_input()
                 avatar_action::use_item( get_avatar(), loc );
             } );
             break;
+        case ACTION_ITEMACTION:
+            send_ui( "apply_menu", [] {
+                g->mp_item_action_menu();
+            } );
+            break;
+        case ACTION_TOGGLE_AUTO_PICKUP:
+        case ACTION_TOGGLE_AUTO_FEATURES:
+        case ACTION_TOGGLE_AUTOSAFE:
+        case ACTION_TOGGLE_PREVENT_OCCLUSION: {
+            // options of this computer only
+            const std::string opt = act == ACTION_TOGGLE_AUTO_PICKUP ? "AUTO_PICKUP" :
+                                    act == ACTION_TOGGLE_AUTO_FEATURES ? "AUTO_FEATURES" :
+                                    act == ACTION_TOGGLE_AUTOSAFE ? "AUTOSAFEMODE" : "PREVENT_OCCLUSION";
+            get_options().get_option( opt ).setNext();
+            get_options().save();
+            add_msg( m_info, _( "Set %s to %s." ), get_options().get_option( opt ).getMenuText(),
+                     get_options().get_option( opt ).getValueName() );
+            break;
+        }
+        case ACTION_PANEL_MGMT:
+            panel_manager::get_manager().show_adm();
+            break;
+        case ACTION_KEYBINDINGS:
+        case ACTION_NULL:
+            break;
         case ACTION_CHAT:
             // talking starts by walking into somebody, like in the normal game
             add_msg( m_info, _( "Walk into somebody to talk to them." ) );

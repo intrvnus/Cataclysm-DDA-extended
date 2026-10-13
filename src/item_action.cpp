@@ -259,6 +259,8 @@ void game::item_action_menu( item_location loc )
 {
     const item_action_generator &gen = item_action_generator::generator();
     const action_map &item_actions = gen.get_item_action_map();
+    // the acting body when a client's menu is replayed on the host
+    Character &actor = get_player_character();
     std::vector<item *> pseudos;
     bool use_player_inventory = false;
     if( !loc ) {
@@ -281,7 +283,7 @@ void game::item_action_menu( item_location loc )
             return VisitResponse::NEXT;
         } );
     }
-    item_action_map iactions = gen.map_actions_to_items( u, pseudos, use_player_inventory );
+    item_action_map iactions = gen.map_actions_to_items( actor, pseudos, use_player_inventory );
     if( iactions.empty() ) {
         popup( _( "You don't have any items with registered uses" ) );
     }
@@ -376,10 +378,10 @@ void game::item_action_menu( item_location loc )
     const item_action_id action = std::get<0>( menu_items[kmenu.ret] );
     item *it = iactions[action];
 
-    u.invoke_item( it, action );
+    actor.invoke_item( it, action );
 
-    u.inv->restack( u );
-    u.inv->unsort();
+    actor.inv->restack( actor );
+    actor.inv->unsort();
 }
 
 std::string use_function::get_type() const

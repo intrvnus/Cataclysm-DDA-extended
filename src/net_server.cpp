@@ -1055,6 +1055,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         if( what == "apply" ) {
             item_location loc;
             avatar_action::use_item( guy, loc );
+        } else if( what == "apply_menu" ) {
+            g->mp_item_action_menu();
         } else if( what == "item_change_side" || what == "item_favorite" ) {
             item_location loc = remote_ui::location_from_string( remote_ui::answer( "i" ).value_or( "" ) );
             if( loc ) {
