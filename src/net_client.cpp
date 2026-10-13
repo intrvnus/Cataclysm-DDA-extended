@@ -23,6 +23,7 @@
 #include "cata_utility.h"
 #include "character_id.h"
 #include "coordinates.h"
+#include "crafting_gui.h"
 #include "debug.h"
 #include "faction.h"
 #include "filesystem.h"
@@ -31,7 +32,10 @@
 #include "game.h"
 #include "game_inventory.h"
 #include "input_context.h"
+#include "item.h"
 #include "item_location.h"
+#include "itype.h"
+#include "iuse.h"
 #include "json.h"
 #include "json_loader.h"
 #include "map.h"
@@ -48,12 +52,14 @@
 #include "overmapbuffer.h"
 #include "path_info.h"
 #include "point.h"
+#include "recipe.h"
 #include "sounds.h"
 #include "scenario.h"
 #include "string_formatter.h"
 #include "translations.h"
 #include "type_id.h"
 #include "ui_manager.h"
+#include "uilist.h"
 
 namespace net
 {
@@ -329,6 +335,76 @@ void send_use( const std::string &action, const item_location &loc )
     } ) );
 }
 
+// Apply: the item and (if it has several) the way to use it are chosen here.
+void send_apply( const item_location &loc )
+{
+    if( !loc ) {
+        return;
+    }
+    const std::map<std::string, use_function> &methods = loc->type->use_methods;
+    if( methods.empty() ) {
+        add_msg( m_info, _( "You can't do anything interesting with your %s." ), loc->tname() );
+        return;
+    }
+    std::string method = methods.begin()->first;
+    if( methods.size() > 1 ) {
+        uilist menu;
+        menu.text = string_format( _( "How do you want to use your %s?" ), loc->tname() );
+        std::vector<std::string> keys;
+        for( const std::pair<const std::string, use_function> &m : methods ) {
+            menu.addentry( static_cast<int>( keys.size() ), true, MENU_AUTOASSIGN, m.second.get_name() );
+            keys.push_back( m.first );
+        }
+        menu.query();
+        if( menu.ret < 0 || menu.ret >= static_cast<int>( keys.size() ) ) {
+            return;
+        }
+        method = keys[menu.ret];
+    }
+    std::ostringstream os;
+    JsonOut lj( os );
+    loc.serialize( lj );
+    const std::string loc_json = os.str();
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", "apply" );
+        jo.member( "cid", get_avatar().getID().get_value() );
+        jo.member( "loc", loc_json );
+        jo.member( "m", method );
+    } ) );
+}
+
+// Crafting: the recipe is chosen in the usual window (on the own character, whose
+// inventory the host keeps up to date); the host starts the craft.
+void send_craft( bool is_long )
+{
+    int batch = 0;
+    const std::pair<Character *, const recipe *> chosen =
+        select_crafter_and_crafting_recipe( batch, recipe_id(), &get_avatar() );
+    if( chosen.second == nullptr ) {
+        return;
+    }
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", "craft" );
+        jo.member( "r", chosen.second->ident().str() );
+        jo.member( "b", std::max( 1, batch ) );
+        jo.member( "long", is_long );
+    } ) );
+}
+
+// Open / close: the direction is chosen here.
+void send_door( const std::string &what )
+{
+    const std::optional<tripoint_bub_ms> where = choose_adjacent( what == "open" ?
+            _( "Open where?" ) : _( "Close where?" ) );
+    if( !where ) {
+        return;
+    }
+    const tripoint_rel_ms d = *where - get_avatar().pos_bub();
+    send_action( what, d.xy() );
+}
+
 void send_drop( const drop_locations &what )
 {
     if( what.empty() ) {
@@ -428,6 +504,24 @@ bool handle_input()
             break;
         case ACTION_DROP:
             send_drop( game_menus::inv::multidrop( get_avatar() ) );
+            break;
+        case ACTION_USE:
+            send_apply( game_menus::inv::use() );
+            break;
+        case ACTION_USE_WIELDED:
+            send_apply( get_avatar().get_wielded_item() );
+            break;
+        case ACTION_CRAFT:
+            send_craft( false );
+            break;
+        case ACTION_LONGCRAFT:
+            send_craft( true );
+            break;
+        case ACTION_OPEN:
+            send_door( "open" );
+            break;
+        case ACTION_CLOSE:
+            send_door( "close" );
             break;
         case ACTION_PL_INFO:
             get_avatar().disp_info();

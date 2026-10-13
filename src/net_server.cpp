@@ -37,8 +37,10 @@
 #include "focus_minigame.h"
 #include "game.h"
 #include "game_constants.h"
+#include "gates.h"
 #include "item.h"
 #include "item_location.h"
+#include "iuse.h"
 #include "json.h"
 #include "json_loader.h"
 #include "map.h"
@@ -56,6 +58,9 @@
 #include "path_info.h"
 #include "player_activity.h"
 #include "point.h"
+#include "recipe.h"
+#include "recipe_dictionary.h"
+#include "requirements.h"
 #include "translations.h"
 #include "type_id.h"
 
@@ -489,6 +494,22 @@ void execute( npc &guy, const command &cmd )
         }
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
+    } else if( cmd.action == "open" ) {
+        const tripoint_bub_ms where = guy.pos_bub( here ) + cmd.delta;
+        if( here.open_door( guy, where, !here.is_outside( guy.pos_bub( here ) ) ) ) {
+            guy.mod_moves( -100 );
+        } else if( remote_player *rp = find_client( guy.getID() ) ) {
+            send_text( *rp, _( "You can't open that." ) );
+        }
+    } else if( cmd.action == "close" ) {
+        // closing costs moves and says why it fails (to the body: see send_text below)
+        const int moves_before = guy.get_moves();
+        doors::close_door( here, guy, guy.pos_bub( here ) + cmd.delta );
+        if( guy.get_moves() == moves_before ) {
+            if( remote_player *rp = find_client( guy.getID() ) ) {
+                send_text( *rp, _( "You can't close that." ) );
+            }
+        }
     } else if( cmd.action == "sleep" ) {
         // B6: sleep until morning (the time skips when everybody sleeps)
         if( !guy.in_sleep_state() ) {
@@ -554,12 +575,91 @@ item_location client_item( const npc &guy, int client_id, std::string loc_json )
     return loc;
 }
 
+// Crafting for a player (A6).  The checks that would otherwise open a window on the host's
+// screen are made here first, and the player hears why it does not work.
+void start_craft( remote_player &rp, npc &guy, const JsonObject &msg )
+{
+    const recipe_id id( msg.get_string( "r", "" ) );
+    if( !id.is_valid() || !id.obj() ) {
+        send_text( rp, _( "You don't know how to make that." ) );
+        return;
+    }
+    const recipe &rec = id.obj();
+    const int batch = std::clamp( msg.get_int( "b", 1 ), 1, 1000 );
+    if( guy.activity ) {
+        send_text( rp, _( "You are busy." ) );
+        return;
+    }
+    if( !guy.knows_recipe( &rec ) && !guy.get_group_available_recipes().contains( &rec ) ) {
+        send_text( rp, _( "You don't know how to make that." ) );
+        return;
+    }
+    if( guy.lighting_craft_speed_multiplier( rec ) <= 0.0f ) {
+        send_text( rp, _( "You can't see to craft!" ) );
+        return;
+    }
+    if( guy.morale_crafting_speed_multiplier( rec ) <= 0.0f ) {
+        send_text( rp, _( "Your morale is too low to craft such a difficult thing…" ) );
+        return;
+    }
+    if( !guy.can_make( &rec, batch ) ) {
+        send_text( rp, string_format( _( "You can't make that right now.  %s" ),
+                                      rec.simple_requirements().list_missing() ) );
+        return;
+    }
+    if( msg.get_bool( "long", false ) ) {
+        guy.make_all_craft( rec.ident(), batch, std::nullopt );
+    } else {
+        guy.make_craft( rec.ident(), batch, std::nullopt );
+    }
+    if( guy.activity ) {
+        send_text( rp, string_format( _( "You start working on the %s." ), rec.result_name() ) );
+    } else {
+        send_text( rp, string_format( _( "You could not start the %s." ), rec.result_name() ) );
+    }
+    rp.character_sent_at = 0;
+    rp.sent_character = 0;
+}
+
+// Using an item for a player (A6).  Only the kinds of use that never ask anything (switching
+// a light on, opening a can ...) for now: the others would open their windows on the host.
+void apply_item( remote_player &rp, npc &guy, item_location &loc, const std::string &method )
+{
+    static const std::set<std::string> safe_kinds = { "transform", "delayed_transform" };
+    const std::string name = loc->tname();
+    const use_function *use = loc->get_use( method );
+    if( use == nullptr ) {
+        send_text( rp, string_format( _( "You can't use your %s like that." ), name ) );
+        return;
+    }
+    if( safe_kinds.count( use->get_type() ) == 0 ) {
+        send_text( rp, string_format( _( "Using your %s this way is not available in multiplayer yet." ),
+                                      name ) );
+        return;
+    }
+    const ret_val<void> can = use->can_call( guy, *loc, guy.pos_bub() );
+    if( !can.success() ) {
+        send_text( rp, can.str().empty() ? string_format( _( "You can't use your %s now." ), name ) :
+                   can.str() );
+        return;
+    }
+    if( guy.invoke_item( loc.get_item(), method ) ) {
+        send_text( rp, string_format( _( "You use your %s." ), name ) );
+    } else {
+        send_text( rp, string_format( _( "You can't use your %s now." ), name ) );
+    }
+}
+
 void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
 {
     const std::string what = msg.get_string( "a", "" );
     const int client_id = msg.get_int( "cid", -1 );
     // the host's message log about this action goes to the player
     const size_t messages_before = Messages::size();
+    if( what == "craft" ) {
+        start_craft( rp, guy, msg );
+        return;
+    }
     if( what == "drop" ) {
         drop_locations to_drop;
         for( JsonObject entry : msg.get_array( "locs" ) ) {
@@ -570,7 +670,10 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             }
         }
         if( !to_drop.empty() ) {
+            const std::string what_dropped = to_drop.size() == 1 ? to_drop.front().first->tname() :
+                                             string_format( _( "%d things" ), to_drop.size() );
             static_cast<Character &>( guy ).drop( to_drop, guy.pos_bub() );
+            send_text( rp, string_format( _( "You drop the %s." ), what_dropped ) );
         }
     } else {
         item_location loc = client_item( guy, client_id, msg.get_string( "loc", "" ) );
@@ -578,14 +681,34 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             send_text( rp, _( "That is not there any more." ) );
             return;
         }
+        // the host's log speaks of the body in the third person (if the host sees it at all):
+        // the player gets a message of their own
+        const std::string name = loc->tname();
+        const auto done = [&]( bool ok, const std::string &yes, const std::string &no ) {
+            send_text( rp, string_format( ok ? yes : no, name ) );
+            // show the result at once
+            rp.character_sent_at = 0;
+            rp.sent_character = 0;
+        };
         if( what == "wield" ) {
-            guy.wield( loc );
+            done( guy.wield( loc ), _( "You wield your %s." ), _( "You can't wield your %s." ) );
+            return;
         } else if( what == "wear" ) {
-            guy.wear( loc, false );
+            done( guy.wear( loc, false ).has_value(), _( "You put on your %s." ),
+                  _( "You can't wear your %s." ) );
+            return;
         } else if( what == "takeoff" ) {
-            guy.takeoff( loc );
+            done( guy.takeoff( loc ), _( "You take off your %s." ), _( "You can't take off your %s." ) );
+            return;
         } else if( what == "consume" ) {
-            guy.consume( loc );
+            done( guy.consume( loc ) != trinary::NONE, _( "You consume the %s." ),
+                  _( "You can't consume the %s." ) );
+            return;
+        } else if( what == "apply" ) {
+            apply_item( rp, guy, loc, msg.get_string( "m", "" ) );
+            rp.character_sent_at = 0;
+            rp.sent_character = 0;
+            return;
         } else if( what == "read" ) {
             // B5: reading as a timed action (progress in world time, cancel with any key)
             std::vector<std::string> reasons;
@@ -838,6 +961,10 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         npc *guy = g->find_npc( rp->npc_id );
         if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
             use_item( *rp, *guy, msg );
+        } else {
+            DebugLog( D_WARNING, D_GAME ) << "Multiplayer: item action of " << rp->name <<
+                                          " ignored (body " << ( guy == nullptr ? "missing" : "dead" ) <<
+                                          ", downed " << rp->downed << ")";
         }
     } else if( type == "in" && rp->npc_id.is_valid() ) {
         fluid::input_frame f;
