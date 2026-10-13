@@ -37,6 +37,8 @@
 #include "safemode_ui.h"
 #include "worldfactory.h"
 #include "avatar.h"
+#include "string_input_popup.h"
+#include "input.h"
 #include "clzones.h"
 #include "construction.h"
 #include "diary.h"
@@ -840,6 +842,34 @@ bool handle_input()
         // the focus minigame key (B3/B5); the host ignores it when no prompt is open
         send_action( "focus" );
         return false;
+    }
+    // chat (F2) and the list of players (F4)
+    {
+        const int raw = ctxt.get_raw_input().get_first_input();
+        if( raw == KEY_F( 2 ) ) {
+            string_input_popup popup;
+            popup.title( _( "Say:" ) ).width( 60 ).max_length( 120 ).identifier( "mp_chat" );
+            const std::string text = popup.query_string();
+            if( !popup.canceled() && !text.empty() ) {
+                impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+                    jo.member( "t", "chat" );
+                    jo.member( "x", text );
+                } ) );
+            }
+            return false;
+        }
+        if( raw == KEY_F( 4 ) ) {
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+                jo.member( "t", "players_req" );
+            } ) );
+            missions_text().clear();
+            for( int wait = 0; wait < 100 && missions_text().empty(); wait++ ) {
+                poll();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+            }
+            popup( missions_text().empty() ? _( "The host did not answer." ) : missions_text() );
+            return false;
+        }
     }
     action_id act = look_up_action( action );
     if( act == ACTION_NULL ) {

@@ -1720,6 +1720,50 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             rl_dist( guy->pos_abs(), other->pos_abs() ) <= 2 ) {
             do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
         }
+    } else if( type == "chat" && rp->npc_id.is_valid() ) {
+        std::string text = msg.get_string( "x", "" );
+        // no colour tags from other people
+        std::replace( text.begin(), text.end(), '<', '(' );
+        std::replace( text.begin(), text.end(), '>', ')' );
+        if( text.size() > 200 ) {
+            text.resize( 200 );
+        }
+        if( !text.empty() ) {
+            const std::string line = string_format( "%s: %s", rp->name, text );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: chat " << line;
+            add_msg( m_info, "%s", line );
+            for( remote_player &other : clients() ) {
+                if( other.greeted ) {
+                    send_text( other, line );
+                }
+            }
+        }
+    } else if( type == "players_req" && rp->npc_id.is_valid() ) {
+        std::string text = _( "Players" ) + std::string( "\n\n" );
+        const std::string host_line = string_format( "%s (host)  hp %d%%", get_avatar().get_name(),
+                                      100 * get_avatar().get_hp() / std::max( 1, get_avatar().get_hp_max() ) );
+        if( !dedicated() ) {
+            text += host_line + "\n";
+        }
+        for( const remote_player &other : clients() ) {
+            if( !other.greeted ) {
+                continue;
+            }
+            const npc *body = other.npc_id.is_valid() ? g->find_npc( other.npc_id ) : nullptr;
+            if( body != nullptr && !body->is_dead() ) {
+                text += string_format( "%s  hp %d%%  %d tiles away\n", other.name,
+                                       100 * body->get_hp() / std::max( 1, body->get_hp_max() ),
+                                       rl_dist( body->pos_abs(), rp->npc_id.is_valid() &&
+                                                g->find_npc( rp->npc_id ) != nullptr ? g->find_npc( rp->npc_id )->pos_abs() :
+                                                body->pos_abs() ) );
+            } else {
+                text += other.name + "\n";
+            }
+        }
+        impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "missions" );
+            jo.member( "text", text );
+        } ) );
     } else if( type == "factions_req" && rp->npc_id.is_valid() ) {
         // who the group knows (the group's standing is kept on the host's avatar)
         std::string text = _( "Factions the group knows" ) + std::string( "\n\n" );
