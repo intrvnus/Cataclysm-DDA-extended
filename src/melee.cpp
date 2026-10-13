@@ -2776,7 +2776,7 @@ double Character::unarmed_value() const
     return melee_value( item() );
 }
 
-void avatar::disarm( npc &target )
+void Character::disarm( npc &target )
 {
     if( !target.is_armed() ) {
         return;
@@ -2859,7 +2859,7 @@ void avatar::disarm( npc &target )
     }
 }
 
-void avatar::steal( npc &target )
+void Character::steal( npc &target )
 {
     if( target.is_enemy() ) {
         add_msg( _( "%s is hostile!" ), target.get_name() );

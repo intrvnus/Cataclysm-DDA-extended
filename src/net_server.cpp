@@ -1173,12 +1173,15 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             if( !group.empty() ) {
                 place_construction( { construction_group_str_id( group ) } );
             }
-        } else if( what == "npc_use" ) {
-            // healing or splinting somebody: the client chose the item on its copy
+        } else if( what == "npc_act" ) {
+            // healing, disarming or robbing somebody: the client chose on its copy
             const int id = std::atoi( remote_ui::answer( "n" ).value_or( "-1" ).c_str() );
+            const int option = std::atoi( remote_ui::answer( "o" ).value_or( "-1" ).c_str() );
             npc *other = g->find_npc( character_id( id ) );
-            if( other != nullptr && !other->is_dead() && rl_dist( guy.pos_abs(), other->pos_abs() ) <= 2 ) {
-                g->npc_menu_choice( guy, *other, game::npc_opt_use_item );
+            if( other != nullptr && !other->is_dead() && rl_dist( guy.pos_abs(), other->pos_abs() ) <= 2 &&
+                ( option == game::npc_opt_use_item || option == game::npc_opt_disarm ||
+                  option == game::npc_opt_steal ) ) {
+                g->npc_menu_choice( guy, *other, option );
             }
         } else if( what == "control_vehicle" ) {
             g->mp_control_vehicle();

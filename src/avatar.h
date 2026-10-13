@@ -196,12 +196,6 @@ class avatar : public Character
                       bool is_computer = false, bool is_not_conversation = false, const std::string &debug_topic = "" );
 
         /**
-         * Try to disarm the NPC. May result in fail attempt, you receiving the weapon and instantly wielding it,
-         * or the weapon falling down on the floor nearby. NPC is always getting angry with you.
-         * @param target Target NPC to disarm
-         */
-        void disarm( npc &target );
-        /**
          * Try to wield a contained item consuming moves proportional to weapon skill and volume.
          * @param container Container containing the item to be wielded
          * @param internal_item reference to contained item to wield.
@@ -242,12 +236,6 @@ class avatar : public Character
         // @return true if no relax_gas effect or rng roll to ignore it was successful
         bool try_break_relax_gas( const std::string &msg_success, const std::string &msg_failure );
         void add_pain_msg( int val, const bodypart_id &bp ) const;
-        /**
-         * Try to steal an item from the NPC's inventory. May result in fail attempt, when NPC not notices you,
-         * notices your steal attempt and getting angry with you, and you successfully stealing the item.
-         * @param target Target NPC to steal from
-         */
-        void steal( npc &target );
         /** Reassign letter. */
         void reassign_item( item &it, int invlet );
 

@@ -6274,18 +6274,10 @@ bool game::npc_menu_choice( Character &you, npc &who, int choice )
         }
     } else if( choice == disarm ) {
         if( who.is_enemy() || query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-            if( avatar *av = you.as_avatar() ) {
-                av->disarm( who );
-            } else {
-                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
-            }
+            you.disarm( who );
         }
     } else if( choice == steal && query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-        if( avatar *av = you.as_avatar() ) {
-            av->steal( who );
-        } else {
-            remote_ui::tell( _( "That is not available in multiplayer yet." ) );
-        }
+        you.steal( who );
     } else if( choice == trade ) {
         if( who.is_hallucination() ) {
             who.say( SNIPPET.random_from_category( "<hallu_dont_trade>" ).value_or(

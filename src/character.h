@@ -2624,6 +2624,9 @@ class Character : public Creature, public visitable
             bool success;
         };
         smash_result smash( tripoint_bub_ms &smashp );
+        /** Tries to take away what @p target holds / to take something from its pockets */
+        void disarm( npc &target );
+        void steal( npc &target );
         /** Multiplayer: the worn items in layer order (to tell the host how a client sorted them) */
         std::vector<const item *> worn_item_order() const;
         /** Multiplayer: puts the worn items in that order (indices into a former worn_item_order) */

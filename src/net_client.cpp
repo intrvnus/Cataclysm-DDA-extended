@@ -736,12 +736,16 @@ void run_npc_menu()
             return;
         }
     }
-    if( menu.ret == game::npc_opt_use_item ) {
-        // the item is chosen here on the copy of that NPC, the host does the healing
+    if( menu.ret == game::npc_opt_use_item || menu.ret == game::npc_opt_disarm ||
+        menu.ret == game::npc_opt_steal ) {
+        // what is asked on the way (the item, "really?") is answered here on the copy of that NPC,
+        // the host does the same with these answers
         if( npc *other = g->find_npc( character_id( m.id ) ) ) {
-            send_ui( "npc_use", [other]() {
+            const int option = menu.ret;
+            send_ui( "npc_act", [other, option]() {
                 remote_ui::record( "n", std::to_string( other->getID().get_value() ) );
-                g->npc_menu_choice( get_avatar(), *other, game::npc_opt_use_item );
+                remote_ui::record( "o", std::to_string( option ) );
+                g->npc_menu_choice( get_avatar(), *other, option );
             } );
             return;
         }
