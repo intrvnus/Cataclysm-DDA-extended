@@ -381,6 +381,8 @@ bool handle_input()
             send_action( "move", get_delta_from_movement_action( act, iso_rotate::yes ) );
             break;
         case ACTION_PAUSE:
+            // also stops a timed action (B7)
+            send_action( "stop" );
             send_action( "wait" );
             break;
         case ACTION_PICKUP:
@@ -403,6 +405,9 @@ bool handle_input()
             break;
         case ACTION_EAT:
             send_use( "consume", game_menus::inv::consume() );
+            break;
+        case ACTION_READ:
+            send_use( "read", game_menus::inv::read( get_avatar() ) );
             break;
         case ACTION_DROP:
             send_drop( game_menus::inv::multidrop( get_avatar() ) );

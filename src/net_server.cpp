@@ -18,6 +18,7 @@
 
 #include <enet/enet.h>
 
+#include "activity_actor_definitions.h"
 #include "alerts.h"
 #include "avatar.h"
 #include "calendar.h"
@@ -52,6 +53,7 @@
 #include "npc.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
+#include "player_activity.h"
 #include "point.h"
 #include "translations.h"
 #include "type_id.h"
@@ -482,6 +484,8 @@ void execute( npc &guy, const command &cmd )
             guy.fall_asleep( std::min( wake - now, 10_hours ) );
             alerts::warn( string_format( _( "%s went to sleep." ), guy.get_name() ), alerts::level::notice );
         }
+    } else if( cmd.action == "stop" ) {
+        // handled before the action runs, see host_drive_npc()
     } else if( cmd.action == "wake" ) {
         if( guy.in_sleep_state() ) {
             guy.wake_up();
@@ -566,6 +570,20 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             guy.takeoff( loc );
         } else if( what == "consume" ) {
             guy.consume( loc );
+        } else if( what == "read" ) {
+            // B5: reading as a timed action (progress in world time, cancel with any key)
+            std::vector<std::string> reasons;
+            const Character *reader = guy.get_book_reader( *loc, reasons );
+            if( reader == nullptr ) {
+                for( const std::string &r : reasons ) {
+                    send_text( rp, r );
+                }
+            } else {
+                item_location no_ereader;
+                const time_duration t = guy.time_to_read( *loc, *reader );
+                guy.assign_activity( read_activity_actor( t, loc, no_ereader, false,
+                                     guy.getID().get_value() ) );
+            }
         }
     }
     const size_t messages_after = Messages::size();
@@ -578,6 +596,34 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
     // show the result at once
     rp.character_sent_at = 0;
     rp.sent_character = 0;
+}
+
+// Runs the timed action (reading, crafting ...) of a player's body.  Returns true while one
+// is going on.  Like the host avatar's, it progresses in world time with short days.
+bool run_activity( remote_player &rp, npc &guy )
+{
+    if( !guy.activity ) {
+        return false;
+    }
+    const int world_step_turns = to_turns<int>( calendar::last_step() );
+    if( world_step_turns > 1 && alerts::nonblocking() ) {
+        guy.mod_moves( guy.get_speed() * ( world_step_turns - 1 ) );
+    }
+    const size_t messages_before = Messages::size();
+    for( int guard = 0; guard < 1000 && guy.get_moves() > 0 && guy.activity; ++guard ) {
+        guy.activity.do_turn( guy );
+    }
+    const size_t messages_after = Messages::size();
+    if( messages_after > messages_before ) {
+        for( const std::pair<std::string, std::string> &m :
+             Messages::recent_messages( messages_after - messages_before ) ) {
+            send_text( rp, m.second );
+        }
+    }
+    if( !guy.activity && guy.get_moves() > guy.get_speed() ) {
+        guy.set_moves( guy.get_speed() );
+    }
+    return true;
 }
 
 // Keeps a downed player on the ground; lets them die when the time is up.
@@ -824,6 +870,24 @@ bool host_drive_npc( npc &guy )
     remote_player *rp = find_client( guy.getID() );
     if( rp != nullptr && update_downed( *rp, guy ) ) {
         return true;
+    }
+    if( rp != nullptr ) {
+        // a one-key cancel from the client stops a timed action at once
+        for( auto it = rp->commands.begin(); it != rp->commands.end(); ) {
+            if( it->action == "stop" ) {
+                if( guy.activity ) {
+                    guy.cancel_activity();
+                    send_text( *rp, _( "You stop." ) );
+                }
+                it = rp->commands.erase( it );
+            } else {
+                ++it;
+            }
+        }
+        run_activity( *rp, guy );
+        if( guy.activity ) {
+            return true;
+        }
     }
     if( rp == nullptr ) {
         if( abandoned_npcs().count( guy.getID() ) == 0 ) {
