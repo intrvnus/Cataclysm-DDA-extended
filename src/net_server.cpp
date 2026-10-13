@@ -538,6 +538,23 @@ bool load_body( npc &guy, std::string json )
 
 // For testing: with the environment variable CATA_MP_TEST_NPC set, an NPC appears next to
 // every player who joins (so that conversations and trading can be tried without the debug menu).
+// Test helper: a zombie a few steps from the player (tests whether monsters go for clients).
+void spawn_test_zombie( const npc &near )
+{
+    if( std::getenv( "CATA_MP_TEST_ZOMBIE" ) == nullptr ) {
+        return;
+    }
+    map &here = get_map();
+    for( const tripoint_bub_ms &p : here.points_in_radius( near.pos_bub( here ), 7 ) ) {
+        if( rl_dist( p, near.pos_bub( here ) ) >= 6 && here.passable( p ) &&
+            get_creature_tracker().creature_at( p ) == nullptr ) {
+            g->place_critter_at( mtype_id( "mon_zombie" ), p );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie spawned";
+            return;
+        }
+    }
+}
+
 void spawn_test_npc( const npc &near )
 {
     if( std::getenv( "CATA_MP_TEST_NPC" ) == nullptr ) {
@@ -1973,6 +1990,7 @@ void host_end_of_turn()
             }
             rp.npc_id = guy->getID();
             spawn_test_npc( *guy );
+            spawn_test_zombie( *guy );
             place_on_test_stairs( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
             impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
