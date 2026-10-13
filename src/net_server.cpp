@@ -46,6 +46,7 @@
 #include "messages.h"
 #include "monster.h"
 #include "mtype.h"
+#include "mutation.h"
 #include "net_protocol.h"
 #include "net_session.h"
 #include "npc.h"
@@ -380,12 +381,14 @@ void send_state( remote_player &rp, const npc &guy )
         // Everybody else who is playing: the host and the other clients.
         jo.member( "others" );
         jo.start_array();
-        jo.start_object();
-        jo.member( "id", u.getID().get_value() );
-        jo.member( "name", u.get_name() );
-        jo.member( "pos" );
-        write_pos( jo, u.pos_abs() );
-        jo.end_object();
+        if( !dedicated() ) {
+            jo.start_object();
+            jo.member( "id", u.getID().get_value() );
+            jo.member( "name", u.get_name() );
+            jo.member( "pos" );
+            write_pos( jo, u.pos_abs() );
+            jo.end_object();
+        }
         // the other players and every ordinary NPC in the reality bubble
         for( const npc &np : g->all_npcs() ) {
             if( np.getID() == guy.getID() || np.is_dead() || !here.inbounds( np.pos_abs() ) ) {
@@ -949,6 +952,58 @@ void host_send_events( const std::vector<fluid::event> &events )
     }
 }
 
+void dedicated_turn()
+{
+    if( !dedicated() ) {
+        return;
+    }
+    avatar &u = get_avatar();
+    map &here = get_map();
+    // the ghost: nobody can see, hurt, smell or hear it, and it needs nothing
+    static const std::vector<trait_id> ghost_traits = {
+        trait_id( "DEBUG_CLOAK" ), trait_id( "DEBUG_NODMG" ), trait_id( "DEBUG_NOSCENT" ),
+        trait_id( "DEBUG_SILENT" ), trait_id( "DEBUG_PREVENT_DEATH" ), trait_id( "DEBUG_LS" ),
+        trait_id( "DEBUG_NOTEMP" )
+    };
+    for( const trait_id &t : ghost_traits ) {
+        if( t.is_valid() && !u.has_trait( t ) ) {
+            u.set_mutation( t );
+        }
+    }
+    // stay with the players, so the reality bubble is where they are
+    std::vector<npc *> bodies = remote_player_npcs();
+    if( !bodies.empty() ) {
+        int64_t sx = 0;
+        int64_t sy = 0;
+        for( const npc *guy : bodies ) {
+            sx += guy->pos_abs().x();
+            sy += guy->pos_abs().y();
+        }
+        const tripoint_abs_ms centre( static_cast<int>( sx / static_cast<int64_t>( bodies.size() ) ),
+                                      static_cast<int>( sy / static_cast<int64_t>( bodies.size() ) ),
+                                      bodies.front()->pos_abs().z() );
+        if( rl_dist( u.pos_abs(), centre ) > 8 && here.inbounds( centre ) ) {
+            for( const tripoint_bub_ms &p : here.points_in_radius( here.get_bub( centre ), 4 ) ) {
+                if( here.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
+                    if( p.z() != u.posz() ) {
+                        g->vertical_shift( p.z() );
+                    }
+                    u.setpos( here, p, false );
+                    g->update_map( u );
+                    break;
+                }
+            }
+        }
+    }
+    // save now and then (a dedicated server has nobody to press "save")
+    static fluid::ms_t last_save = fluid::now_ms();
+    if( fluid::now_ms() - last_save > 10 * 60 * 1000 ) {
+        last_save = fluid::now_ms();
+        g->save();
+        add_msg( m_info, _( "Multiplayer: the server saved the world." ) );
+    }
+}
+
 void host_save_players()
 {
     if( !is_host() ) {
@@ -970,19 +1025,23 @@ bool everyone_asleep()
     if( !is_host() ) {
         return false;
     }
-    if( !get_avatar().in_sleep_state() ) {
+    if( !dedicated() && !get_avatar().in_sleep_state() ) {
         return false;
     }
+    bool anybody = !dedicated();
     for( const remote_player &rp : clients() ) {
         if( !rp.npc_id.is_valid() ) {
             continue;
         }
         const npc *guy = g->find_npc( rp.npc_id );
-        if( guy != nullptr && !guy->in_sleep_state() ) {
-            return false;
+        if( guy != nullptr ) {
+            anybody = true;
+            if( !guy->in_sleep_state() ) {
+                return false;
+            }
         }
     }
-    return true;
+    return anybody;
 }
 
 bool is_remote_player( const Character &who )

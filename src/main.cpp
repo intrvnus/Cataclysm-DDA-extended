@@ -363,6 +363,21 @@ cli_opts parse_commandline( int argc, const char **argv )
                 }
             },
             {
+                "--mp-server", "[port]",
+                "Experimental multiplayer: dedicated server (load a world with --world; nobody plays on the server itself)",
+                section_default,
+                0,
+                []( int n, const char **params ) -> int {
+                    if( n > 0 && params[0][0] != '-' )
+                    {
+                        net::request_dedicated( std::atoi( params[0] ) );
+                        return 1;
+                    }
+                    net::request_dedicated( net::default_port );
+                    return 0;
+                }
+            },
+            {
                 "--mp-connect", "<address[:port]>",
                 "Experimental multiplayer: join a hosted game once a game is loaded",
                 section_default,

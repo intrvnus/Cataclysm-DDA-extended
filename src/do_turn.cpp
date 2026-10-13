@@ -504,6 +504,7 @@ bool do_turn()
         return net::client_do_turn();
     }
     net::poll();
+    net::dedicated_turn();
     // Experimental fluid mode: a new turn window opens (see fluid.h).
     fluid::begin_turn();
 

@@ -109,6 +109,17 @@ void request_connect( const std::string &address, int port )
     s.pending_port = port;
 }
 
+void request_dedicated( int port )
+{
+    request_host( port );
+    state().dedicated = true;
+}
+
+bool dedicated()
+{
+    return state().dedicated && state().current == role::host;
+}
+
 role current_role()
 {
     return state().current;

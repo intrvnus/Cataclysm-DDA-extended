@@ -3124,6 +3124,12 @@ bool game::handle_action()
 {
     map &here = get_map();
 
+    // Dedicated server (A2): the avatar is a ghost that never waits for input.
+    if( net::dedicated() ) {
+        u.pause();
+        return true;
+    }
+
     std::string action;
     input_context ctxt;
     action_id act = ACTION_NULL;

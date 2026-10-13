@@ -43,6 +43,12 @@ enum class role : int {
 
 /** Command line: remember what to start once a game is running. */
 void request_host( int port );
+/** Command line: dedicated server (A2): host without playing; the avatar becomes an
+ * invisible, invulnerable ghost that follows the players and never waits for input. */
+void request_dedicated( int port );
+bool dedicated();
+/** Dedicated server: once per turn, keeps the ghost avatar with the players. */
+void dedicated_turn();
 void request_connect( const std::string &address, int port );
 
 /** Starts the requested session (once). Called from the main game loop. */

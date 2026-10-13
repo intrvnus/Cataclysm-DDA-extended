@@ -1185,7 +1185,7 @@ void host_frame()
         // The classic input of vehicles, menus ... is left alone while they are in use.
         const bool fluid_owns_input = !u.controlling_vehicle && !u.is_dead_state() &&
                                       g->uquit != QUIT_WATCH;
-        if( fluid_owns_input ) {
+        if( fluid_owns_input && !net::dedicated() ) {
             drive( u, avatar_state(), in, now, &events );
         }
         // the overlays of the local avatar

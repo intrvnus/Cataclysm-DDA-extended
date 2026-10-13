@@ -54,6 +54,7 @@ struct session_state {
     _ENetPeer *server_peer = nullptr;
 
     role pending = role::none;
+    bool dedicated = false;
     std::string pending_address;
     int pending_port = default_port;
 };
