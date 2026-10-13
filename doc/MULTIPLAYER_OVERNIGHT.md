@@ -7,6 +7,12 @@ Rules
 - Big or risky design questions (faction rework C4, per-player bubbles C2, anything that changes how the game plays for everybody) are NOT decided overnight: they go into the report.
 - Loop: code -> build in the separate copy (`bld.sh`, binary lands in `cataclysm-tiles.next`) -> hand the tester a checklist -> read its report -> fix -> repeat. The tester never edits source.
 
+Operating rules (Noah, plan-usage aware)
+- Tester runs on the cheaper model (Haiku) from the next run on; its checks are log-based and it must quote exact log lines as evidence.
+- I check the tester's FIRST report against the logs myself before trusting the rest.
+- Fewer, bigger tester rounds: several fixes pile up first; one run covers car + zombie + NPC menu + the verification sweep.
+- Heavy overnight use is accepted (plan usage about 50%, resets in about an hour). If a usage limit pauses the session, resume after the reset and write into the morning report where it stopped.
+
 Queue (in this order, roughly)
 1. Vehicles: boarding/passengers, shooting from a vehicle, grab/drag (furniture first, then vehicles).
 2. Monsters/NPC AI for several players: convert the checks that only look at the host avatar (anger, aggro, "can see the player"), test with the zombie helper in a spot with line of sight.
