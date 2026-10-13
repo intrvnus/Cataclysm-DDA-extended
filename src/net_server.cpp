@@ -608,6 +608,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         texts = replay.texts();
         failed = replay.failed();
     }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: ui action '" << what << "' of " << rp.name <<
+                               ( failed ? " failed (ran out of answers)" : " replayed" );
     for( const std::string &text : texts ) {
         send_text( rp, text );
     }
@@ -966,6 +968,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
     } else if( type == "ui" && rp->npc_id.is_valid() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: ui message from " << rp->name;
         npc *guy = g->find_npc( rp->npc_id );
         if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
             run_ui_action( *rp, *guy, msg );

@@ -349,6 +349,8 @@ void send_ui( const std::string &action, const std::function<void()> &run )
         answers = rec.answers();
     }
     avatar &u = get_avatar();
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: sending ui action '" << action << "' with " <<
+                               answers.size() << " answers";
     // timed actions run on the host
     if( u.activity ) {
         u.activity.set_to_null();
