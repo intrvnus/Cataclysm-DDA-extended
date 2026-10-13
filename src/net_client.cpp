@@ -49,6 +49,7 @@
 #include "path_info.h"
 #include "point.h"
 #include "sounds.h"
+#include "scenario.h"
 #include "string_formatter.h"
 #include "translations.h"
 #include "type_id.h"
@@ -203,6 +204,11 @@ void apply_state( const JsonObject &msg )
             u.set_part_hp_cur( bp, std::max( 1, hp.get_int( bp.id().str() ) ) );
         }
     }
+    const move_mode_id mode( you.get_string( "mm", u.current_movement_mode().str() ) );
+    if( mode.is_valid() && mode != u.current_movement_mode() ) {
+        u.set_movement_mode( mode );
+    }
+    u.set_stamina( you.get_int( "stam", u.get_stamina() ) );
     const bool asleep = you.get_bool( "asleep", false );
     if( asleep && !cstate().asleep ) {
         alerts::warn( _( "You are asleep.  The night passes faster when everybody sleeps.  Press a key to wake up." ),
@@ -351,6 +357,8 @@ void send_drop( const drop_locations &what )
 // Returns true if the player wants to leave the game.
 bool handle_input()
 {
+    // the WASD layout option (the host does this in its own input loop)
+    fluid::sync_key_layout();
     input_context ctxt = get_default_mode_input_context();
     const bool fluid_on = cstate().fluid_on && fluid::client_active();
     // fluid mode: one frame is 16 ms, the screen moves smoothly
@@ -374,6 +382,10 @@ bool handle_input()
         return false;
     }
     const action_id act = look_up_action( action );
+    if( act == ACTION_NULL ) {
+        // an unbound key (e.g. Shift + a movement key while sprinting): nothing to say
+        return false;
+    }
     switch( act ) {
         case ACTION_MOVE_FORTH:
         case ACTION_MOVE_FORTH_RIGHT:
@@ -487,9 +499,14 @@ void apply_full_character( std::string json )
     if( json.find( "\"assigned_invlet\"" ) == std::string::npos ) {
         json.insert( open + 1, "\"assigned_invlet\":[]," );
     }
+    if( json.find( "\"scenario\"" ) == std::string::npos ) {
+        json.insert( open + 1, string_format( "\"scenario\":\"%s\",", get_scenario()->ident().str() ) );
+    }
     avatar &u = get_avatar();
     const tripoint_abs_ms pos = u.pos_abs();
     const character_id own_id = u.getID();
+    // loading sets the id from the data, which it refuses while one is set
+    u.setID( character_id(), true );
     try {
         JsonValue jv = json_loader::from_string( std::move( json ) );
         JsonObject jo = jv.get_object();

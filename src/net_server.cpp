@@ -267,6 +267,16 @@ npc *spawn_remote_npc( remote_player &rp )
             guy->name = rp.name;
         }
     }
+    if( returning ) {
+        // back where they left, if that place is loaded and free (else next to the host)
+        const tripoint_abs_ms left_at = guy->pos_abs();
+        if( here.inbounds( left_at ) ) {
+            const tripoint_bub_ms p = here.get_bub( left_at );
+            if( here.passable( p ) && creatures.creature_at( p ) == nullptr ) {
+                spot = p;
+            }
+        }
+    }
     // a fresh id in this world, whatever the save said
     guy->setID( g->assign_npc_id(), true );
     guy->spawn_at_precise( here.get_abs( spot ) );
@@ -298,6 +308,8 @@ void store_and_remove_body( remote_player &rp )
     g->remove_npc( rp.npc_id );
     overmap_buffer.remove_npc( rp.npc_id );
     rp.npc_id = character_id();
+    // the sidebar (compass) keeps pointers to the people the host saw
+    g->mon_info_update();
 }
 
 // ---- submaps ----
@@ -373,6 +385,9 @@ void send_state( remote_player &rp, const npc &guy )
         write_pos( jo, guy.pos_abs() );
         jo.member( "dead", guy.is_dead() );
         jo.member( "asleep", guy.in_sleep_state() );
+        // what changes quickly while moving (the full character only comes every few seconds)
+        jo.member( "mm", guy.current_movement_mode().str() );
+        jo.member( "stam", guy.get_stamina() );
         jo.member( "hp" );
         jo.start_object();
         for( const bodypart_id &bp : guy.get_all_body_parts() ) {
@@ -752,6 +767,9 @@ void server_on_start()
     for( const character_id &id : stale ) {
         g->remove_npc( id );
         overmap_buffer.remove_npc( id );
+    }
+    if( !stale.empty() ) {
+        g->mon_info_update();
     }
 }
 
