@@ -593,6 +593,7 @@ void spawn_test_npc( const npc &near )
         const bool is_north = p == north;
         if( ( !is_north && ( rl_dist( p, near.pos_bub( here ) ) < 2 ||
                              here.passable( north ) ) ) || !here.passable( p ) ||
+            here.veh_at( p ) || !here.sees( near.pos_bub( here ), p, 10 ) ||
             get_creature_tracker().creature_at( p ) != nullptr ) {
             continue;
         }
@@ -662,8 +663,9 @@ void place_test_vehicle( npc &guy )
             }
             for( const vpart_reference &vpr : veh->get_avail_parts( "CONTROLS" ) ) {
                 const tripoint_bub_ms seat = vpr.pos_bub( here );
+                veh->is_locked = false;
                 guy.setpos( here, seat, false );
-                guy.in_vehicle = true;
+                here.board_vehicle( seat, &guy );
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car placed, player at the controls";
                 return;
             }
