@@ -1,0 +1,180 @@
+[
+  {
+    "type": "keybinding",
+    "id": "UP",
+    "name": "Move north",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "w" },
+      { "input_method": "keyboard_any", "key": "UP" },
+      { "input_method": "keyboard_any", "key": "8" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_8" },
+      { "input_method": "gamepad", "key": "JOY_UP" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "DOWN",
+    "name": "Move south",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "s" },
+      { "input_method": "keyboard_any", "key": "DOWN" },
+      { "input_method": "keyboard_any", "key": "2" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_2" },
+      { "input_method": "gamepad", "key": "JOY_DOWN" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "LEFT",
+    "name": "Move west",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "a" },
+      { "input_method": "keyboard_any", "key": "LEFT" },
+      { "input_method": "keyboard_any", "key": "4" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_4" },
+      { "input_method": "gamepad", "key": "JOY_LEFT" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "RIGHT",
+    "name": "Move east",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "d" },
+      { "input_method": "keyboard_any", "key": "RIGHT" },
+      { "input_method": "keyboard_any", "key": "6" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_6" },
+      { "input_method": "gamepad", "key": "JOY_RIGHT" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "LEFTUP",
+    "name": "Move northwest",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "7" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_7" },
+      { "input_method": "gamepad", "key": "JOY_LEFTUP" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "RIGHTUP",
+    "name": "Move northeast",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "9" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_9" },
+      { "input_method": "gamepad", "key": "JOY_RIGHTUP" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "LEFTDOWN",
+    "name": "Move southwest",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "1" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_1" },
+      { "input_method": "gamepad", "key": "JOY_LEFTDOWN" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "RIGHTDOWN",
+    "name": "Move southeast",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "3" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_3" },
+      { "input_method": "gamepad", "key": "JOY_RIGHTDOWN" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "apply",
+    "name": "Use item",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "q" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "apply_wielded",
+    "name": "Use wielded item",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_char", "key": "Q" },
+      { "input_method": "keyboard_code", "key": "q", "mod": ["shift"] }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "wield",
+    "name": "Wield",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "h" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "wear",
+    "name": "Wear item",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_char", "key": "H" },
+      { "input_method": "keyboard_code", "key": "h", "mod": ["shift"] }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "drop",
+    "name": "Drop item",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "j" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "drop_adj",
+    "name": "Drop item to adjacent tile",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_char", "key": "J" },
+      { "input_method": "keyboard_code", "key": "j", "mod": ["shift"] }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "smash",
+    "name": "Smash nearby terrain",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "k" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "save",
+    "name": "Save and quit",
+    "category": "DEFAULTMODE",
+    "bindings": [
+      { "input_method": "keyboard_char", "key": "CTRL+S" },
+      { "input_method": "keyboard_code", "key": "s", "mod": ["ctrl"] }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "autoattack",
+    "name": "Autoattack",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "gamepad", "key": "JOY_1" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "toggle_run",
+    "name": "Toggle run",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "TAB" } ]
+  }
+]

@@ -24,6 +24,7 @@
 #include "creature_tracker.h"
 #include "faction.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "item.h"
@@ -61,6 +62,11 @@ struct remote_player {
     bool greeted = false;
     character_id npc_id;
     std::deque<command> commands;
+    // fluid mode: the newest input state of this client
+    fluid::input_frame input;
+    bool has_input = false;
+    fluid::ms_t input_at = 0;
+    fluid::ms_t aim_sent = 0;
     // hash of the last version of every submap sent to this client
     std::map<tripoint_abs_sm, size_t> sent_submaps;
 };
@@ -363,6 +369,7 @@ void server_on_disconnect( ENetPeer *peer )
         if( iter->peer == peer ) {
             if( iter->npc_id.is_valid() ) {
                 abandoned_npcs().insert( iter->npc_id );
+                fluid::forget_state( iter->npc_id.get_value() );
             }
             add_msg( m_info, _( "Multiplayer: %s left." ),
                      iter->name.empty() ? _( "a player" ) : iter->name );
@@ -391,9 +398,38 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->name = msg.get_string( "name", "" );
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
+    } else if( type == "in" && rp->npc_id.is_valid() ) {
+        fluid::input_frame f;
+        f.move_x = std::clamp( msg.get_int( "mx", 0 ), -1, 1 );
+        f.move_y = std::clamp( msg.get_int( "my", 0 ), -1, 1 );
+        f.primary = msg.get_bool( "p", false );
+        f.secondary = msg.get_bool( "s", false );
+        f.primary_presses = msg.get_int( "pc", 0 );
+        f.secondary_presses = msg.get_int( "sc", 0 );
+        f.cancel = msg.get_bool( "c", false );
+        f.cursor_valid = msg.get_bool( "cv", false );
+        f.cursor_x = msg.get_float( "cx", 0.0 );
+        f.cursor_y = msg.get_float( "cy", 0.0 );
+        f.cursor_z = msg.get_int( "cz", 0 );
+        if( !rp->has_input ) {
+            // the counters of presses start wherever the client is: that is not a click
+            fluid::actor_state &st = fluid::state_of( rp->npc_id.get_value() );
+            st.seen_primary_presses = f.primary_presses;
+            st.seen_secondary_presses = f.secondary_presses;
+            st.prev_primary = f.primary;
+            st.prev_secondary = f.secondary;
+            st.initialised = true;
+        }
+        rp->input = f;
+        rp->has_input = true;
+        rp->input_at = fluid::now_ms();
     } else if( type == "act" && rp->npc_id.is_valid() ) {
         command cmd;
         cmd.action = msg.get_string( "a", "wait" );
+        if( fluid::enabled() && cmd.action == "move" ) {
+            // fluid mode: movement comes in as "in" frames
+            return;
+        }
         cmd.delta = point_rel_ms( std::clamp( msg.get_int( "dx", 0 ), -1, 1 ),
                                   std::clamp( msg.get_int( "dy", 0 ), -1, 1 ) );
         // Holding a key down must not build up a long queue of old commands.
@@ -420,6 +456,26 @@ bool host_drive_npc( npc &guy )
         // The player left: just stand there.
         if( guy.get_moves() > 0 ) {
             guy.pause();
+        }
+        return true;
+    }
+    if( fluid::enabled() ) {
+        // Fluid mode: the player of this NPC is driven between the turns
+        // (host_drive_remote_players); the turn itself does nothing.
+        // One-off commands of the classic protocol (pick up) still work.
+        while( !rp->commands.empty() ) {
+            const command cmd = rp->commands.front();
+            rp->commands.pop_front();
+            if( cmd.action == "pickup" ) {
+                execute( guy, cmd );
+            }
+        }
+        // The time of the NPC is kept by the fluid driver; the move points only say whether it
+        // is busy with something slow (a pick up, a long action).  Unspent points are not
+        // saved up.
+        const int speed = guy.get_speed();
+        if( guy.get_moves() > speed ) {
+            guy.set_moves( speed );
         }
         return true;
     }
@@ -450,6 +506,76 @@ bool host_drive_npc( npc &guy )
     return true;
 }
 
+void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *events )
+{
+    if( !is_host() ) {
+        return;
+    }
+    for( remote_player &rp : clients() ) {
+        if( !rp.npc_id.is_valid() ) {
+            continue;
+        }
+        npc *guy = g->find_npc( rp.npc_id );
+        if( guy == nullptr || guy->is_dead() ) {
+            continue;
+        }
+        fluid::input_frame frame = rp.input;
+        if( !rp.has_input || now - rp.input_at > 1500 ) {
+            // nothing heard for a while (lag, host menu ...): the player stands still
+            frame.move_x = 0;
+            frame.move_y = 0;
+            frame.primary = false;
+            frame.secondary = false;
+            frame.cancel = false;
+        }
+        fluid::actor_state &st = fluid::state_of( guy->getID().get_value() );
+        // the host's message log is forwarded to the owner, like in the classic protocol
+        const size_t messages_before = Messages::size();
+        fluid::drive( *guy, st, frame, now, events );
+        const size_t messages_after = Messages::size();
+        if( messages_after > messages_before ) {
+            for( const std::pair<std::string, std::string> &m :
+                 Messages::recent_messages( messages_after - messages_before ) ) {
+                send_text( rp, m.second );
+            }
+        }
+        // the owner draws the crosshair, the host knows how steady it is
+        if( now - rp.aim_sent >= 80 ) {
+            rp.aim_sent = now;
+            impl::send_json_fast( rp.peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "aim" );
+                jo.member( "s", static_cast<int>( st.steadiness * 1000.0 ) );
+                jo.member( "r", static_cast<int>( st.spread_tiles * 1000.0 ) );
+                jo.member( "f", st.can_fire );
+                jo.member( "a", st.aiming );
+            } ) );
+        }
+    }
+}
+
+void host_send_events( const std::vector<fluid::event> &events )
+{
+    if( !is_host() || events.empty() ) {
+        return;
+    }
+    std::string payload;
+    for( const fluid::event &ev : events ) {
+        std::ostringstream os;
+        JsonOut jo( os );
+        fluid::write_event( jo, ev );
+        if( !payload.empty() ) {
+            payload += ',';
+        }
+        payload += os.str();
+    }
+    const std::string json = R"({"t":"fx","list":[)" + payload + "]}";
+    for( remote_player &rp : clients() ) {
+        if( rp.greeted && rp.npc_id.is_valid() ) {
+            impl::send_json( rp.peer, json );
+        }
+    }
+}
+
 void host_end_of_turn()
 {
     if( !is_host() ) {
@@ -473,6 +599,7 @@ void host_end_of_turn()
                 jo.member( "t", "welcome" );
                 jo.member( "v", protocol_version );
                 jo.member( "id", guy->getID().get_value() );
+                jo.member( "fluid", fluid::enabled() );
             } ) );
         }
         if( guy == nullptr ) {

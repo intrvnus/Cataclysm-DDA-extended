@@ -43,6 +43,7 @@
 #include "field.h"
 #include "field_type.h"
 #include "flag.h"
+#include "fluid.h"
 #include "game_constants.h"
 #include "game_inventory.h"
 #include "gamemode.h"
@@ -203,10 +204,17 @@ class user_turn
         }
 
         bool has_timeout_elapsed() {
+            if( fluid::enabled() ) {
+                // fluid mode: the world runs on its own clock
+                return fluid::turn_due();
+            }
             return moves_elapsed() > 100;
         }
 
         int moves_elapsed() {
+            if( fluid::enabled() ) {
+                return 0;
+            }
             // Multiplayer forces realtime turns on, see net::turn_duration().
             const float turn_duration = net::turn_duration( get_option<float>( "TURN_DURATION" ) );
             // Magic number 0.005 chosen due to option menu's 2 digit precision and
@@ -247,6 +255,9 @@ class user_turn
 input_context game::get_player_input( std::string &action )
 {
     map &here = get_map();
+
+    // Experimental fluid mode: the keyboard layout follows its option.
+    fluid::sync_key_layout();
 
     const tripoint_bub_ms pos = u.pos_bub( here );
 
@@ -334,7 +345,7 @@ input_context game::get_player_input( std::string &action )
         wPrint.wtype = weather.weather_id;
         wPrint.vdrops.clear();
 
-        ctxt.set_timeout( 125 );
+        ctxt.set_timeout( fluid::enabled() ? fluid::tune().frame_ms : 125 );
 
         shared_ptr_fast<game::draw_callback_t> animation_cb =
         make_shared_fast<game::draw_callback_t>( [&]() {
@@ -439,14 +450,16 @@ input_context game::get_player_input( std::string &action )
 
             mod_engine::tick();
             net::poll();
+            fluid::host_frame();
             ui_manager::redraw_invalidated();
         } while( handle_mouseview( ctxt, action ) && uquit != QUIT_WATCH
                  && ( action != "TIMEOUT" || !current_turn.has_timeout_elapsed() ) );
         ctxt.reset_timeout();
     } else {
-        ctxt.set_timeout( 125 );
+        ctxt.set_timeout( fluid::enabled() ? fluid::tune().frame_ms : 125 );
         mod_engine::tick();
         net::poll();
+        fluid::host_frame();
         ui_manager::redraw_invalidated();
         while( handle_mouseview( ctxt, action ) ) {
             if( action == "TIMEOUT" && current_turn.has_timeout_elapsed() ) {
@@ -454,6 +467,7 @@ input_context game::get_player_input( std::string &action )
             }
             mod_engine::tick();
             net::poll();
+            fluid::host_frame();
             ui_manager::redraw_invalidated();
         }
         ctxt.reset_timeout();
@@ -2321,6 +2335,14 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_TIMEOUT:
+            if( fluid::enabled() ) {
+                // The turn window is over.  The pause must not throw the aim away: that is
+                // decided by the aim code of the fluid driver.
+                const double recoil = player_character.recoil;
+                player_character.pause();
+                player_character.recoil = recoil;
+                break;
+            }
             // Multiplayer: time must keep flowing for everybody, even with a monster in view.
             if( net::active() || check_safe_mode_allowed( false ) ) {
                 player_character.pause();
@@ -3306,6 +3328,20 @@ bool game::handle_action()
 
     // actions allowed only while alive
     if( !player_character.is_dead_state() ) {
+        // fluid mode: keys that are pressed while a menu is open do not count as movement
+        struct fluid_action_scope {
+            bool on;
+            explicit fluid_action_scope( bool on ) : on( on ) {
+                if( on ) {
+                    fluid::classic_action_begin();
+                }
+            }
+            ~fluid_action_scope() {
+                if( on ) {
+                    fluid::classic_action_end();
+                }
+            }
+        } fluid_scope( fluid::enabled() && act != ACTION_TIMEOUT );
         if( !do_regular_action( act, player_character, mouse_target ) ) {
             return false;
         }

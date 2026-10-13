@@ -39,6 +39,17 @@ void send_json( ENetPeer *peer, const std::string &json )
     }
 }
 
+void send_json_fast( ENetPeer *peer, const std::string &json )
+{
+    if( peer == nullptr ) {
+        return;
+    }
+    ENetPacket *packet = enet_packet_create( json.data(), json.size(), 0 );
+    if( enet_peer_send( peer, 1, packet ) != 0 ) {
+        enet_packet_destroy( packet );
+    }
+}
+
 static bool enet_ready()
 {
     static bool initialized = false;
@@ -113,7 +124,7 @@ void start_pending()
         ENetAddress address;
         address.host = ENET_HOST_ANY;
         address.port = static_cast<enet_uint16>( s.pending_port );
-        s.host = enet_host_create( &address, max_clients, 1, 0, 0 );
+        s.host = enet_host_create( &address, max_clients, channel_count, 0, 0 );
         if( s.host == nullptr ) {
             add_msg( m_bad, _( "Multiplayer: could not host on port %d." ), s.pending_port );
             return;
@@ -122,7 +133,7 @@ void start_pending()
         add_msg( m_good, _( "Multiplayer: hosting on port %d.  Waiting for players…" ),
                  s.pending_port );
     } else {
-        s.host = enet_host_create( nullptr, 1, 1, 0, 0 );
+        s.host = enet_host_create( nullptr, 1, channel_count, 0, 0 );
         if( s.host == nullptr ) {
             add_msg( m_bad, _( "Multiplayer: could not create a network connection." ) );
             return;
@@ -135,7 +146,7 @@ void start_pending()
             return;
         }
         address.port = static_cast<enet_uint16>( s.pending_port );
-        s.server_peer = enet_host_connect( s.host, &address, 1, 0 );
+        s.server_peer = enet_host_connect( s.host, &address, channel_count, 0 );
         if( s.server_peer == nullptr ) {
             add_msg( m_bad, _( "Multiplayer: could not connect to %s:%d." ), s.pending_address,
                      s.pending_port );

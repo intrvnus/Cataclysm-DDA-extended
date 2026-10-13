@@ -69,6 +69,9 @@ cata_path graveyarddir_path();
 cata_path jsondir();
 cata_path keybindings();
 cata_path keybindings_vehicle();
+/** Experimental fluid mode (see fluid.h): its own input context and the optional WASD layout. */
+cata_path keybindings_fluid();
+cata_path keybindings_fluid_layout();
 cata_path langdir_path();
 cata_path lastworld();
 cata_path legacy_fontdata();

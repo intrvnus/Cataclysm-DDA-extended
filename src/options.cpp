@@ -1643,6 +1643,34 @@ void options_manager::add_options_general()
 
     add_empty_line();
 
+    add_option_group( "general", Group( "fluid_opts", to_translation( "Fluid movement (experimental)" ),
+                                        to_translation( "Real time movement and combat on the tile grid.  Needs the tiles version, see doc/MULTIPLAYER_FLUID.md." ) ),
+    [&]( const std::string & page_id ) {
+        add( "FLUID_MODE", page_id, to_translation( "Fluid movement and combat" ),
+             to_translation( "If true, movement is read from the held keys and the mouse, steps slide from tile to tile, melee is a wind-up and a blow, and firearms are aimed with the mouse (hold the right button to steady the aim, click the left one to fire).  The world runs on a real time clock.  In multiplayer the host decides: clients follow it." ),
+             false
+           );
+
+        add( "FLUID_TURN_MS", page_id, to_translation( "Fluid mode: milliseconds per turn" ),
+             to_translation( "Length of one game turn (100 move points at normal speed) in real time.  A step on flat ground takes one turn at normal speed.  Lower is faster; everything scales with it, so this changes the pace, not the balance.  Hosts decide for the whole session." ),
+             100, 3000, 600
+           );
+        get_option( "FLUID_TURN_MS" ).setPrerequisite( "FLUID_MODE" );
+
+        add( "FLUID_SMOOTH_CAMERA", page_id, to_translation( "Fluid mode: smooth camera" ),
+             to_translation( "If true, the view follows the sliding player instead of jumping from tile to tile.  Tiles only; not available with isometric tilesets." ),
+             true
+           );
+        get_option( "FLUID_SMOOTH_CAMERA" ).setPrerequisite( "FLUID_MODE" );
+
+        add( "FLUID_WASD_LAYOUT", page_id, to_translation( "Fluid mode: WASD keyboard layout" ),
+             to_translation( "If true, the experimental keyboard layout is loaded: WASD moves, and the actions that used those keys moved (see doc/MULTIPLAYER_FLUID.md).  Takes effect when you return to the game." ),
+             false
+           );
+    } );
+
+    add_empty_line();
+
     add_option_group( "general", Group( "auto_save_opts", to_translation( "Autosave options" ),
                                         to_translation( "Options regarding autosave." ) ),
     [&]( const std::string & page_id ) {

@@ -1,0 +1,23 @@
+[
+  {
+    "type": "keybinding",
+    "id": "FLUID_CANCEL",
+    "name": "Cancel attack / drop aim",
+    "category": "FLUID",
+    "bindings": [ { "input_method": "keyboard_any", "key": "SPACE" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "FLUID_PRIMARY",
+    "name": "Attack towards the mouse (keyboard alternative to the left mouse button)",
+    "category": "FLUID",
+    "bindings": [  ]
+  },
+  {
+    "type": "keybinding",
+    "id": "FLUID_SECONDARY",
+    "name": "Steady the aim (keyboard alternative to the right mouse button)",
+    "category": "FLUID",
+    "bindings": [  ]
+  }
+]

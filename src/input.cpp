@@ -177,6 +177,12 @@ void input_manager::init()
     } catch( const JsonError &err ) {
         throw std::runtime_error( err.what() );
     }
+    try {
+        // the input context of the experimental fluid mode (may be absent)
+        load( PATH_INFO::keybindings_fluid(), false );
+    } catch( const JsonError &err ) {
+        throw std::runtime_error( err.what() );
+    }
     // save non customized keybindings
     basic_action_contexts = action_contexts;
     try {
@@ -229,6 +235,23 @@ void input_manager::init()
     // file, delete the old keymap file to prevent re-importing it.
     if( !keymap_file_loaded_from.empty() ) {
         remove_file( keymap_file_loaded_from );
+    }
+}
+
+void input_manager::reload_keybindings( const std::optional<cata_path> &overlay )
+{
+    try {
+        load( PATH_INFO::keybindings(), false );
+        load( PATH_INFO::keybindings_vehicle(), false );
+        load( PATH_INFO::keybindings_fluid(), false );
+        if( overlay.has_value() ) {
+            load( *overlay, false );
+        }
+        // what "reset to defaults" restores
+        basic_action_contexts = action_contexts;
+        load( PATH_INFO::user_keybindings(), true );
+    } catch( const JsonError &err ) {
+        debugmsg( "Could not reload the keybindings: %s", err.what() );
     }
 }
 

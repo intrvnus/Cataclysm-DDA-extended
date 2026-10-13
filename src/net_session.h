@@ -3,6 +3,9 @@
 #define CATA_SRC_NET_SESSION_H
 
 #include <string>
+#include <vector>
+
+#include "fluid.h"
 
 class npc;
 
@@ -64,14 +67,22 @@ float turn_duration( float option );
 
 // ---- host ----
 /** Called for every NPC in monmove(). If it is a remote player, executes its queued
- * commands (or lets it wait) and returns true; the NPC AI must then be skipped. */
+ * commands (or lets it wait) and returns true; the NPC AI must then be skipped.
+ * In fluid mode (see fluid.h) the remote players are driven by host_drive_remote_players()
+ * between the turns, here they only pass the turn. */
 bool host_drive_npc( npc &guy );
+/** Fluid mode: runs one frame of input for every remote player. Called by fluid::host_frame(). */
+void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *events );
+/** Fluid mode: tells the clients what happened (steps, blows ...). */
+void host_send_events( const std::vector<fluid::event> &events );
 /** Called once at the end of every turn: handles joins and sends the world state. */
 void host_end_of_turn();
 
 // ---- client ----
 /** Replaces the whole turn on a client. Returns true if the game is over. */
 bool client_do_turn();
+/** Fluid mode: sends the input of this frame (only if something changed, or now and then). */
+void client_send_input( const fluid::input_frame &in );
 
 } // namespace net
 

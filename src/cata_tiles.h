@@ -651,6 +651,8 @@ class cata_tiles
         void void_hit();
 
         void draw_footsteps_frame( const tripoint_bub_ms &center );
+        // experimental fluid mode: crosshair, spread circle and the tile of a blow
+        void draw_fluid_overlays();
 
         // pseudo-animated layer, not really though.
         void init_draw_line( const tripoint_bub_ms &p, std::vector<tripoint_bub_ms> trajectory,
@@ -867,6 +869,8 @@ class cata_tiles
         point o;
         // offset for drawing, in pixels.
         point op;
+        // experimental fluid mode: extra pixel offset of the creature that is being drawn
+        point fluid_shift;
 
         std::map<tripoint_bub_ms, int> radiation_override;
         std::map<tripoint_bub_ms, ter_id> terrain_override;

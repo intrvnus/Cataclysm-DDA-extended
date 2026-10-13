@@ -19,6 +19,7 @@
 #include "coordinates.h"
 #include "faction.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "game.h"
 #include "input_context.h"
 #include "json.h"
@@ -50,6 +51,10 @@ struct client_state {
     bool connected = false;
     bool welcomed = false;
     bool lost = false;
+    // fluid mode (see fluid.h): negotiated with the host in "welcome"
+    bool fluid_on = false;
+    // character id of the NPC that stands for this client on the host
+    int my_id = 0;
     // host character id -> NPC on this client that shows that player
     std::map<int, character_id> shadows;
 };
@@ -210,14 +215,50 @@ void apply_state( const JsonObject &msg )
     g->invalidate_main_ui_adaptor();
 }
 
+// Fluid mode: steps and blows of the players and monsters, as they happen on the host.
+void apply_fx( const JsonArray &list )
+{
+    client_state &cs = cstate();
+    const fluid::ms_t arrival = fluid::now_ms();
+    for( JsonObject o : list ) {
+        o.allow_omitted_members();
+        const fluid::event ev = fluid::read_event( o );
+        const bool mine = ev.actor != 0 && ev.actor == cs.my_id;
+        if( ev.type == fluid::fx_type::step && ev.actor != 0 ) {
+            if( mine ) {
+                // The position is known now, no need to wait for the end of the turn.
+                place_avatar( ev.to );
+            } else {
+                const auto iter = cs.shadows.find( ev.actor );
+                map &now = get_map();
+                if( iter != cs.shadows.end() && now.inbounds( ev.to ) ) {
+                    if( npc *guy = g->find_npc( iter->second ) ) {
+                        guy->setpos( now, now.get_bub( ev.to ), false );
+                    }
+                }
+            }
+        }
+        if( cs.fluid_on ) {
+            fluid::client_event( ev, arrival, mine );
+        }
+    }
+    g->invalidate_main_ui_adaptor();
+}
+
 // Reads one key (or times out) and sends the matching command to the host.
 // Returns true if the player wants to leave the game.
 bool handle_input()
 {
     input_context ctxt = get_default_mode_input_context();
-    ctxt.set_timeout( 50 );
+    const bool fluid_on = cstate().fluid_on && fluid::client_active();
+    // fluid mode: one frame is 16 ms, the screen moves smoothly
+    ctxt.set_timeout( fluid_on ? fluid::tune().frame_ms : 50 );
     const std::string &action = ctxt.handle_input();
-    if( action == "TIMEOUT" ) {
+    if( action == "TIMEOUT" || action == "MOUSE_MOVE" ) {
+        return false;
+    }
+    if( fluid_on && fluid::swallows( action ) ) {
+        // movement and the mouse buttons are read as held state, see fluid::client_frame
         return false;
     }
     const action_id act = look_up_action( action );
@@ -290,12 +331,20 @@ void client_on_message( const JsonObject &msg )
     const std::string type = msg.get_string( "t", "" );
     if( type == "welcome" ) {
         cstate().welcomed = true;
+        cstate().my_id = msg.get_int( "id", 0 );
+        cstate().fluid_on = msg.get_bool( "fluid", false ) && fluid::enabled();
+        fluid::client_set_mode( cstate().fluid_on, cstate().my_id );
         add_msg( m_good, _( "Multiplayer: you joined the game." ) );
     } else if( type == "reject" ) {
         add_msg( m_bad, _( "Multiplayer: the host refused the connection (%s)." ),
                  msg.get_string( "reason", "" ) );
     } else if( type == "submaps" ) {
         apply_submaps( msg.get_array( "list" ) );
+    } else if( type == "fx" ) {
+        apply_fx( msg.get_array( "list" ) );
+    } else if( type == "aim" ) {
+        fluid::client_aim_status( msg.get_int( "s", 0 ) / 1000.0, msg.get_int( "r", 0 ) / 1000.0,
+                                  msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
     } else if( type == "state" ) {
         apply_state( msg );
     } else if( type == "msg" ) {
@@ -305,10 +354,49 @@ void client_on_message( const JsonObject &msg )
 
 } // namespace impl
 
+void client_send_input( const fluid::input_frame &in )
+{
+    client_state &cs = cstate();
+    if( !cs.welcomed || !cs.fluid_on || impl::state().server_peer == nullptr ) {
+        return;
+    }
+    static fluid::input_frame last;
+    static fluid::ms_t last_at = -100000;
+    const fluid::ms_t now = fluid::now_ms();
+    const bool buttons = in.move_x != last.move_x || in.move_y != last.move_y ||
+                         in.primary != last.primary || in.secondary != last.secondary ||
+                         in.cancel != last.cancel || in.primary_presses != last.primary_presses ||
+                         in.secondary_presses != last.secondary_presses ||
+                         in.cursor_valid != last.cursor_valid;
+    const double moved = std::abs( in.cursor_x - last.cursor_x ) + std::abs( in.cursor_y - last.cursor_y );
+    const bool send = ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
+                      ( in.cursor_valid && moved > 0.12 && now - last_at >= 40 );
+    if( !send ) {
+        return;
+    }
+    last = in;
+    last_at = now;
+    impl::send_json_fast( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "in" );
+        jo.member( "mx", in.move_x );
+        jo.member( "my", in.move_y );
+        jo.member( "p", in.primary );
+        jo.member( "s", in.secondary );
+        jo.member( "pc", in.primary_presses );
+        jo.member( "sc", in.secondary_presses );
+        jo.member( "c", in.cancel );
+        jo.member( "cv", in.cursor_valid );
+        jo.member( "cx", in.cursor_x );
+        jo.member( "cy", in.cursor_y );
+        jo.member( "cz", in.cursor_z );
+    } ) );
+}
+
 bool client_do_turn()
 {
     poll();
     mod_engine::tick();
+    fluid::client_frame();
     ui_manager::redraw_invalidated();
     if( handle_input() ) {
         shutdown();

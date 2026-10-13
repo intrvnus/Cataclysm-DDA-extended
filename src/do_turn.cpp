@@ -32,6 +32,7 @@
 #include "event_bus.h"
 #include "explosion.h"
 #include "field.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "gamemode.h"
@@ -482,6 +483,8 @@ bool do_turn()
         return net::client_do_turn();
     }
     net::poll();
+    // Experimental fluid mode: a new turn window opens (see fluid.h).
+    fluid::begin_turn();
 
     weather_manager &weather = get_weather();
     // Actual stuff
@@ -672,6 +675,9 @@ bool do_turn()
         }
     }
 
+    // Experimental fluid mode: the world waits for the end of the turn window.
+    fluid::finish_turn_window();
+
     if( g->driving_view_offset.x() != 0 || g->driving_view_offset.y() != 0 ) {
         // Still have a view offset, but might not be driving anymore,
         // or the option has been deactivated,
@@ -705,7 +711,9 @@ bool do_turn()
     // Update vision caches for monsters. If this turns out to be expensive,
     // consider a stripped down cache just for monsters.
     m.build_map_cache( levz, true );
+    fluid::snapshot_before_monsters();
     monmove();
+    fluid::snapshot_after_monsters();
     if( calendar::once_every( time_between_npc_OM_moves ) ) {
         overmap_npc_move();
     }

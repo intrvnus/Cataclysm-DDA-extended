@@ -103,6 +103,7 @@
 #include "flag.h"
 #include "flexbuffer_json-inl.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "game_constants.h"
 #include "game_inventory.h"
 #include "game_ui.h"
@@ -2567,6 +2568,11 @@ bool game::handle_mouseview( input_context &ctxt, std::string &action )
 
     do {
         action = ctxt.handle_input();
+        if( fluid::swallows( action ) ) {
+            // Experimental fluid mode reads movement and the mouse buttons as held state.
+            action = "TIMEOUT";
+            break;
+        }
         if( action == "MOUSE_MOVE" && mod_engine::handle_mouse( ctxt, action ) ) {
             // A floating window of a mod is being dragged
             ui_manager::redraw_invalidated();
@@ -2582,6 +2588,10 @@ bool game::handle_mouseview( input_context &ctxt, std::string &action )
             } else if( !mouse_pos ) {
                 liveview_pos.reset();
                 liveview.hide();
+            }
+            if( fluid::enabled() ) {
+                // the world does not freeze while the mouse moves
+                fluid::host_frame();
             }
             ui_manager::redraw();
         }

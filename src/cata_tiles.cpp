@@ -44,6 +44,7 @@
 #include "field.h"
 #include "field_type.h"
 #include "flexbuffer_json.h"
+#include "fluid.h"
 #include "game.h"
 #include "input.h"
 #include "item.h"
@@ -56,6 +57,7 @@
 #include "line.h"
 #include "magic_enchantment.h"
 #include "map.h"
+#include "math_defines.h"
 #include "map_extras.h"
 #include "map_memory.h"
 #include "map_scale_constants.h"
@@ -1362,6 +1364,14 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     o = is_isometric() ? center.xy().raw() : center.xy().raw() - point( POSX, POSY );
 
     op = dest;
+    // experimental fluid mode: the camera follows the sliding avatar, a fraction of a tile
+    const bool fluid_camera = !is_isometric() && fluid::smooth_camera() &&
+                              center.xy() == get_avatar().pos_bub( here ).xy();
+    if( fluid_camera ) {
+        const fluid::offset cam = fluid::camera_offset();
+        op = dest - point( static_cast<int>( std::lround( cam.x * tile_width ) ),
+                           static_cast<int>( std::lround( cam.y * tile_height ) ) );
+    }
     screentile_width = s.x;
     screentile_height = s.y;
 
@@ -1376,10 +1386,12 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     cata_assert( top_any_tile_range.p_max.x == bottom_any_tile_range.p_max.x );
     cata_assert( top_any_tile_range.p_min.y >= bottom_any_tile_range.p_min.y );
     cata_assert( top_any_tile_range.p_max.y >= bottom_any_tile_range.p_max.y );
-    const int min_col = top_any_tile_range.p_min.x;
-    const int max_col = top_any_tile_range.p_max.x;
-    const int min_row = bottom_any_tile_range.p_min.y;
-    const int max_row = top_any_tile_range.p_max.y;
+    // one more row / column on every side, the camera may be shifted by up to a tile
+    const int fluid_pad = fluid_camera ? 1 : 0;
+    const int min_col = top_any_tile_range.p_min.x - fluid_pad;
+    const int max_col = top_any_tile_range.p_max.x + fluid_pad;
+    const int min_row = bottom_any_tile_range.p_min.y - fluid_pad;
+    const int max_row = top_any_tile_range.p_max.y + fluid_pad;
 
     avatar &you = get_avatar();
     //limit the render area to maximum view range (121x121 square centered on player)
@@ -1944,8 +1956,74 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
         }
     }
 
+    if( !is_isometric() && fluid::enabled() ) {
+        draw_fluid_overlays();
+    }
+
     printErrorIf( SDL_RenderSetClipRect( renderer.get(), nullptr ) != 0,
                   "SDL_RenderSetClipRect failed" );
+}
+
+void cata_tiles::draw_fluid_overlays()
+{
+    map &here = get_map();
+    // absolute tile coordinates (0.5 = centre) -> screen pixels
+    const auto to_screen = [&]( double ax, double ay, int z ) {
+        const double fx = ax - std::floor( ax );
+        const double fy = ay - std::floor( ay );
+        const tripoint_bub_ms bub = here.get_bub( tripoint_abs_ms( static_cast<int>( std::floor( ax ) ),
+                                    static_cast<int>( std::floor( ay ) ), z ) );
+        const point base = player_to_screen( point_bub_ms( bub.x(), bub.y() ) );
+        return point( base.x + static_cast<int>( fx * tile_width ),
+                      base.y + static_cast<int>( fy * tile_height ) );
+    };
+
+    SDL_Renderer *r = renderer.get();
+    SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+
+    // the tile that is about to be hit
+    const fluid::melee_view &mv = fluid::local_melee_view();
+    if( mv.active ) {
+        const point tl = to_screen( mv.tile.x(), mv.tile.y(), mv.tile.z() );
+        SDL_Rect rect = { tl.x, tl.y, tile_width, tile_height };
+        const Uint8 alpha = static_cast<Uint8>( 40 + 90 * mv.progress );
+        SDL_SetRenderDrawColor( r, 220, 40, 30, alpha );
+        SDL_RenderFillRect( r, &rect );
+        SDL_SetRenderDrawColor( r, 255, 90, 60, 200 );
+        SDL_RenderDrawRect( r, &rect );
+    }
+
+    // crosshair and the circle the shot lands in
+    const fluid::aim_view &av = fluid::local_aim_view();
+    if( av.active ) {
+        const int z = av.origin.z();
+        const point from = to_screen( av.origin.x() + 0.5, av.origin.y() + 0.5, z );
+        const point at = to_screen( av.x, av.y, z );
+        // steady = green, shaky = red, no shot possible = grey
+        Uint8 red = static_cast<Uint8>( 255 * ( 1.0 - av.steadiness ) );
+        Uint8 green = static_cast<Uint8>( 80 + 175 * av.steadiness );
+        Uint8 blue = 40;
+        if( !av.can_fire ) {
+            red = green = blue = 150;
+        }
+        SDL_SetRenderDrawColor( r, red, green, blue, 70 );
+        SDL_RenderDrawLine( r, from.x, from.y, at.x, at.y );
+
+        const double radius_px = std::max( 3.0, av.spread_tiles * tile_width );
+        constexpr int segments = 48;
+        SDL_Point ring[segments + 1];
+        for( int i = 0; i <= segments; ++i ) {
+            const double angle = 2.0 * M_PI * i / segments;
+            ring[i].x = at.x + static_cast<int>( std::lround( std::cos( angle ) * radius_px ) );
+            ring[i].y = at.y + static_cast<int>( std::lround( std::sin( angle ) * radius_px ) );
+        }
+        SDL_SetRenderDrawColor( r, red, green, blue, 230 );
+        SDL_RenderDrawLines( r, ring, segments + 1 );
+        const int tick = std::max( 4, tile_width / 4 );
+        SDL_RenderDrawLine( r, at.x - tick, at.y, at.x + tick, at.y );
+        SDL_RenderDrawLine( r, at.x, at.y - tick, at.x, at.y + tick );
+    }
+    SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
 }
 
 void cata_tiles::set_draw_cache_dirty()
@@ -3041,9 +3119,10 @@ bool cata_tiles::draw_sprite_at(
                                  );
     SDL_Rect destination;
     // Using divide_round_down because the offset might be negative.
-    destination.x = p.x + divide_round_down( ( tile_offset.x + offset.x ) * tile_width,
+    destination.x = p.x + fluid_shift.x + divide_round_down( ( tile_offset.x + offset.x ) * tile_width,
                     tileset_ptr->get_tile_width() );
-    destination.y = p.y + divide_round_down( ( tile_offset.y + offset.y - height_3d ) * tile_width,
+    destination.y = p.y + fluid_shift.y + divide_round_down( ( tile_offset.y + offset.y - height_3d ) *
+                    tile_width,
                     tileset_ptr->get_tile_width() );
     destination.w = width * tile_width * tile.pixelscale / tileset_ptr->get_tile_width();
     destination.h = height * tile_height * tile.pixelscale / tileset_ptr->get_tile_height();
@@ -4049,6 +4128,19 @@ bool cata_tiles::draw_critter_at( const tripoint_bub_ms &p, lit_level ll, int &h
 
     if( memorize_only ) {
         return false;
+    }
+
+    // experimental fluid mode: the sprite slides between the tiles
+    struct fluid_shift_guard {
+        point &target;
+        ~fluid_shift_guard() {
+            target = point::zero;
+        }
+    } fluid_guard{ fluid_shift };
+    if( fluid::enabled() ) {
+        const fluid::offset off = fluid::sprite_offset( here.get_abs( p ) );
+        fluid_shift = point( static_cast<int>( std::lround( off.x * tile_width ) ),
+                             static_cast<int>( std::lround( off.y * tile_height ) ) );
     }
 
     bool result;

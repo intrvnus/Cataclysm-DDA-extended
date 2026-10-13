@@ -3,6 +3,7 @@
 #define CATA_SRC_INPUT_H
 
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -234,6 +235,13 @@ class input_manager
          */
         void register_mod_action( const std::string &action_id, const std::string &context,
                                   const translation &name, const JsonArray &bindings );
+        /**
+         * Reloads the stock keybinding files, then (optionally) one more file on top of them,
+         * then the player's own changes.  Used to switch the experimental fluid layout on and
+         * off at run time, see fluid::apply_key_layout().
+         */
+        void reload_keybindings( const std::optional<cata_path> &overlay );
+
         /**
          * Opposite of @ref init, save the data that has been loaded by @ref init,
          * and possibly been modified.

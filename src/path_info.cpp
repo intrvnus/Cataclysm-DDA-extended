@@ -309,6 +309,14 @@ cata_path PATH_INFO::keybindings_vehicle()
 {
     return datadir_path_value / "raw" / "keybindings" / "vehicle.json";
 }
+cata_path PATH_INFO::keybindings_fluid()
+{
+    return datadir_path_value / "raw" / "keybindings" / "fluid.json";
+}
+cata_path PATH_INFO::keybindings_fluid_layout()
+{
+    return datadir_path_value / "raw" / "keybindings" / "fluid_layout.json";
+}
 std::string PATH_INFO::keymap()
 {
     return keymap_value;
