@@ -359,6 +359,8 @@ void send_state( remote_player &rp, const npc &guy )
     const std::string json = message( [&]( JsonOut & jo ) {
         jo.member( "t", "state" );
         jo.member( "turn", to_turn<int>( calendar::turn ) );
+        // C14: the host's weather (the client shows it instead of its own world's)
+        jo.member( "weather", get_weather().weather_id.str() );
 
         jo.member( "you" );
         jo.start_object();
@@ -383,19 +385,16 @@ void send_state( remote_player &rp, const npc &guy )
         jo.member( "pos" );
         write_pos( jo, u.pos_abs() );
         jo.end_object();
-        for( const remote_player &other : clients() ) {
-            if( &other == &rp || !other.npc_id.is_valid() ) {
-                continue;
-            }
-            const npc *np = g->find_npc( other.npc_id );
-            if( np == nullptr ) {
+        // the other players and every ordinary NPC in the reality bubble
+        for( const npc &np : g->all_npcs() ) {
+            if( np.getID() == guy.getID() || np.is_dead() || !here.inbounds( np.pos_abs() ) ) {
                 continue;
             }
             jo.start_object();
-            jo.member( "id", np->getID().get_value() );
-            jo.member( "name", np->get_name() );
+            jo.member( "id", np.getID().get_value() );
+            jo.member( "name", np.get_name() );
             jo.member( "pos" );
-            write_pos( jo, np->pos_abs() );
+            write_pos( jo, np.pos_abs() );
             jo.end_object();
         }
         jo.end_array();

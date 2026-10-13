@@ -6,6 +6,7 @@
 #include <cctype>
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -177,6 +178,17 @@ void apply_state( const JsonObject &msg )
     avatar &u = get_avatar();
 
     calendar::turn = calendar::turn_zero + time_duration::from_turns( msg.get_int( "turn" ) );
+    // C14: weather (and with it the light) of the host
+    const weather_type_id host_weather( msg.get_string( "weather", "" ) );
+    if( host_weather.is_valid() && host_weather != WEATHER_NULL ) {
+        weather_manager &weather = get_weather();
+        if( weather.weather_id != host_weather ) {
+            weather.weather_override = host_weather;
+            weather.weather_id = host_weather;
+            weather.set_nextweather( calendar::turn );
+            g->reset_light_level();
+        }
+    }
 
     JsonObject you = msg.get_object( "you" );
     you.allow_omitted_members();
@@ -203,13 +215,40 @@ void apply_state( const JsonObject &msg )
     }
 
     map &now = get_map();
+    std::set<int> seen_ids;
     for( JsonObject other : msg.get_array( "others" ) ) {
         other.allow_omitted_members();
         const tripoint_abs_ms p = read_pos( other.get_array( "pos" ) );
-        npc *guy = shadow_for( other.get_int( "id" ), other.get_string( "name", "" ), p );
+        const int host_id = other.get_int( "id" );
+        seen_ids.insert( host_id );
+        npc *guy = shadow_for( host_id, other.get_string( "name", "" ), p );
         if( guy != nullptr && now.inbounds( p ) ) {
             guy->setpos( now, now.get_bub( p ), false );
         }
+    }
+    // People the host no longer has here leave the view; NPCs of the client's own world
+    // (which is only a view) are hidden.
+    client_state &cs = cstate();
+    std::set<character_id> keep;
+    for( auto iter = cs.shadows.begin(); iter != cs.shadows.end(); ) {
+        if( seen_ids.count( iter->first ) == 0 ) {
+            g->remove_npc( iter->second );
+            overmap_buffer.remove_npc( iter->second );
+            iter = cs.shadows.erase( iter );
+        } else {
+            keep.insert( iter->second );
+            ++iter;
+        }
+    }
+    std::vector<character_id> foreign;
+    for( const npc &np : g->all_npcs() ) {
+        if( keep.count( np.getID() ) == 0 ) {
+            foreign.push_back( np.getID() );
+        }
+    }
+    for( const character_id &id : foreign ) {
+        g->remove_npc( id );
+        overmap_buffer.remove_npc( id );
     }
 
     // Monsters: replaced completely with what the host has.
