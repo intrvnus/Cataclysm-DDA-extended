@@ -244,12 +244,35 @@ void input_manager::reload_keybindings( const std::optional<cata_path> &overlay 
         load( PATH_INFO::keybindings(), false );
         load( PATH_INFO::keybindings_vehicle(), false );
         load( PATH_INFO::keybindings_fluid(), false );
+        // the stock defaults, before the layout overlay
+        const t_action_contexts stock = action_contexts;
         if( overlay.has_value() ) {
             load( *overlay, false );
         }
         // what "reset to defaults" restores
         basic_action_contexts = action_contexts;
         load( PATH_INFO::user_keybindings(), true );
+        if( overlay.has_value() ) {
+            // Older keybindings.json files hold every binding, also unchanged stock ones.
+            // Those must not undo the layout: keep the layout where the file only repeats
+            // the stock binding.
+            for( auto &context : action_contexts ) {
+                const auto stock_context = stock.find( context.first );
+                const auto layout_context = basic_action_contexts.find( context.first );
+                if( stock_context == stock.end() || layout_context == basic_action_contexts.end() ) {
+                    continue;
+                }
+                for( auto &action : context.second ) {
+                    const auto stock_action = stock_context->second.find( action.first );
+                    const auto layout_action = layout_context->second.find( action.first );
+                    if( stock_action != stock_context->second.end() &&
+                        layout_action != layout_context->second.end() &&
+                        action.second.input_events == stock_action->second.input_events ) {
+                        action.second.input_events = layout_action->second.input_events;
+                    }
+                }
+            }
+        }
     } catch( const JsonError &err ) {
         debugmsg( "Could not reload the keybindings: %s", err.what() );
     }
@@ -473,8 +496,18 @@ void input_manager::save()
         jsout.start_array();
         for( const auto &a : action_contexts ) {
             const t_actions &actions = a.second;
+            const auto basic_context = basic_action_contexts.find( a.first );
             for( const auto &action : actions ) {
                 const t_input_event_list &events = action.second.input_events;
+                // Only store changes: otherwise the bindings of the active key layout (or the
+                // stock ones) would be frozen into the player's file.
+                if( !action.second.is_user_created && basic_context != basic_action_contexts.end() ) {
+                    const auto basic_action = basic_context->second.find( action.first );
+                    if( basic_action != basic_context->second.end() &&
+                        basic_action->second.input_events == events ) {
+                        continue;
+                    }
+                }
                 jsout.start_object();
 
                 jsout.member( "id", action.first );
