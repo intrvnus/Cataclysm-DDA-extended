@@ -1243,6 +1243,7 @@ bool handle_input()
             }
             break;
         default:
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: client action not available: " << action_ident( act );
             add_msg( m_info, _( "Not available in multiplayer yet." ) );
             break;
     }
