@@ -14,6 +14,11 @@ Host + clients over ENet. The host simulates the world. Each client has its own 
 - Local views and settings (zoom, item list, medical, options, auto-pickup, colours...).
 - Client actions never touch the host's avatar (checked for wield).
 
+## Added since (compiled; round 2 of the in-game checks is running)
+- Menus for clients: construction, workout, haul, peek, item action menu, sort armor, computer consoles, pets/mounts/friendly monsters, disarm/steal/use-item-on NPC, group missions list, shared zones and loot menu, shared overmap (what any player has seen).
+- Vehicles: take the controls, drive (steer/speed per key press), examine; test car hook `CATA_MP_TEST_VEHICLE`. Passengers/gunners and grab/drag come next.
+- The host never shows blocking debug popups (they stop the world for everybody; they are logged instead).
+
 ## Written but not tried
 - Player cannot be seen, targeted or hurt while talking (for portal storms etc.): code only, no hazard tested.
 - Mend, fluid fire key, push/disarm/steal outcomes.
