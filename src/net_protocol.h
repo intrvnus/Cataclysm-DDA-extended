@@ -64,6 +64,7 @@ void send_json( _ENetPeer *peer, const std::string &json );
 /** Channel 1: unreliable, sequenced. Old packets are dropped, never re-sent. */
 void send_json_fast( _ENetPeer *peer, const std::string &json );
 
+void server_on_start();
 void server_on_connect( _ENetPeer *peer );
 void server_on_disconnect( _ENetPeer *peer );
 void server_on_message( _ENetPeer *peer, const JsonObject &msg );

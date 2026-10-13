@@ -2,6 +2,8 @@
 // It does not simulate anything itself. See net_session.h.
 
 #include <algorithm>
+#include <random>
+#include <cctype>
 #include <functional>
 #include <map>
 #include <memory>
@@ -16,14 +18,19 @@
 #include "avatar.h"
 #include "bodypart.h"
 #include "calendar.h"
+#include "cata_path.h"
+#include "cata_utility.h"
 #include "character_id.h"
 #include "coordinates.h"
+#include "debug.h"
 #include "faction.h"
+#include "filesystem.h"
 #include "flexbuffer_json.h"
 #include "fluid.h"
 #include "game.h"
 #include "input_context.h"
 #include "json.h"
+#include "json_loader.h"
 #include "map.h"
 #include "mapbuffer.h"
 #include "memory_fast.h"
@@ -36,6 +43,7 @@
 #include "options.h"
 #include "output.h"
 #include "overmapbuffer.h"
+#include "path_info.h"
 #include "point.h"
 #include "sounds.h"
 #include "string_formatter.h"
@@ -325,6 +333,64 @@ bool handle_input()
     return false;
 }
 
+// A4: a secret that identifies this player to hosts, kept in the user folder.
+std::string client_key()
+{
+    static std::string key;
+    if( !key.empty() ) {
+        return key;
+    }
+    const cata_path file = PATH_INFO::config_dir_path() / "mp_identity.txt";
+    if( file_exist( file ) ) {
+        read_from_file( file, [&]( std::istream & fin ) {
+            fin >> key;
+        } );
+    }
+    const bool ok = key.size() >= 8 && std::all_of( key.begin(), key.end(), []( char c ) {
+        return std::isalnum( static_cast<unsigned char>( c ) ) != 0;
+    } );
+    if( !ok ) {
+        std::random_device rd;
+        static const char hex[] = "0123456789abcdef";
+        key.clear();
+        for( int i = 0; i < 32; ++i ) {
+            key += hex[rd() % 16];
+        }
+        write_to_file( file, [&]( std::ostream & fout ) {
+            fout << key;
+        }, _( "multiplayer identity" ) );
+    }
+    return key;
+}
+
+// A4: the host's copy of the own character (inventory, skills, needs ...).
+void apply_full_character( std::string json )
+{
+    // fields the avatar needs that an NPC save does not have
+    const size_t open = json.find( '{' );
+    if( open == std::string::npos ) {
+        return;
+    }
+    if( json.find( "\"assigned_invlet\"" ) == std::string::npos ) {
+        json.insert( open + 1, "\"assigned_invlet\":[]," );
+    }
+    avatar &u = get_avatar();
+    const tripoint_abs_ms pos = u.pos_abs();
+    const character_id own_id = u.getID();
+    try {
+        JsonValue jv = json_loader::from_string( std::move( json ) );
+        JsonObject jo = jv.get_object();
+        jo.allow_omitted_members();
+        u.deserialize( jo );
+    } catch( const std::exception &err ) {
+        DebugLog( D_WARNING, D_GAME ) << "Multiplayer: bad character data: " << err.what();
+    }
+    // the position is the client's business (see place_avatar); keep the local id
+    u.setID( own_id, true );
+    u.set_pos_abs_only( pos );
+    g->invalidate_main_ui_adaptor();
+}
+
 } // namespace
 
 namespace impl
@@ -337,6 +403,12 @@ void client_on_connect()
         jo.member( "t", "hello" );
         jo.member( "v", protocol_version );
         jo.member( "name", get_avatar().get_name() );
+        // A4: who we are (kept between sessions) and the character made for this game
+        jo.member( "key", client_key() );
+        std::ostringstream os;
+        JsonOut cj( os );
+        get_avatar().serialize( cj );
+        jo.member( "char", os.str() );
     } ) );
     add_msg( m_good, _( "Multiplayer: connected, joining…" ) );
 }
@@ -379,6 +451,8 @@ void client_on_message( const JsonObject &msg )
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
     } else if( type == "state" ) {
         apply_state( msg );
+    } else if( type == "you_full" ) {
+        apply_full_character( msg.get_string( "char", "" ) );
     } else if( type == "alert" ) {
         std::optional<tripoint_abs_ms> source;
         if( msg.has_array( "src" ) ) {

@@ -136,6 +136,7 @@ void start_pending()
             return;
         }
         s.current = role::host;
+        server_on_start();
         add_msg( m_good, _( "Multiplayer: hosting on port %d.  Waiting for players…" ),
                  s.pending_port );
     } else {

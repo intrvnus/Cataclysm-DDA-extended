@@ -88,6 +88,8 @@ bool host_prevent_death( npc &guy );
 /** Walking into a downed player helps them up.  Returns true if @p p held a downed player
  * (the step is used up by helping). */
 bool host_try_revive( Character &helper, const tripoint_abs_ms &p );
+/** A4: saves the characters of the connected players (called when the host saves). */
+void host_save_players();
 /** B6: true while every player (host avatar and all clients) sleeps: time may then run as
  * fast as the machine allows until somebody wakes up. */
 bool everyone_asleep();

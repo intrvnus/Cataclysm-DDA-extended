@@ -161,6 +161,7 @@
 #include "monstergenerator.h"
 #include "move_mode.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "npc.h"
 #include "npctrade.h"
 #include "omdata.h"
@@ -3691,6 +3692,8 @@ spell_events &game::spell_events_subscriber()
 
 bool game::save()
 {
+    // Multiplayer (A4): the characters of connected players are saved with the world.
+    net::host_save_players();
     std::chrono::seconds time_since_load =
         std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::steady_clock::now() - time_of_last_load );

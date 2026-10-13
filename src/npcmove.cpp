@@ -23,6 +23,7 @@
 #include "active_item_cache.h"
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "basecamp.h"
 #include "bionics.h"
@@ -1935,7 +1936,14 @@ void npc::execute_action( npc_action action )
 
         break;
         case npc_talk_to_player:
-            get_avatar().talk_to( get_talker_for( this ) );
+            if( alerts::nonblocking() ) {
+                // Realtime / multiplayer: no dialogue window popping up by itself.
+                alerts::warn( string_format( _( "%s wants to talk to you." ), get_name() ),
+                              alerts::level::notice, pos_abs() );
+                set_attitude( NPCATT_NULL );
+            } else {
+                get_avatar().talk_to( get_talker_for( this ) );
+            }
             set_moves( 0 );
             break;
 
