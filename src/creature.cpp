@@ -54,6 +54,7 @@
 #include "messages.h"
 #include "monster.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -488,6 +489,10 @@ bool Creature::sees( const map &here, const Creature &critter ) const
     // Creatures always see themselves (simplifies drawing).
     if( &critter == this ) {
         return true;
+    }
+    // a multiplayer player who is talking to an NPC can not be seen by anybody
+    if( net::dialogue_protected( critter ) ) {
+        return false;
     }
 
     bool char_has_mindshield = ch && ch->has_flag( json_flag_TEEPSHIELD );

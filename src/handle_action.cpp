@@ -84,6 +84,7 @@
 #include "point.h"
 #include "popup.h"
 #include "ranged.h"
+#include "remote_ui.h"
 #include "rng.h"
 #include "safemode_ui.h"
 #include "sleep.h"
@@ -950,7 +951,7 @@ static void haul_toggle()
     get_avatar().toggle_hauling();
 }
 
-static void smash()
+void smash_menu()
 {
     const bool allow_floor_bash = debug_mode; // Should later become "true"
     const std::optional<tripoint_bub_ms> smashp_ = choose_adjacent( _( "Smash where?" ),
@@ -974,8 +975,9 @@ static void smash()
         return; // player declined to smash faction's stuff
     }
 
-    avatar &player_character = get_avatar();
-    avatar::smash_result res = player_character.smash( smashp );
+    // multiplayer: the body of the player whose action this is
+    Character &player_character = remote_ui::acting_player();
+    Character::smash_result res = player_character.smash( smashp );
     if( res.did_smash && !res.success &&
         res.resistance > 0 && res.skill >= res.resistance &&
         query_yn( _( "Keep smashing until destroyed?" ) ) ) {
@@ -983,9 +985,9 @@ static void smash()
     }
 }
 
-avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
+Character::smash_result Character::smash( tripoint_bub_ms &smashp )
 {
-    avatar::smash_result ret;
+    Character::smash_result ret;
     ret.did_smash = false;
     ret.success = false;
     ret.skill = -1;
@@ -1036,7 +1038,7 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
             continue;
         }
         if( ( smashskill < bash_info->str_min && one_in( 10 ) ) || fd_to_smsh.first->indestructible ) {
-            add_msg( m_neutral, _( "You don't seem to be damaging the %s." ), fd_to_smsh.first->get_name() );
+            add_msg_if_player( m_neutral, _( "You don't seem to be damaging the %s." ), fd_to_smsh.first->get_name() );
             ret.did_smash = true;
             return ret;
         } else if( smashskill >= rng( bash_info->str_min, bash_info->str_max ) ) {
@@ -1096,9 +1098,9 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
                 name_to_bash = here.tername( smashp );
             }
             if( !best_part_to_smash.first->smash_message.empty() ) {
-                add_msg( best_part_to_smash.first->smash_message, name_to_bash );
+                add_msg_if_player( best_part_to_smash.first->smash_message, name_to_bash );
             } else {
-                add_msg( _( "You use your %s to smash the %s." ),
+                add_msg_if_player( _( "You use your %s to smash the %s." ),
                          body_part_name_accusative( best_part_to_smash.first ), name_to_bash );
             }
         }
@@ -1163,16 +1165,16 @@ avatar::smash_result avatar::smash( tripoint_bub_ms &smashp )
             if( one_in( 10 ) ) {
                 if( here.has_furn( smashp ) && here.furn( smashp ).obj().bash ) {
                     // %s is the smashed furniture
-                    add_msg( m_neutral, _( "You don't seem to be damaging the %s." ), here.furnname( smashp ) );
+                    add_msg_if_player( m_neutral, _( "You don't seem to be damaging the %s." ), here.furnname( smashp ) );
                 } else {
                     // %s is the smashed terrain
-                    add_msg( m_neutral, _( "You don't seem to be damaging the %s." ), here.tername( smashp ) );
+                    add_msg_if_player( m_neutral, _( "You don't seem to be damaging the %s." ), here.tername( smashp ) );
                 }
             }
         }
 
     } else {
-        add_msg( _( "There's nothing there to smash!" ) );
+        add_msg_if_player( _( "There's nothing there to smash!" ) );
     }
 
     return ret;
@@ -2545,7 +2547,7 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             if( has_vehicle_control( player_character ) ) {
                 handbrake( here );
             } else {
-                smash();
+                smash_menu();
             }
             break;
 

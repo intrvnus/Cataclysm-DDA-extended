@@ -30,6 +30,9 @@ class npc;
  *   --mp-host [port]            host a session once the game is loaded
  *   --mp-connect <addr[:port]>  join a session once the game is loaded
  */
+class Creature;
+class item_location;
+
 namespace net
 {
 
@@ -113,6 +116,15 @@ void host_end_of_turn();
 // ---- client ----
 /** Replaces the whole turn on a client. Returns true if the game is over. */
 bool client_do_turn();
+
+/** Host: true while @p who is a player who is talking to an NPC: such a player cannot be
+ * seen, targeted or hurt (a conversation must not get anyone killed). */
+bool dialogue_protected( const Creature &who );
+
+/** Client: the item menu of the inventory screen chose @p key (the menu's hotkey) for
+ * @p loc: the action is sent to the host.  False if the choice is only a view or a setting
+ * that is done locally. */
+bool client_item_action( int key, const item_location &loc );
 /** Fluid mode: sends the input of this frame (only if something changed, or now and then). */
 void client_send_input( const fluid::input_frame &in );
 

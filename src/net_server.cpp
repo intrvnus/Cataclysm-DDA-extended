@@ -18,6 +18,7 @@
 
 #include <enet/enet.h>
 
+#include "action.h"
 #include "activity_actor_definitions.h"
 #include "alerts.h"
 #include "avatar_action.h"
@@ -60,6 +61,9 @@
 #include "player_activity.h"
 #include "point.h"
 #include "recipe.h"
+#include "remote_talk.h"
+#include "npctrade.h"
+#include "trade_ui.h"
 #include "remote_ui.h"
 #include "recipe_dictionary.h"
 #include "requirements.h"
@@ -104,6 +108,11 @@ struct remote_player {
     fluid::ms_t bleed_out_at = 0;
     int revive_progress = 0;
     fluid::ms_t last_revive_step = 0;
+    // a conversation with an NPC, run turn by turn (remote_talk.h); the player can not be
+    // seen or hurt while it lasts
+    std::unique_ptr<remote_conversation> talk;
+    // the NPC whose trading window is open on the player's computer, else -1
+    int trade_npc = -1;
 };
 
 // How long a downed player can wait for help, and how many steps of help bring them up.
@@ -168,6 +177,170 @@ void send_text( remote_player &rp, const std::string &text )
         jo.member( "t", "msg" );
         jo.member( "text", text );
     } ) );
+}
+
+// ---- conversations with NPCs (C4) ----
+
+void resync_player( remote_player &rp, const npc &guy );
+
+void send_talk_turn( remote_player &rp )
+{
+    if( !rp.talk ) {
+        return;
+    }
+    remote_conversation::turn_data td;
+    if( !rp.talk->turn( td ) ) {
+        rp.talk.reset();
+        impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "talk" );
+            jo.member( "end", true );
+        } ) );
+        return;
+    }
+    impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "talk" );
+        jo.member( "end", false );
+        jo.member( "name", td.npc_name );
+        jo.member( "ops" );
+        jo.start_array();
+        for( const std::vector<std::string> &op : td.history ) {
+            jo.write( op );
+        }
+        jo.end_array();
+        jo.member( "resp" );
+        jo.start_array();
+        for( const remote_conversation::response &r : td.responses ) {
+            jo.start_object();
+            jo.member( "c", r.color );
+            jo.member( "h", r.hotkey_desc );
+            jo.member( "x", r.text );
+            jo.member( "k", r.key );
+            jo.member( "ok", r.enabled );
+            jo.member( "q", r.consequence );
+            jo.end_object();
+        }
+        jo.end_array();
+    } ) );
+}
+
+void end_talk( remote_player &rp )
+{
+    if( rp.talk ) {
+        rp.talk.reset();
+        impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "talk" );
+            jo.member( "end", true );
+        } ) );
+    }
+}
+
+// The player talks to the nearest NPC (that is not another player).
+void start_talk( remote_player &rp, npc &guy )
+{
+    if( rp.talk ) {
+        return;
+    }
+    npc *best = nullptr;
+    int best_dist = 1000;
+    for( npc *other : g->get_npcs_if( [&]( const npc & n ) {
+    return &n != &guy && !n.is_dead() && find_client( n.getID() ) == nullptr &&
+           n.posz() == guy.posz() && guy.sees( get_map(), n );
+    } ) ) {
+        const int dist = rl_dist( guy.pos_abs(), other->pos_abs() );
+        if( dist <= SEEX * 2 && dist < best_dist ) {
+            best = other;
+            best_dist = dist;
+        }
+    }
+    if( best == nullptr ) {
+        send_text( rp, _( "There is nobody to talk to." ) );
+        return;
+    }
+    rp.talk = std::make_unique<remote_conversation>( guy, *best );
+    if( !rp.talk->started() ) {
+        rp.talk.reset();
+        send_text( rp, string_format( _( "%s doesn't want to talk to you." ), best->get_name() ) );
+        return;
+    }
+    send_talk_turn( rp );
+}
+
+// The player answered: the NPC reacts.
+void pick_talk( remote_player &rp, npc &guy, int index )
+{
+    if( !rp.talk ) {
+        return;
+    }
+    // windows that an answer would open are not shown on the host: they are answered
+    // "never mind"; what they would have said goes to the player
+    std::vector<std::string> texts;
+    {
+        remote_ui::replay_scope replay( std::vector<remote_ui::entry>(), guy,
+                                        guy.getID().get_value() );
+        rp.talk->choose( index );
+        texts = replay.texts();
+    }
+    for( const std::string &text : texts ) {
+        send_text( rp, text );
+    }
+    // an answer that starts trading: the window opens on the player's computer, the
+    // conversation goes on when it is closed
+    if( const std::optional<remote_ui::trade_request> tr = remote_ui::take_trade_request() ) {
+        npc *trader = g->find_npc( character_id( tr->npc_id ) );
+        if( trader != nullptr ) {
+            trader->shop_restock();
+            trader->drop_invalid_inventory();
+            std::ostringstream os;
+            JsonOut tjo( os );
+            trader->serialize( tjo );
+            const std::string trader_json = os.str();
+            rp.trade_npc = tr->npc_id;
+            impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "trade" );
+                jo.member( "npc", trader_json );
+                jo.member( "cost", tr->cost );
+                jo.member( "deal", tr->deal );
+            } ) );
+            return;
+        }
+    }
+    send_talk_turn( rp );
+}
+
+// The player closed the trading window.
+void finish_trade( remote_player &rp, npc &guy, const JsonObject &msg )
+{
+    npc *trader = g->find_npc( character_id( rp.trade_npc ) );
+    rp.trade_npc = -1;
+    if( trader != nullptr && !trader->is_dead() && msg.get_bool( "ok", false ) &&
+        rl_dist( guy.pos_abs(), trader->pos_abs() ) <= SEEX * 2 ) {
+        trade_ui::trade_result_t res;
+        res.traded = true;
+        res.balance = msg.get_int( "balance", 0 );
+        res.delta_bank = msg.get_int( "bank", 0 );
+        res.value_you = msg.get_int( "vyou", 0 );
+        res.value_trader = msg.get_int( "vthem", 0 );
+        {
+            // what the player carries on the computer is what the body carries
+            remote_ui::replay_scope scope( std::vector<remote_ui::entry>(), guy,
+                                           msg.get_int( "cid", -1 ) );
+            for( const std::pair<item_location, int> &e :
+                 remote_ui::locations_from_string( msg.get_string( "you", "" ) ) ) {
+                res.items_you.push_back( e );
+            }
+            for( const std::pair<item_location, int> &e :
+                 remote_ui::locations_from_string( msg.get_string( "them", "" ) ) ) {
+                res.items_trader.push_back( e );
+            }
+        }
+        if( npc_trading::npc_will_accept_trade( *trader, res.balance ) ) {
+            npc_trading::perform_agreed_trade( guy, *trader, res );
+            resync_player( rp, guy );
+        } else {
+            send_text( rp, _( "The trade is no longer acceptable." ) );
+        }
+    }
+    send_talk_turn( rp );
 }
 
 // ---- spawning the NPC of a new client ----
@@ -604,7 +777,7 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                                                        "ACT_RELOAD", "ACT_UNLOAD", "ACT_DISASSEMBLE",
                                                        "ACT_BUTCHER", "ACT_BUTCHER_FULL", "ACT_FIELD_DRESS",
                                                        "ACT_SKIN", "ACT_QUARTER", "ACT_DISMEMBER", "ACT_DISSECT",
-                                                       "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH"
+                                                       "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH", "ACT_CONSUME"
                                                      };
         for( JsonValue entry : msg.get_array( "acts" ) ) {
             try {
@@ -637,6 +810,17 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         if( what == "apply" ) {
             item_location loc;
             avatar_action::use_item( guy, loc );
+        } else if( what == "item_change_side" || what == "item_favorite" ) {
+            item_location loc = remote_ui::location_from_string( remote_ui::answer( "i" ).value_or( "" ) );
+            if( loc ) {
+                if( what == "item_favorite" ) {
+                    loc->is_favorite = !loc->is_favorite;
+                } else {
+                    guy.change_side( loc );
+                }
+            }
+        } else if( what == "smash" ) {
+            smash_menu();
         } else if( what == "mutations" ) {
             guy.replay_mutations_menu();
         } else if( what == "bionics" ) {
@@ -1012,6 +1196,21 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->start_character = msg.get_string( "char", "" );
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
+    } else if( type == "chat" && rp->npc_id.is_valid() ) {
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
+            start_talk( *rp, *guy );
+        }
+    } else if( type == "trade_done" && rp->npc_id.is_valid() && rp->trade_npc >= 0 ) {
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() && rp->talk ) {
+            finish_trade( *rp, *guy, msg );
+        }
+    } else if( type == "talk_pick" && rp->npc_id.is_valid() ) {
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() && rp->talk ) {
+            pick_talk( *rp, *guy, msg.get_int( "i", -1 ) );
+        }
     } else if( type == "ui" && rp->npc_id.is_valid() ) {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: ui message from " << rp->name;
         npc *guy = g->find_npc( rp->npc_id );
@@ -1036,6 +1235,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         f.secondary = msg.get_bool( "s", false );
         f.primary_presses = msg.get_int( "pc", 0 );
         f.secondary_presses = msg.get_int( "sc", 0 );
+        f.throw_presses = msg.get_int( "tc", 0 );
         f.cancel = msg.get_bool( "c", false );
         f.sprint = msg.get_bool( "sp", false );
         f.cursor_valid = msg.get_bool( "cv", false );
@@ -1047,6 +1247,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             fluid::actor_state &st = fluid::state_of( rp->npc_id.get_value() );
             st.seen_primary_presses = f.primary_presses;
             st.seen_secondary_presses = f.secondary_presses;
+            st.seen_throw_presses = f.throw_presses;
             st.prev_primary = f.primary;
             st.prev_secondary = f.secondary;
             st.initialised = true;
@@ -1080,6 +1281,13 @@ bool host_drive_npc( npc &guy )
         return false;
     }
     remote_player *rp = find_client( guy.getID() );
+    if( rp != nullptr && rp->talk ) {
+        // the conversation ends when the NPC is gone or the player is down
+        const npc *other = g->find_npc( character_id( rp->talk->other_id() ) );
+        if( other == nullptr || other->is_dead() || rp->downed || guy.is_dead() ) {
+            end_talk( *rp );
+        }
+    }
     if( rp != nullptr && update_downed( *rp, guy ) ) {
         return true;
     }
@@ -1437,6 +1645,19 @@ void host_end_of_turn()
         }
     }
     poll();
+}
+
+bool dialogue_protected( const Creature &who )
+{
+    if( !is_host() ) {
+        return false;
+    }
+    const Character *ch = who.as_character();
+    if( ch == nullptr ) {
+        return false;
+    }
+    const remote_player *rp = find_client( ch->getID() );
+    return rp != nullptr && rp->talk != nullptr;
 }
 
 } // namespace net

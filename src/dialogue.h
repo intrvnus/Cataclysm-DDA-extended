@@ -37,6 +37,8 @@ class mission;
 class npc;
 struct dialogue;
 struct input_event;
+struct talk_data;
+class input_context;
 
 enum talk_trial_type : unsigned char {
     TALK_TRIAL_NONE, // No challenge here!
@@ -282,6 +284,20 @@ struct dialogue: public const_dialogue {
         std::vector<talk_topic> topic_stack;
 
         talk_topic opt( dialogue_window &d_win, const talk_topic &topic );
+        /** The parts of @ref opt that need no window, so that a multiplayer host can run a
+         * conversation turn by turn (see net_server.cpp): says the line of the NPC and
+         * collects the responses; false if there are none. */
+        bool begin_turn( dialogue_window &d_win, const talk_topic &topic );
+        /** The response lines and their hotkeys, from the current responses. */
+        void generate_response_lines( dialogue_window &d_win, input_context &ctxt,
+                                      std::vector<talk_data> &lines, std::vector<input_event> &hotkeys );
+        /** The response with the number @p response_ind was chosen: does what it says. */
+        talk_topic finish_turn( dialogue_window &d_win, size_t response_ind,
+                                const std::string &response_text );
+        /** The response a player who wants to leave the conversation gives. */
+        int quit_response() {
+            return get_best_quit_response();
+        }
         dialogue() = default;
         ~dialogue() = default;
         dialogue( const dialogue &d );

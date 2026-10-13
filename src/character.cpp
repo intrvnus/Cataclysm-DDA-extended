@@ -93,6 +93,7 @@
 #include "move_mode.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "omdata.h"
 #include "options.h"
@@ -8338,7 +8339,7 @@ void Character::apply_damage( Creature *source, bodypart_id hurt, int dam,
                               const bool bypass_med )
 {
     if( is_dead_state() || has_effect( effect_incorporeal ) ||
-        has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ) {
+        has_flag( json_flag_CANNOT_TAKE_DAMAGE ) || net::dialogue_protected( *this ) ) {
         // don't do any more damage if we're already dead
         // Or if we're debugging and don't want to die
         // Or we are intangible
@@ -8404,7 +8405,8 @@ dealt_damage_instance Character::deal_damage( Creature *source, bodypart_id bp,
 {
     const map &here = get_map();
 
-    if( has_effect( effect_incorporeal ) || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ) {
+    if( has_effect( effect_incorporeal ) || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ||
+        net::dialogue_protected( *this ) ) {
         return dealt_damage_instance();
     }
 
@@ -8580,7 +8582,7 @@ void Character::healall( int dam )
 void Character::hurtall( int dam, Creature *source, bool disturb /*= true*/ )
 {
     if( is_dead_state() || has_effect( effect_incorporeal ) ||
-        dam <= 0 || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) ) {
+        dam <= 0 || has_flag( json_flag_CANNOT_TAKE_DAMAGE ) || net::dialogue_protected( *this ) ) {
         return;
     }
 

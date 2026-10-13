@@ -262,6 +262,31 @@ std::list<std::pair<item_location, int>> locations_from_string( const std::strin
     return result;
 }
 
+namespace
+{
+std::optional<trade_request> &pending_trade()
+{
+    static std::optional<trade_request> request;
+    return request;
+}
+} // namespace
+
+void request_trade( int npc_id, int cost, const std::string &deal )
+{
+    trade_request r;
+    r.npc_id = npc_id;
+    r.cost = cost;
+    r.deal = deal;
+    pending_trade() = r;
+}
+
+std::optional<trade_request> take_trade_request()
+{
+    std::optional<trade_request> r = pending_trade();
+    pending_trade().reset();
+    return r;
+}
+
 std::string to_json( const std::vector<entry> &answers )
 {
     std::ostringstream os;

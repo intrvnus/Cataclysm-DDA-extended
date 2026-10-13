@@ -14,7 +14,7 @@
 //   {"t":"act","a":"wait"}
 //   {"t":"act","a":"pickup"}                           pick up everything on own tile
 //   channel 1, fluid mode only (see fluid.h): the whole input state, not a single key press
-//   {"t":"in","mx":-1..1,"my":-1..1,"p":<bool>,"s":<bool>,"pc":<int>,"sc":<int>,"c":<bool>,
+//   {"t":"in","mx":-1..1,"my":-1..1,"p":<bool>,"s":<bool>,"pc":<int>,"sc":<int>,"tc":<int>,"c":<bool>,
 //    "cv":<bool>,"cx":<float>,"cy":<float>,"cz":<int>}
 //     p/s: primary/secondary button held, pc/sc: running counters of presses, c: cancel,
 //     cv/cx/cy/cz: the cursor in absolute tile coordinates (integer part = tile)

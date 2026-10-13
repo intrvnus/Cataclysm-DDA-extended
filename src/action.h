@@ -710,4 +710,7 @@ bool try_run_on_item( const std::string &action, item_location &loc );
 std::string toggle_mark_of( const std::string &action );
 } // namespace mod_actions
 
+/** The "smash where?" menu (and what follows), for the acting character (see remote_ui.h). */
+void smash_menu();
+
 #endif // CATA_SRC_ACTION_H

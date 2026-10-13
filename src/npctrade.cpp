@@ -28,6 +28,7 @@
 #include "npctrade_utils.h"
 #include "pocket_type.h"
 #include "ret_val.h"
+#include "remote_ui.h"
 #include "skill.h"
 #include "trade_ui.h"
 #include "type_id.h"
@@ -286,6 +287,11 @@ void npc_trading::update_npc_owed( npc &np, int your_balance, int your_sale_valu
 // cost is positive when the player owes the NPC money for a service to be performed
 bool npc_trading::trade( npc &np, int cost, const std::string &deal )
 {
+    if( remote_ui::replaying() ) {
+        // a conversation of a multiplayer player: the window opens on the player's computer
+        remote_ui::request_trade( np.getID().get_value(), cost, deal );
+        return false;
+    }
     np.shop_restock();
     //np.drop_items( np.weight_carried() - np.weight_capacity(),
     //               np.volume_carried() - np.volume_capacity() );
@@ -296,52 +302,56 @@ bool npc_trading::trade( npc &np, int cost, const std::string &deal )
 
     if( trade_result.traded ) {
         tradeui.reset();
-
-        std::list<item_location *> from_map;
-
-        std::list<item> escrow;
-        avatar &player_character = get_avatar();
-        // Movement of items in 3 steps: player to escrow - npc to player - escrow to npc.
-        escrow = npc_trading::transfer_items( trade_result.items_you, player_character, np, from_map,
-                                              true );
-        npc_trading::transfer_items( trade_result.items_trader, np, player_character, from_map, false );
-        // Now move items from escrow to the npc. Keep the weapon wielded.
-        if( np.is_shopkeeper() ) {
-            distribute_items_to_npc_zones( escrow, np );
-        } else {
-            for( const item &i : escrow ) {
-                np.i_add( i, true, nullptr, nullptr, true, false );
-            }
-        }
-
-        for( item_location *loc_ptr : from_map ) {
-            if( !loc_ptr ) {
-                continue;
-            }
-            item *it = loc_ptr->get_item();
-            if( !it ) {
-                continue;
-            }
-            if( it->has_var( "trade_charges" ) && it->count_by_charges() ) {
-                it->charges -= static_cast<int>( it->get_var( "trade_charges", 0 ) );
-                if( it->charges <= 0 ) {
-                    loc_ptr->remove_item();
-                } else {
-                    it->erase_var( "trade_charges" );
-                }
-            } else if( it->has_var( "trade_amount" ) ) {
-                loc_ptr->remove_item();
-            }
-        }
-
-        // NPCs will remember debts, to the limit that they'll extend credit or previous debts
-        if( !np.will_exchange_items_freely() ) {
-            player_character.cash -= trade_result.delta_bank;
-            update_npc_owed( np, trade_result.balance, trade_result.value_you );
-            player_character.practice( skill_speech, trade_result.value_you / 10000 );
-        }
+        perform_agreed_trade( get_avatar(), np, trade_result );
     }
     return trade_result.traded ;
+}
+
+void npc_trading::perform_agreed_trade( Character &player_character, npc &np,
+                                        trade_ui::trade_result_t &trade_result )
+{
+    std::list<item_location *> from_map;
+
+    std::list<item> escrow;
+    // Movement of items in 3 steps: player to escrow - npc to player - escrow to npc.
+    escrow = npc_trading::transfer_items( trade_result.items_you, player_character, np, from_map,
+                                          true );
+    npc_trading::transfer_items( trade_result.items_trader, np, player_character, from_map, false );
+    // Now move items from escrow to the npc. Keep the weapon wielded.
+    if( np.is_shopkeeper() ) {
+        distribute_items_to_npc_zones( escrow, np );
+    } else {
+        for( const item &i : escrow ) {
+            np.i_add( i, true, nullptr, nullptr, true, false );
+        }
+    }
+
+    for( item_location *loc_ptr : from_map ) {
+        if( !loc_ptr ) {
+            continue;
+        }
+        item *it = loc_ptr->get_item();
+        if( !it ) {
+            continue;
+        }
+        if( it->has_var( "trade_charges" ) && it->count_by_charges() ) {
+            it->charges -= static_cast<int>( it->get_var( "trade_charges", 0 ) );
+            if( it->charges <= 0 ) {
+                loc_ptr->remove_item();
+            } else {
+                it->erase_var( "trade_charges" );
+            }
+        } else if( it->has_var( "trade_amount" ) ) {
+            loc_ptr->remove_item();
+        }
+    }
+
+    // NPCs will remember debts, to the limit that they'll extend credit or previous debts
+    if( !np.will_exchange_items_freely() ) {
+        player_character.cash -= trade_result.delta_bank;
+        update_npc_owed( np, trade_result.balance, trade_result.value_you );
+        player_character.practice( skill_speech, trade_result.value_you / 10000 );
+    }
 }
 
 // Will the NPC accept the trade that's currently on offer?

@@ -1,6 +1,10 @@
 // Multiplayer client: shows the world the host sends and sends key presses to the host.
 // It does not simulate anything itself. See net_session.h.
 
+#include <list>
+#include <deque>
+#include <thread>
+#include <chrono>
 #include <algorithm>
 #include <random>
 #include <cctype>
@@ -18,6 +22,10 @@
 #include "alerts.h"
 #include "advanced_inv.h"
 #include "help.h"
+#include "dialogue_win.h"
+#include "remote_talk.h"
+#include "color.h"
+#include "trade_ui.h"
 #include "avatar.h"
 #include "avatar_action.h"
 #include "bodypart.h"
@@ -427,10 +435,192 @@ void send_drop( const drop_locations &what )
     } ) );
 }
 
+// ---- conversations with NPCs (C4): the host runs them, this shows the usual window ----
+
+struct talk_msg {
+    bool end = false;
+    std::string name;
+    std::vector<std::vector<std::string>> ops;
+    std::vector<remote_conversation::response> resp;
+};
+
+std::deque<talk_msg> &talk_queue()
+{
+    static std::deque<talk_msg> q;
+    return q;
+}
+
+// Shows one conversation until the host ends it.
+void run_talk_ui()
+{
+    dialogue_window win;
+    ui_adaptor ui;
+    std::string npc_name;
+    ui.on_screen_resize( [&]( ui_adaptor & ui ) {
+        win.resize( ui );
+    } );
+    ui.mark_resize();
+    ui.on_redraw( [&]( const ui_adaptor & ) {
+        win.draw( npc_name );
+    } );
+    bool first = true;
+    for( ;; ) {
+        // the next turn comes from the host
+        const std::chrono::steady_clock::time_point waited = std::chrono::steady_clock::now();
+        while( talk_queue().empty() ) {
+            poll();
+            if( talk_queue().empty() ) {
+                if( std::chrono::steady_clock::now() - waited > std::chrono::seconds( 20 ) ||
+                    !cstate().connected ) {
+                    return;
+                }
+                std::this_thread::sleep_for( std::chrono::milliseconds( 5 ) );
+            }
+        }
+        const talk_msg m = talk_queue().front();
+        talk_queue().pop_front();
+        if( m.end ) {
+            return;
+        }
+        npc_name = m.name;
+        if( first ) {
+            first = false;
+            win.add_history_separator();
+        }
+        for( const std::vector<std::string> &op : m.ops ) {
+            if( op.size() >= 3 && op[0] == "add" ) {
+                win.add_to_history( op[1], nc_color::from_color_pair_index( std::atoi( op[2].c_str() ) ) );
+            } else if( !op.empty() && op[0] == "clr" ) {
+                win.clear_history_highlights();
+            }
+        }
+        std::vector<talk_data> lines;
+        for( const remote_conversation::response &r : m.resp ) {
+            talk_data td;
+            td.color = nc_color::from_color_pair_index( r.color );
+            td.hotkey_desc = r.hotkey_desc;
+            td.text = r.text;
+            lines.push_back( td );
+        }
+        win.set_responses( lines );
+
+        input_context ctxt( "DIALOGUE_CHOOSE_RESPONSE" );
+        win.set_up_scrolling( ctxt );
+        ctxt.register_action( "HELP_KEYBINDINGS" );
+        ctxt.register_action( "CONFIRM" );
+        ctxt.register_action( "ANY_INPUT" );
+        ctxt.register_action( "QUIT" );
+        int chosen = -2;
+        while( chosen == -2 ) {
+            ui_manager::redraw();
+            std::string action = ctxt.handle_input();
+            const input_event evt = ctxt.get_raw_input();
+            win.handle_scrolling( action, ctxt );
+            int index = -2;
+            if( action == "QUIT" ) {
+                index = -1;
+            } else if( action == "CONFIRM" ) {
+                index = win.sel_response;
+            } else if( action == "ANY_INPUT" ) {
+                for( size_t i = 0; i < m.resp.size(); ++i ) {
+                    if( m.resp[i].key != 0 && m.resp[i].key == static_cast<int>( evt.get_first_input() ) ) {
+                        index = static_cast<int>( i );
+                        break;
+                    }
+                }
+            }
+            if( index == -2 ) {
+                continue;
+            }
+            if( index >= static_cast<int>( m.resp.size() ) ) {
+                continue;
+            }
+            if( index >= 0 && !m.resp[index].enabled ) {
+                continue;
+            }
+            if( index >= 0 && m.resp[index].consequence == 1 &&
+                !query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
+                continue;
+            }
+            if( index >= 0 && m.resp[index].consequence == 2 &&
+                !query_yn( _( "You'll be helpless!  Proceed?" ) ) ) {
+                continue;
+            }
+            chosen = index;
+        }
+        impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "talk_pick" );
+            jo.member( "i", chosen );
+        } ) );
+    }
+}
+
+// The trading window of a conversation: the host sent the trader, the deal goes back.
+struct trade_msg {
+    std::string npc_json;
+    int cost = 0;
+    std::string deal;
+};
+
+std::deque<trade_msg> &trade_queue()
+{
+    static std::deque<trade_msg> q;
+    return q;
+}
+
+void run_trade_ui()
+{
+    const trade_msg m = trade_queue().front();
+    trade_queue().pop_front();
+    bool ok = false;
+    trade_ui::trade_result_t res;
+    try {
+        std::unique_ptr<npc> trader = std::make_unique<npc>();
+        JsonValue jv = json_loader::from_string( std::string( m.npc_json ) );
+        JsonObject jo = jv.get_object();
+        jo.allow_omitted_members();
+        trader->deserialize( jo );
+        trade_ui window( get_avatar(), *trader, m.cost, m.deal );
+        res = window.perform_trade();
+        ok = res.traded;
+        // the items the player offers are located before the window goes away
+        const std::list<std::pair<item_location, int>> you( res.items_you.begin(),
+                res.items_you.end() );
+        const std::list<std::pair<item_location, int>> them( res.items_trader.begin(),
+                res.items_trader.end() );
+        impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo2 ) {
+            jo2.member( "t", "trade_done" );
+            jo2.member( "ok", ok );
+            jo2.member( "cid", get_avatar().getID().get_value() );
+            jo2.member( "balance", res.balance );
+            jo2.member( "bank", res.delta_bank );
+            jo2.member( "vyou", res.value_you );
+            jo2.member( "vthem", res.value_trader );
+            jo2.member( "you", remote_ui::locations_to_string( you ) );
+            jo2.member( "them", remote_ui::locations_to_string( them ) );
+        } ) );
+        return;
+    } catch( const std::exception &err ) {
+        DebugLog( D_WARNING, D_GAME ) << "Multiplayer: trading failed: " << err.what();
+    }
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "trade_done" );
+        jo.member( "ok", false );
+    } ) );
+}
+
 // Reads one key (or times out) and sends the matching command to the host.
 // Returns true if the player wants to leave the game.
 bool handle_input()
 {
+    if( !trade_queue().empty() ) {
+        run_trade_ui();
+        return false;
+    }
+    if( !talk_queue().empty() ) {
+        run_talk_ui();
+        return false;
+    }
     // the WASD layout option (the host does this in its own input loop)
     fluid::sync_key_layout();
     input_context ctxt = get_default_mode_input_context();
@@ -527,6 +717,26 @@ bool handle_input()
                 // the host picks the item from the answers, like from the menu
                 remote_ui::record( "i", remote_ui::location_to_string( loc ) );
                 avatar_action::use_item( get_avatar(), loc );
+            } );
+            break;
+        case ACTION_CHAT:
+            impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "chat" );
+            } ) );
+            break;
+        case ACTION_INVENTORY:
+            // the item menu of the screen sends its choice to the host (client_item_action)
+            game_menus::inv::common();
+            break;
+        case ACTION_THROW:
+        case ACTION_THROW_WIELDED:
+        case ACTION_FIRE:
+        case ACTION_FIRE_BURST:
+            add_msg( m_info, _( "Throwing and shooting are aimed with the mouse in fluid mode." ) );
+            break;
+        case ACTION_SMASH:
+            send_ui( "smash", [] {
+                smash_menu();
             } );
             break;
         // actions that only start an activity: the menus run here, the host starts it
@@ -642,6 +852,93 @@ bool handle_input()
     return false;
 }
 
+// The inventory screen of a client: what its item menu chose is sent to the host.
+bool client_item_action_impl( int key, const item_location &chosen )
+{
+    item_location loc = chosen;
+    switch( key ) {
+        case 'a':
+            send_ui( "apply", [loc]() mutable {
+                // the host picks the item from the answers, like from the menu
+                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+                avatar_action::use_item( get_avatar(), loc );
+            } );
+            return true;
+        case 'E':
+            if( !loc->is_container() ) {
+                send_use( "consume", loc );
+            } else {
+                send_ui( "capture", [loc]() mutable {
+                    avatar_action::eat_or_use( get_avatar(), game_menus::inv::consume( loc ) );
+                }, true );
+            }
+            return true;
+        case 'W':
+            send_use( "wear", loc );
+            return true;
+        case 'w':
+            send_use( "wield", loc );
+            return true;
+        case 't':
+            // throwing is aimed with the mouse (fluid mode): hold the item, press the throw key
+            send_use( "wield", loc );
+            add_msg( m_info, _( "Aim with the mouse and press the throw key to throw it." ) );
+            return true;
+        case 'T':
+            send_use( "takeoff", loc );
+            return true;
+        case 'R':
+            send_use( "read", loc );
+            return true;
+        case 'd':
+            send_drop( { { loc, loc->count_by_charges() ? loc->charges : 0 } } );
+            return true;
+        case 'U':
+            send_ui( "capture", [loc]() mutable {
+                get_avatar().unload( loc );
+            }, true );
+            return true;
+        case 'r':
+        case 'p':
+            send_ui( "capture", [loc, key]() mutable {
+                g->reload( loc, key == 'p' );
+            }, true );
+            return true;
+        case 'm':
+            send_ui( "capture", [loc]() mutable {
+                avatar_action::mend( get_avatar(), loc );
+            }, true );
+            return true;
+        case 'D':
+            send_ui( "capture", [loc]() mutable {
+                get_avatar().disassemble( loc, false );
+            }, true );
+            return true;
+        case 'i':
+            if( loc->is_container() ) {
+                send_ui( "capture", [loc]() mutable {
+                    game_menus::inv::insert_items( loc );
+                }, true );
+            }
+            return true;
+        case 'c':
+            send_ui( "item_change_side", [loc]() mutable {
+                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+                get_avatar().change_side( loc );
+            } );
+            return true;
+        case 'f':
+            send_ui( "item_favorite", [loc]() mutable {
+                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+                loc->is_favorite = !loc->is_favorite;
+            } );
+            return true;
+        default:
+            // views and settings that stay on this computer
+            return false;
+    }
+}
+
 // A4: a secret that identifies this player to hosts, kept in the user folder.
 std::string client_key()
 {
@@ -720,6 +1017,11 @@ void apply_full_character( std::string json )
 
 } // namespace
 
+bool client_item_action( int key, const item_location &loc )
+{
+    return client_item_action_impl( key, loc );
+}
+
 namespace impl
 {
 
@@ -778,6 +1080,34 @@ void client_on_message( const JsonObject &msg )
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
     } else if( type == "state" ) {
         apply_state( msg );
+    } else if( type == "trade" ) {
+        trade_msg m;
+        m.npc_json = msg.get_string( "npc", "" );
+        m.cost = msg.get_int( "cost", 0 );
+        m.deal = msg.get_string( "deal", "" );
+        trade_queue().push_back( m );
+    } else if( type == "talk" ) {
+        talk_msg m;
+        m.end = msg.get_bool( "end", false );
+        m.name = msg.get_string( "name", "" );
+        for( JsonArray op : msg.get_array( "ops" ) ) {
+            std::vector<std::string> parts;
+            for( JsonValue e : op ) {
+                parts.push_back( e.get_string() );
+            }
+            m.ops.push_back( parts );
+        }
+        for( JsonObject o : msg.get_array( "resp" ) ) {
+            remote_conversation::response r;
+            r.color = o.get_int( "c", 0 );
+            r.hotkey_desc = o.get_string( "h", "" );
+            r.text = o.get_string( "x", "" );
+            r.key = o.get_int( "k", 0 );
+            r.enabled = o.get_bool( "ok", true );
+            r.consequence = o.get_int( "q", 0 );
+            m.resp.push_back( r );
+        }
+        talk_queue().push_back( m );
     } else if( type == "you_full" ) {
         apply_full_character( msg.get_string( "char", "" ) );
     } else if( type == "alert" ) {
@@ -808,6 +1138,7 @@ void client_send_input( const fluid::input_frame &in )
                          in.cancel != last.cancel || in.sprint != last.sprint ||
                          in.primary_presses != last.primary_presses ||
                          in.secondary_presses != last.secondary_presses ||
+                         in.throw_presses != last.throw_presses ||
                          in.cursor_valid != last.cursor_valid;
     const double moved = std::abs( in.cursor_x - last.cursor_x ) + std::abs( in.cursor_y - last.cursor_y );
     const bool send = ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
@@ -825,6 +1156,7 @@ void client_send_input( const fluid::input_frame &in )
         jo.member( "s", in.secondary );
         jo.member( "pc", in.primary_presses );
         jo.member( "sc", in.secondary_presses );
+        jo.member( "tc", in.throw_presses );
         jo.member( "c", in.cancel );
         jo.member( "sp", in.sprint );
         jo.member( "cv", in.cursor_valid );

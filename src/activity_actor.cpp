@@ -90,6 +90,7 @@
 #include "recipe.h"
 #include "requirements.h"
 #include "ret_val.h"
+#include "remote_ui.h"
 #include "rng.h"
 #include "safe_reference.h"
 #include "shearing.h"
@@ -701,14 +702,13 @@ std::unique_ptr<activity_actor> autodrive_activity_actor::deserialize( JsonValue
 
 void bash_activity_actor::do_turn( player_activity &, Character &who )
 {
-    avatar *player = who.as_avatar();
-    if( player == nullptr ) {
+    if( !remote_ui::acts_as_player( who ) ) {
         debugmsg( "An NPC (%s) has been assigned ACT_BASH", who.get_name() );
         who.cancel_activity();
         return;
     }
     while( who.get_moves() > 0 ) {
-        avatar::smash_result res = player->smash( target );
+        Character::smash_result res = who.smash( target );
         if( !res.did_smash ) {
             add_msg( m_info, _( "Something got in the way of smashing." ) );
             who.cancel_activity();

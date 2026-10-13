@@ -2418,7 +2418,9 @@ int game::inventory_item_menu( item_location locThisItem,
 #if defined(TILES)
             action_menu.set_hide( true );
 #endif
-            switch( cMenu ) {
+            // multiplayer client: the host does what is chosen here
+            const bool mp_handled = net::is_client() && net::client_item_action( cMenu, locThisItem );
+            switch( mp_handled ? 0 : cMenu ) {
                 case 'a': {
                     contents_change_handler handler;
                     handler.unseal_pocket_containing( locThisItem );

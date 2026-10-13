@@ -40,6 +40,8 @@ class dialogue_window
                              nc_color speaker_color );
         /** Adds a separator to the conversation history. */
         void add_history_separator();
+        /** Adds a line as it is (a multiplayer client shows what the host journaled). */
+        void add_to_history( const std::string &text, nc_color color );
 
         void set_responses( const std::vector<talk_data> &responses );
 
@@ -50,6 +52,9 @@ class dialogue_window
 
         /** Unhighlights all messages. */
         void clear_history_highlights();
+        /** Multiplayer host: when set, what is added to the history is also noted here, as
+         * {"add", text, speaker, color} / {"sep"} / {"clr"}, to be shown on the client. */
+        std::vector<std::vector<std::string>> *journal = nullptr;
         bool is_computer = false;
         bool is_not_conversation = false;
         bool show_dynamic_line_conditionals = true;
@@ -72,7 +77,6 @@ class dialogue_window
             std::string text;
         };
 
-        void add_to_history( const std::string &text, nc_color color );
 
         /**
          * This contains the exchanged words, it is basically like the global message log.

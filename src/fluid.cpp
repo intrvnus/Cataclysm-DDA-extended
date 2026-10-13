@@ -39,11 +39,14 @@
 #include "options.h"
 #include "output.h"
 #include "player_activity.h"
+#include "projectile.h"
 #include "ranged.h"
 #include "translations.h"
 #include "ui_manager.h"
 #include "units.h"
 
+static const efftype_id effect_incorporeal( "incorporeal" );
+static const json_character_flag json_flag_CANNOT_ATTACK( "CANNOT_ATTACK" );
 static const move_mode_id move_mode_run( "run" );
 static const move_mode_id move_mode_walk( "walk" );
 
@@ -574,6 +577,66 @@ int fire_at_cursor( Character &who, actor_state &st, ms_t now, std::vector<event
     return duration;
 }
 
+// Throws the wielded item at the cursor.  Returns the time it takes, 0 if nothing happened.
+int throw_at_cursor( Character &who, const input_frame &in, ms_t now, std::vector<event> *out )
+{
+    map &here = get_map();
+    const tripoint_abs_ms pos = who.pos_abs();
+    if( !in.cursor_valid || in.cursor_z != pos.z() ) {
+        return 0;
+    }
+    const tripoint_abs_ms aim = tile_of( in.cursor_x, in.cursor_y, pos.z() );
+    if( !here.inbounds( aim ) || aim == pos ) {
+        return 0;
+    }
+    item_location weapon = who.get_wielded_item();
+    if( !weapon ) {
+        who.add_msg_if_player( m_info, _( "Wield something to throw it." ) );
+        return 250;
+    }
+    if( weapon->has_flag( flag_NO_UNWIELD ) ) {
+        who.add_msg_if_player( m_info, _( "That's part of your body, you can't throw that!" ) );
+        return 250;
+    }
+    if( who.has_flag( json_flag_CANNOT_ATTACK ) || who.has_effect( effect_incorporeal ) ) {
+        who.add_msg_if_player( m_info, _( "You are incapable of throwing anything!" ) );
+        return 250;
+    }
+    item thrown = *weapon;
+    const int range = who.throw_range( thrown );
+    if( range <= 0 ) {
+        who.add_msg_if_player( m_info, _( "That is too heavy to throw." ) );
+        return 250;
+    }
+    // like avatar_action::plthrow: one of a stack, else the whole item leaves the hands
+    if( weapon->count_by_charges() && weapon->charges > 1 ) {
+        weapon->mod_charges( -1 );
+        thrown.charges = 1;
+    } else {
+        who.remove_weapon();
+    }
+    int charged = 0;
+    {
+        native_scope scope( who );
+        who.throw_item( here.get_bub( aim ), thrown, std::nullopt );
+        charged = scope.finish();
+    }
+    const int duration = std::max( tune().fire_min_ms, moves_to_ms( who, charged ) );
+
+    event ev;
+    ev.type = fx_type::shot;
+    ev.actor = who.getID().get_value();
+    ev.from = pos;
+    ev.to = aim;
+    ev.dur_ms = duration;
+    const auto dir = snap8( in.cursor_x - ( pos.x() + 0.5 ), in.cursor_y - ( pos.y() + 0.5 ) );
+    ev.dx = dir.first;
+    ev.dy = dir.second;
+    emit( out, ev );
+    ( void )now;
+    return duration;
+}
+
 // ---- melee -------------------------------------------------------------------------------
 
 void cancel_swing( Character &who, actor_state &st, ms_t now, std::vector<event> *out )
@@ -912,10 +975,13 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.initialised = true;
         st.seen_primary_presses = in.primary_presses;
         st.seen_secondary_presses = in.secondary_presses;
+        st.seen_throw_presses = in.throw_presses;
         st.prev_primary = in.primary;
         st.prev_secondary = in.secondary;
         st.aim_last = now;
     }
+    const bool throw_pressed = in.throw_presses != st.seen_throw_presses;
+    st.seen_throw_presses = in.throw_presses;
     const bool primary_pressed = in.primary_presses != st.seen_primary_presses ||
                                  ( in.primary && !st.prev_primary );
     const bool secondary_pressed = in.secondary_presses != st.seen_secondary_presses ||
@@ -972,7 +1038,17 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         const ms_t t0 = ( now - st.ready_at < 50 && st.ready_at > 0 ) ? st.ready_at : now;
         bool started = false;
 
-        if( !armed_with_gun ) {
+        if( throw_pressed ) {
+            const int dur = throw_at_cursor( who, in, now, out );
+            if( dur > 0 ) {
+                st.ready_at = t0 + dur;
+                started = true;
+            }
+        }
+
+        if( started ) {
+            // the throw is the action of this frame
+        } else if( !armed_with_gun ) {
             const bool want_attack = primary_pressed || ( st.buffered_until > now && st.buffered_is_attack );
             const bool hold_attack = in.primary && !primary_pressed;
             if( want_attack || hold_attack ) {
@@ -1253,6 +1329,9 @@ bool swallows( const std::string &action )
         case ACTION_MOVE_FORTH_LEFT:
         case ACTION_SELECT:
         case ACTION_SEC_SELECT:
+        case ACTION_THROW:
+        case ACTION_THROW_WIELDED:
+        case ACTION_FIRE:
             note_classic_action( act );
             return true;
         default:

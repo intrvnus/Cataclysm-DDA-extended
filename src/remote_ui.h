@@ -107,6 +107,17 @@ item_location location_from_string( const std::string &text );
 std::string locations_to_string( const std::list<std::pair<item_location, int>> &locs );
 std::list<std::pair<item_location, int>> locations_from_string( const std::string &text );
 
+/** While replaying: a conversation answer wants to open the trading window; it opens on the
+ * player's computer instead (see net_server.cpp). */
+void request_trade( int npc_id, int cost, const std::string &deal );
+struct trade_request {
+    int npc_id = -1;
+    int cost = 0;
+    std::string deal;
+};
+/** The trade that was requested since the last call, if any. */
+std::optional<trade_request> take_trade_request();
+
 /** Serialization of the answers for the network. */
 std::string to_json( const std::vector<entry> &answers );
 std::vector<entry> from_json( const std::string &json );

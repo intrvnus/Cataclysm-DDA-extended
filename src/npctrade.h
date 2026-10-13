@@ -62,6 +62,9 @@ std::list<item> transfer_items( trade_selector::select_t &stuff, Character &give
                                 bool use_escrow );
 double net_price_adjustment( const Character &buyer, const Character &seller );
 bool trade( npc &p, int cost, const std::string &deal );
+/** Carries out an agreed trade: the items change hands and the NPC remembers the debt.
+ * @p you is the character who trades (a multiplayer host passes the body of the player). */
+void perform_agreed_trade( Character &you, npc &np, trade_ui::trade_result_t &trade_result );
 std::vector<item_pricing> init_selling( npc &p );
 } // namespace npc_trading
 

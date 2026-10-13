@@ -960,8 +960,8 @@ class game
         void butcher(); // Butcher a corpse  'B'
     private:
 
-        void reload( item_location &loc, bool prompt = false, bool empty = true );
     public:
+        void reload( item_location &loc, bool prompt = false, bool empty = true );
         /* Returns true if there's nobody to anger, player is already allowed to do this, or player answered yes to warning query
         * This function also handles changing the faction opinion if player proceeds despite warning
         * Returns false only if player declined query

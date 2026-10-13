@@ -80,6 +80,7 @@ enum bit : unsigned {
 struct device_state {
     int primary_presses = 0;
     int secondary_presses = 0;
+    int throw_presses = 0;
     // raw bits (8 movement keys + buttons) of the last poll
     unsigned last_raw = 0;
     // bits that were pressed while a classic action ran: ignored until released
@@ -277,6 +278,11 @@ void note_classic_action( int action )
         ++d.primary_presses;
     } else if( action == ACTION_SEC_SELECT ) {
         ++d.secondary_presses;
+    } else if( action == ACTION_THROW || action == ACTION_THROW_WIELDED ) {
+        ++d.throw_presses;
+    } else if( action == ACTION_FIRE ) {
+        // the fire key is the left mouse button for the keyboard
+        ++d.primary_presses;
     }
 }
 
@@ -347,6 +353,7 @@ bool poll_device( input_frame &out )
     out.sprint = ( SDL_GetModState() & KMOD_SHIFT ) != 0;
     out.primary_presses = d.primary_presses;
     out.secondary_presses = d.secondary_presses;
+    out.throw_presses = d.throw_presses;
     out.cursor_valid = false;
     read_cursor( out );
     return true;

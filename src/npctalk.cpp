@@ -49,6 +49,7 @@
 #include "dialogue_chatbin.h"
 #include "dialogue_helpers.h"
 #include "dialogue_win.h"
+#include "remote_talk.h"
 #include "effect_on_condition.h"
 #include "enum_conversions.h"
 #include "enum_traits.h"
@@ -2898,16 +2899,9 @@ const talk_topic &special_talk( const std::string &action )
     return no_topic;
 }
 
-talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
+bool dialogue::begin_turn( dialogue_window &d_win, const talk_topic &topic )
 {
     d_win.add_history_separator();
-
-    ui_adaptor ui;
-    const auto resize_cb = [&]( ui_adaptor & ui ) {
-        d_win.resize( ui );
-    };
-    ui.on_screen_resize( resize_cb );
-    resize_cb( ui );
 
     // Construct full line
     std::string challenge = dynamic_line( topic );
@@ -2953,6 +2947,67 @@ talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
 
     if( responses.empty() ) {
         debugmsg( "No dialogue responses" );
+        return false;
+    }
+    return true;
+
+}
+
+void dialogue::generate_response_lines( dialogue_window &d_win, input_context &ctxt,
+                                        std::vector<talk_data> &response_lines, std::vector<input_event> &response_hotkeys )
+{
+#if defined(__ANDROID__)
+    ctxt.get_registered_manual_keys().clear();
+#endif
+    const hotkey_queue &queue = hotkey_queue::alphabets();
+    response_lines.clear();
+    response_hotkeys.clear();
+    input_event evt = ctxt.first_unassigned_hotkey( queue );
+    for( talk_response &response : responses ) {
+        const talk_data &td = response.create_option_line( *this, evt, d_win.is_computer );
+        response_lines.emplace_back( td );
+        response_hotkeys.emplace_back( evt );
+#if defined(__ANDROID__)
+        ctxt.register_manual_key( evt.get_first_input(), td.text );
+#endif
+        evt = ctxt.next_unassigned_hotkey( queue, evt );
+    }
+    d_win.set_responses( response_lines );
+
+}
+
+talk_topic dialogue::finish_turn( dialogue_window &d_win, size_t response_ind,
+                                  const std::string &response_text )
+{
+    d_win.add_history_separator();
+    d_win.add_to_history( response_text, _( "You" ), c_light_blue );
+
+    talk_response chosen = responses[response_ind];
+    if( chosen.mission_selected != nullptr ) {
+        actor( true )->select_mission( chosen.mission_selected );
+    }
+
+    // We can't set both skill and style or training will bug out
+    // TODO: Allow setting both skill and style
+    actor( true )->store_chosen_training( chosen.skill, chosen.style, chosen.dialogue_spell,
+                                          chosen.proficiency );
+    const bool success = chosen.trial.roll( *this );
+    talk_effect_t const &effects = success ? chosen.success : chosen.failure;
+    talk_topic ret_topic =  effects.apply( *this );
+    talk_effect_t::update_missions( *this );
+    return ret_topic;
+}
+
+talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
+{
+    ui_adaptor ui;
+    const auto resize_cb = [&]( ui_adaptor & ui ) {
+        d_win.resize( ui );
+    };
+    ui.on_screen_resize( resize_cb );
+    resize_cb( ui );
+
+    if( !begin_turn( d_win, topic ) ) {
         return talk_topic( "TALK_NONE" );
     }
 
@@ -2969,26 +3024,11 @@ talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
     ctxt.register_action( "QUIT" );
     std::vector<talk_data> response_lines;
     std::vector<input_event> response_hotkeys;
-    const auto generate_response_lines = [&]() {
-#if defined(__ANDROID__)
-        ctxt.get_registered_manual_keys().clear();
-#endif
-        const hotkey_queue &queue = hotkey_queue::alphabets();
-        response_lines.clear();
-        response_hotkeys.clear();
-        input_event evt = ctxt.first_unassigned_hotkey( queue );
-        for( talk_response &response : responses ) {
-            const talk_data &td = response.create_option_line( *this, evt, d_win.is_computer );
-            response_lines.emplace_back( td );
-            response_hotkeys.emplace_back( evt );
-#if defined(__ANDROID__)
-            ctxt.register_manual_key( evt.get_first_input(), td.text );
-#endif
-            evt = ctxt.next_unassigned_hotkey( queue, evt );
-        }
-        d_win.set_responses( response_lines );
+    const auto regenerate = [&]() {
+        generate_response_lines( d_win, ctxt, response_lines, response_hotkeys );
     };
-    generate_response_lines();
+    regenerate();
+
 
     ui.on_redraw( [&]( const ui_adaptor & ) {
         d_win.draw( d_win.is_not_conversation ? "" : actor( true )->disp_name() );
@@ -3014,7 +3054,7 @@ talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
             }
             if( action == "HELP_KEYBINDINGS" ) {
                 // Reallocate hotkeys as keybindings may have changed
-                generate_response_lines();
+                regenerate();
             } else if( action == "CONFIRM" ) {
                 response_ind = d_win.sel_response;
                 //response condition must be reverified since non-selectable responses can be displayed
@@ -3035,7 +3075,7 @@ talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
                 if( debug_mode ) {
                     this->debug_ignore_conditionals = !this->debug_ignore_conditionals;
                     gen_responses( topic );
-                    generate_response_lines();
+                    regenerate();
                 }
             } else if( action == "ANY_INPUT" ) {
                 // Check real hotkeys; equivalent functionally to CONFIRM
@@ -3060,23 +3100,7 @@ talk_topic dialogue::opt( dialogue_window &d_win, const talk_topic &topic )
         }
     } while( !okay );
 
-    d_win.add_history_separator();
-    d_win.add_to_history( response_lines[response_ind].text, _( "You" ), c_light_blue );
-
-    talk_response chosen = responses[response_ind];
-    if( chosen.mission_selected != nullptr ) {
-        actor( true )->select_mission( chosen.mission_selected );
-    }
-
-    // We can't set both skill and style or training will bug out
-    // TODO: Allow setting both skill and style
-    actor( true )->store_chosen_training( chosen.skill, chosen.style, chosen.dialogue_spell,
-                                          chosen.proficiency );
-    const bool success = chosen.trial.roll( *this );
-    talk_effect_t const &effects = success ? chosen.success : chosen.failure;
-    talk_topic ret_topic =  effects.apply( *this );
-    talk_effect_t::update_missions( *this );
-    return ret_topic;
+    return finish_turn( d_win, response_ind, response_lines[response_ind].text );
 }
 
 /**
@@ -9269,3 +9293,153 @@ std::vector<std::string> get_all_talk_topic_ids()
     return dialogue_ids;
 }
 
+// ---- multiplayer: a conversation run turn by turn on the host (see remote_talk.h) ----
+
+struct remote_conversation::impl {
+    npc &you;
+    npc &other;
+    std::unique_ptr<dialogue> d;
+    dialogue_window win;
+    std::vector<std::vector<std::string>> journal;
+    std::vector<talk_data> lines;
+    std::vector<input_event> hotkeys;
+    bool ok = false;
+    // the turn that was sent, answered by choose()
+    bool turn_open = false;
+
+    impl( npc &you, npc &other ) : you( you ), other( other ) {}
+};
+
+remote_conversation::remote_conversation( npc &you, npc &other )
+    : p( std::make_unique<impl>( you, other ) )
+{
+    if( !other.will_talk_to_u( you, false ) ) {
+        return;
+    }
+    p->d = std::make_unique<dialogue>( get_talker_for( you ), get_talker_for( other ),
+                                       std::unordered_map<std::string, std::function<bool( const_dialogue const & )>> {} );
+    dialogue &d = *p->d;
+    d.actor( true )->check_missions();
+    for( mission *&mission : d.actor( true )->assigned_missions() ) {
+        if( mission->get_assigned_player_id() == you.getID() ) {
+            d.missions_assigned.push_back( mission );
+        }
+    }
+    for( const std::string &topic_id : d.actor( true )->get_topics( false ) ) {
+        d.add_topic( topic_id );
+    }
+    // the window is never shown, but its lists need a size to fold their lines
+    ui_adaptor ui;
+    p->win.resize( ui );
+    p->ok = !d.topic_stack.empty();
+}
+
+remote_conversation::~remote_conversation() = default;
+
+bool remote_conversation::started() const
+{
+    return p->ok;
+}
+
+bool remote_conversation::finished() const
+{
+    return !p->ok || p->d->done;
+}
+
+int remote_conversation::other_id() const
+{
+    return p->other.getID().get_value();
+}
+
+bool remote_conversation::turn( turn_data &out )
+{
+    impl &m = *p;
+    if( finished() ) {
+        return false;
+    }
+    dialogue &d = *m.d;
+    d.actor( true )->update_missions( d.missions_assigned );
+    m.win.journal = &m.journal;
+    const talk_topic topic = d.topic_stack.back();
+    if( !d.begin_turn( m.win, topic ) ) {
+        m.win.journal = nullptr;
+        // nothing to answer: leave the topic like a TALK_NONE would
+        d.topic_stack.pop_back();
+        if( d.topic_stack.empty() ) {
+            d.done = true;
+        }
+        return turn( out );
+    }
+    input_context ctxt( "DIALOGUE_CHOOSE_RESPONSE" );
+    m.win.set_up_scrolling( ctxt );
+    ctxt.register_action( "CONFIRM" );
+    ctxt.register_action( "ANY_INPUT" );
+    ctxt.register_action( "QUIT" );
+    d.generate_response_lines( m.win, ctxt, m.lines, m.hotkeys );
+    m.win.journal = nullptr;
+
+    out = turn_data();
+    out.history = m.journal;
+    m.journal.clear();
+    out.npc_name = m.win.is_not_conversation ? std::string() : d.actor( true )->disp_name();
+    for( size_t i = 0; i < m.lines.size(); ++i ) {
+        response r;
+        r.color = m.lines[i].color.to_color_pair_index();
+        r.hotkey_desc = m.lines[i].hotkey_desc;
+        r.text = m.lines[i].text;
+        r.key = i < m.hotkeys.size() ? static_cast<int>( m.hotkeys[i].get_first_input() ) : 0;
+        r.enabled = !( d.response_condition_exists[i] && !d.response_condition_eval[i] );
+        const std::set<dialogue_consequence> consequences = d.responses[i].get_consequences( d );
+        if( consequences.count( dialogue_consequence::hostile ) > 0 ) {
+            r.consequence = 1;
+        } else if( consequences.count( dialogue_consequence::helpless ) > 0 ) {
+            r.consequence = 2;
+        }
+        out.responses.push_back( r );
+    }
+    m.turn_open = true;
+    return true;
+}
+
+void remote_conversation::choose( int index )
+{
+    impl &m = *p;
+    if( !m.turn_open || finished() ) {
+        return;
+    }
+    m.turn_open = false;
+    dialogue &d = *m.d;
+    if( index < 0 ) {
+        index = d.quit_response();
+    }
+    if( index < 0 || index >= static_cast<int>( d.responses.size() ) ||
+        index >= static_cast<int>( m.lines.size() ) ) {
+        return;
+    }
+    if( d.response_condition_exists[index] && !d.response_condition_eval[index] ) {
+        return;
+    }
+    // what the player and the NPC do is part of the history the player sees
+    m.win.journal = &m.journal;
+    const talk_topic next = d.finish_turn( m.win, static_cast<size_t>( index ), m.lines[index].text );
+    m.win.journal = nullptr;
+    if( next.id == "TALK_NONE" ) {
+        const int cat = topic_category( d.topic_stack.back() );
+        do {
+            d.topic_stack.pop_back();
+        } while( !d.topic_stack.empty() && cat != -1 && topic_category( d.topic_stack.back() ) == cat );
+    }
+    if( next.id == "TALK_DONE" || d.topic_stack.empty() ) {
+        npc *npc_actor = d.actor( true )->get_npc();
+        if( npc_actor ) {
+            if( npc_actor->myclass->bye_message_override.empty() ) {
+                d.actor( true )->say( npc_actor->chat_snippets().snip_bye.translated() );
+            } else {
+                d.actor( true )->say( npc_actor->myclass->bye_message_override.translated() );
+            }
+        }
+        d.done = true;
+    } else if( next.id != "TALK_NONE" ) {
+        d.add_topic( next );
+    }
+}

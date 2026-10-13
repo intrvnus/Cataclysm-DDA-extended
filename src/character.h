@@ -2616,6 +2616,14 @@ class Character : public Creature, public visitable
 
         std::pair<bodypart_id, int> best_part_to_smash() const;
         virtual int smash_ability() const;
+        /** smash a map feature */
+        struct smash_result {
+            int skill;
+            int resistance;
+            bool did_smash;
+            bool success;
+        };
+        smash_result smash( tripoint_bub_ms &smashp );
 
         // checks if your character is immune to an effect or field based on field_immunity_data
         bool check_immunity_data( const field_immunity_data &ft ) const override;

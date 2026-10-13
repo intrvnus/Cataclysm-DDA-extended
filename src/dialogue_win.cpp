@@ -145,6 +145,9 @@ void dialogue_window::add_to_history( const std::string &text )
 
 void dialogue_window::add_to_history( const std::string &text, nc_color color )
 {
+    if( journal != nullptr ) {
+        journal->push_back( { "add", text, std::to_string( color.to_color_pair_index() ) } );
+    }
     history.emplace_back( color, text );
     ++num_lines_highlighted;
     update_history_view = true;
@@ -157,6 +160,9 @@ void dialogue_window::add_history_separator()
 
 void dialogue_window::clear_history_highlights()
 {
+    if( journal != nullptr ) {
+        journal->push_back( { "clr" } );
+    }
     num_lines_highlighted = 0;
 }
 
