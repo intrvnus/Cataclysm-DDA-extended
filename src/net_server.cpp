@@ -1739,27 +1739,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             }
         }
     } else if( type == "players_req" && rp->npc_id.is_valid() ) {
-        std::string text = _( "Players" ) + std::string( "\n\n" );
-        const std::string host_line = string_format( "%s (host)  hp %d%%", get_avatar().get_name(),
-                                      100 * get_avatar().get_hp() / std::max( 1, get_avatar().get_hp_max() ) );
-        if( !dedicated() ) {
-            text += host_line + "\n";
-        }
-        for( const remote_player &other : clients() ) {
-            if( !other.greeted ) {
-                continue;
-            }
-            const npc *body = other.npc_id.is_valid() ? g->find_npc( other.npc_id ) : nullptr;
-            if( body != nullptr && !body->is_dead() ) {
-                text += string_format( "%s  hp %d%%  %d tiles away\n", other.name,
-                                       100 * body->get_hp() / std::max( 1, body->get_hp_max() ),
-                                       rl_dist( body->pos_abs(), rp->npc_id.is_valid() &&
-                                                g->find_npc( rp->npc_id ) != nullptr ? g->find_npc( rp->npc_id )->pos_abs() :
-                                                body->pos_abs() ) );
-            } else {
-                text += other.name + "\n";
-            }
-        }
+        const npc *me = g->find_npc( rp->npc_id );
+        const std::string text = player_list_text( me != nullptr ? me->pos_abs() : get_avatar().pos_abs() );
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "missions" );
             jo.member( "text", text );
@@ -2265,6 +2246,54 @@ Character &nearest_player( const tripoint_abs_ms &from )
         }
     }
     return *best;
+}
+
+std::string player_list_text( const tripoint_abs_ms &from )
+{
+    std::string text = _( "Players" ) + std::string( "\n\n" );
+    if( !dedicated() ) {
+        const avatar &host = get_avatar();
+        text += string_format( "%s (host)  hp %d%%\n", host.get_name(),
+                               100 * host.get_hp() / std::max( 1, host.get_hp_max() ) );
+    }
+    for( const remote_player &other : clients() ) {
+        if( !other.greeted ) {
+            continue;
+        }
+        const npc *body = other.npc_id.is_valid() ? g->find_npc( other.npc_id ) : nullptr;
+        if( body != nullptr && !body->is_dead() ) {
+            text += string_format( "%s  hp %d%%  %d tiles away\n", other.name,
+                                   100 * body->get_hp() / std::max( 1, body->get_hp_max() ),
+                                   rl_dist( body->pos_abs(), from ) );
+        } else {
+            text += other.name + "\n";
+        }
+    }
+    return text;
+}
+
+void host_chat( const std::string &text_in )
+{
+    if( !is_host() ) {
+        return;
+    }
+    std::string text = text_in;
+    std::replace( text.begin(), text.end(), '<', '(' );
+    std::replace( text.begin(), text.end(), '>', ')' );
+    if( text.size() > 200 || text.empty() ) {
+        text.resize( std::min<size_t>( text.size(), 200 ) );
+    }
+    if( text.empty() ) {
+        return;
+    }
+    const std::string line = string_format( "%s: %s", get_avatar().get_name(), text );
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: chat " << line;
+    add_msg( m_info, "%s", line );
+    for( remote_player &other : clients() ) {
+        if( other.greeted ) {
+            send_text( other, line );
+        }
+    }
 }
 
 void host_end_of_turn()

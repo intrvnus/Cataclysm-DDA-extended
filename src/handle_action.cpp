@@ -91,6 +91,7 @@
 #include "sounds.h"
 #include "string_formatter.h"
 #include "string_input_popup.h"
+#include "input.h"
 #include "timed_event.h"
 #include "translation.h"
 #include "translations.h"
@@ -3190,6 +3191,24 @@ bool game::handle_action()
             return false;
         }
         act = look_up_action( action );
+
+        // multiplayer host: chat (F2) and the list of players (F4)
+        if( act == ACTION_NULL && net::is_host() ) {
+            const int raw = ctxt.get_raw_input().get_first_input();
+            if( raw == KEY_F( 2 ) ) {
+                string_input_popup popup;
+                popup.title( _( "Say:" ) ).width( 60 ).max_length( 120 ).identifier( "mp_chat" );
+                const std::string text = popup.query_string();
+                if( !popup.canceled() ) {
+                    net::host_chat( text );
+                }
+                return false;
+            }
+            if( raw == KEY_F( 4 ) ) {
+                popup( net::player_list_text( player_character.pos_abs() ) );
+                return false;
+            }
+        }
 
         if( act == ACTION_NULL && mod_actions::try_run( action ) ) {
             // A hotkey defined by a mod; its effect_on_condition has been run.

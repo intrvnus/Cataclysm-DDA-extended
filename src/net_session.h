@@ -112,6 +112,10 @@ void alert_player( const Character &who, const std::string &text, int level,
  * client).  Monsters use it where the single player used to be "the" player.  Without a
  * session this is the avatar. */
 Character &nearest_player( const tripoint_abs_ms &from );
+/** Host: says something to everybody (chat). */
+void host_chat( const std::string &text );
+/** The list of the players with health and distance, for the chat/player-list key. */
+std::string player_list_text( const tripoint_abs_ms &from );
 /** The NPCs on the host that are played by connected clients (in the reality bubble). */
 std::vector<npc *> remote_player_npcs();
 /** Called once at the end of every turn: handles joins and sends the world state. */
