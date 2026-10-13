@@ -29,7 +29,9 @@
 #include "flexbuffer_json.h"
 #include "fluid.h"
 #include "game.h"
+#include "game_inventory.h"
 #include "input_context.h"
+#include "item_location.h"
 #include "json.h"
 #include "json_loader.h"
 #include "map.h"
@@ -303,6 +305,48 @@ void apply_fx( const JsonArray &list )
     g->invalidate_main_ui_adaptor();
 }
 
+// A6: sends an item action chosen in a menu on the own (synced) character to the host.
+void send_use( const std::string &action, const item_location &loc )
+{
+    if( !loc ) {
+        return;
+    }
+    std::ostringstream os;
+    JsonOut lj( os );
+    loc.serialize( lj );
+    const std::string loc_json = os.str();
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", action );
+        jo.member( "cid", get_avatar().getID().get_value() );
+        jo.member( "loc", loc_json );
+    } ) );
+}
+
+void send_drop( const drop_locations &what )
+{
+    if( what.empty() ) {
+        return;
+    }
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", "drop" );
+        jo.member( "cid", get_avatar().getID().get_value() );
+        jo.member( "locs" );
+        jo.start_array();
+        for( const drop_location &d : what ) {
+            std::ostringstream os;
+            JsonOut lj( os );
+            d.first.serialize( lj );
+            jo.start_object();
+            jo.member( "loc", os.str() );
+            jo.member( "n", d.second );
+            jo.end_object();
+        }
+        jo.end_array();
+    } ) );
+}
+
 // Reads one key (or times out) and sends the matching command to the host.
 // Returns true if the player wants to leave the game.
 bool handle_input()
@@ -345,6 +389,26 @@ bool handle_input()
             break;
         case ACTION_SLEEP:
             send_action( "sleep" );
+            break;
+        // A6: menus run on the own character (a copy the host keeps up to date); the choice
+        // is carried out by the host
+        case ACTION_WIELD:
+            send_use( "wield", game_menus::inv::wield() );
+            break;
+        case ACTION_WEAR:
+            send_use( "wear", game_menus::inv::wear( get_avatar() ) );
+            break;
+        case ACTION_TAKE_OFF:
+            send_use( "takeoff", game_menus::inv::take_off() );
+            break;
+        case ACTION_EAT:
+            send_use( "consume", game_menus::inv::consume() );
+            break;
+        case ACTION_DROP:
+            send_drop( game_menus::inv::multidrop( get_avatar() ) );
+            break;
+        case ACTION_PL_INFO:
+            get_avatar().disp_info();
             break;
         case ACTION_TOGGLE_RUN:
             send_action( "run" );

@@ -36,6 +36,7 @@
 #include "game.h"
 #include "game_constants.h"
 #include "item.h"
+#include "item_location.h"
 #include "json.h"
 #include "json_loader.h"
 #include "map.h"
@@ -495,6 +496,87 @@ void execute( npc &guy, const command &cmd )
     }
 }
 
+// ---- client menus (A6) ----
+
+// An item the client picked in a menu of its own copy of the character.  The client's copy
+// has its own character id; on the host the same item belongs to the player's body.
+item_location client_item( const npc &guy, int client_id, std::string loc_json )
+{
+    const std::string from = "\"character\":" + std::to_string( client_id );
+    const std::string to = "\"character\":" + std::to_string( guy.getID().get_value() );
+    for( size_t at = loc_json.find( from ); at != std::string::npos;
+         at = loc_json.find( from, at + to.size() ) ) {
+        loc_json.replace( at, from.size(), to );
+    }
+    item_location loc;
+    try {
+        JsonValue jv = json_loader::from_string( std::move( loc_json ) );
+        JsonObject jo = jv.get_object();
+        jo.allow_omitted_members();
+        loc.deserialize( jo );
+    } catch( const std::exception & ) {
+        return item_location();
+    }
+    if( !loc || loc.get_item() == nullptr ) {
+        return item_location();
+    }
+    // only own things, or things right next to the player
+    if( loc.carrier() != nullptr ) {
+        if( loc.carrier()->getID() != guy.getID() ) {
+            return item_location();
+        }
+    } else if( rl_dist( loc.pos_abs(), guy.pos_abs() ) > 1 ) {
+        return item_location();
+    }
+    return loc;
+}
+
+void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
+{
+    const std::string what = msg.get_string( "a", "" );
+    const int client_id = msg.get_int( "cid", -1 );
+    // the host's message log about this action goes to the player
+    const size_t messages_before = Messages::size();
+    if( what == "drop" ) {
+        drop_locations to_drop;
+        for( JsonObject entry : msg.get_array( "locs" ) ) {
+            entry.allow_omitted_members();
+            item_location loc = client_item( guy, client_id, entry.get_string( "loc", "" ) );
+            if( loc && loc.carrier() != nullptr ) {
+                to_drop.emplace_back( loc, std::max( 1, entry.get_int( "n", 1 ) ) );
+            }
+        }
+        if( !to_drop.empty() ) {
+            static_cast<Character &>( guy ).drop( to_drop, guy.pos_bub() );
+        }
+    } else {
+        item_location loc = client_item( guy, client_id, msg.get_string( "loc", "" ) );
+        if( !loc ) {
+            send_text( rp, _( "That is not there any more." ) );
+            return;
+        }
+        if( what == "wield" ) {
+            guy.wield( loc );
+        } else if( what == "wear" ) {
+            guy.wear( loc, false );
+        } else if( what == "takeoff" ) {
+            guy.takeoff( loc );
+        } else if( what == "consume" ) {
+            guy.consume( loc );
+        }
+    }
+    const size_t messages_after = Messages::size();
+    if( messages_after > messages_before ) {
+        for( const std::pair<std::string, std::string> &m :
+             Messages::recent_messages( messages_after - messages_before ) ) {
+            send_text( rp, m.second );
+        }
+    }
+    // show the result at once
+    rp.character_sent_at = 0;
+    rp.sent_character = 0;
+}
+
 // Keeps a downed player on the ground; lets them die when the time is up.
 // Returns true while the player is down (they cannot act).
 bool update_downed( remote_player &rp, npc &guy )
@@ -679,6 +761,12 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->start_character = msg.get_string( "char", "" );
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
+    } else if( type == "use" && rp->npc_id.is_valid() ) {
+        // A6: an item action chosen in a menu on the client
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
+            use_item( *rp, *guy, msg );
+        }
     } else if( type == "in" && rp->npc_id.is_valid() ) {
         fluid::input_frame f;
         f.move_x = std::clamp( msg.get_int( "mx", 0 ), -1, 1 );
