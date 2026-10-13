@@ -16,6 +16,7 @@
 
 #include "action.h"
 #include "alerts.h"
+#include "advanced_inv.h"
 #include "avatar.h"
 #include "avatar_action.h"
 #include "bodypart.h"
@@ -340,17 +341,20 @@ void send_use( const std::string &action, const item_location &loc )
 // A6: does an action with menus on the own copy of the character, recording the answers, and
 // sends them; the host does the same on the real body (see remote_ui.h).  What the action did
 // to the local copy is replaced by the host's version soon after.
-void send_ui( const std::string &action, const std::function<void()> &run )
+void send_ui( const std::string &action, const std::function<void()> &run,
+              bool capture_activities = false )
 {
     std::vector<remote_ui::entry> answers;
+    std::vector<std::string> activities;
     {
-        remote_ui::record_scope rec;
+        remote_ui::record_scope rec( capture_activities );
         run();
         answers = rec.answers();
+        activities = rec.activities();
     }
     avatar &u = get_avatar();
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: sending ui action '" << action << "' with " <<
-                               answers.size() << " answers";
+                               answers.size() << " answers and " << activities.size() << " activities";
     // timed actions run on the host
     if( u.activity ) {
         u.activity.set_to_null();
@@ -361,6 +365,9 @@ void send_ui( const std::string &action, const std::function<void()> &run )
         jo.member( "a", action );
         jo.member( "cid", u.getID().get_value() );
         jo.member( "ans", remote_ui::to_json( answers ) );
+        if( !activities.empty() ) {
+            jo.member( "acts", activities );
+        }
     } ) );
 }
 
@@ -521,6 +528,12 @@ bool handle_input()
                 avatar_action::use_item( get_avatar(), loc );
             } );
             break;
+        case ACTION_ADVANCEDINV:
+            // the item moves it starts are carried out by the host
+            send_ui( "aim", [] {
+                create_advanced_inv();
+            }, true );
+            break;
         case ACTION_CRAFT:
             send_craft( false );
             break;
@@ -617,17 +630,7 @@ void apply_full_character( std::string json )
         jo.allow_omitted_members();
         const int body_id = jo.get_int( "id", -1 );
         if( body_id >= 0 && body_id != own_id.get_value() ) {
-            const std::string from = "\"character\":" + std::to_string( body_id );
-            const std::string to = "\"character\":" + std::to_string( own_id.get_value() );
-            for( size_t at = json.find( from ); at != std::string::npos;
-                 at = json.find( from, at + to.size() ) ) {
-                // not "character":12 when 1 is meant
-                const size_t end = at + from.size();
-                if( end < json.size() && json[end] >= '0' && json[end] <= '9' ) {
-                    continue;
-                }
-                json.replace( at, from.size(), to );
-            }
+            json = remote_ui::remap_character_id( std::move( json ), body_id, own_id.get_value() );
         }
     } catch( const std::exception & ) {
         // handled below by the real load

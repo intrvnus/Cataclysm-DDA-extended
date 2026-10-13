@@ -1,3 +1,5 @@
+#include "remote_ui.h"
+#include <sstream>
 #include "character.h"
 
 #include <algorithm>
@@ -9107,6 +9109,14 @@ void Character::assign_activity( const activity_actor &actor )
 
 void Character::assign_activity( const player_activity &act )
 {
+    // multiplayer: a menu of a client chose this activity, the host starts it on the body
+    if( remote_ui::capturing() && is_avatar() ) {
+        std::ostringstream os;
+        JsonOut jo( os );
+        act.serialize( jo );
+        remote_ui::capture_activity( os.str() );
+        return;
+    }
     bool resuming = false;
     if( !backlog.empty() && backlog.front().can_resume_with( act, *this ) ) {
         resuming = true;

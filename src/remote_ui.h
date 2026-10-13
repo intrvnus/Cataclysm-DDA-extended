@@ -32,16 +32,26 @@ using entry = std::pair<std::string, std::string>;
 bool recording();
 bool replaying();
 
-/** Client: answers given while this lives are recorded. */
+/** Client: answers given while this lives are recorded.  With @p capture_activities the
+ * activities the action assigns to the own character are not started here but kept (as JSON):
+ * the host assigns them to the body (advanced inventory ...). */
 class record_scope
 {
     public:
-        record_scope();
+        explicit record_scope( bool capture_activities = false );
         ~record_scope();
         record_scope( const record_scope & ) = delete;
         record_scope &operator=( const record_scope & ) = delete;
         std::vector<entry> answers() const;
+        std::vector<std::string> activities() const;
 };
+
+/** True while activities are captured instead of started (see record_scope). */
+bool capturing();
+/** Keeps a serialized activity of the own character. */
+void capture_activity( const std::string &json );
+/** Item locations in @p json that name character @p from_id name @p to_id instead. */
+std::string remap_character_id( std::string json, int from_id, int to_id );
 
 /** Client: answers of menus that open while this lives are not recorded (the caller records
  * one answer for the whole thing). */

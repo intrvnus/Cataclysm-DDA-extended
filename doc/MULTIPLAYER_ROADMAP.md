@@ -78,11 +78,13 @@ when a batch is worth playing.
   uses that never ask anything (switching things on/off).
 * **Done (record/replay, `src/remote_ui.*`, tested with Xvfb host + client):** apply with
   targets/choices (the lighter asks for a direction: the host uses it and the charge drops),
-  examine terrain/furniture, choosing the tile and the items to pick up (`g`, `e`).
+  examine terrain/furniture, choosing the tile and the items to pick up (`g`, `e`),
+  advanced inventory (`/`: the client captures the item-move activities its menu starts and
+  the host starts them on the body; only pickup/drop/move/insert/wear/wield/stash are accepted).
   The client does the action on its copy of the character and records every menu answer; the
   host repeats it on the body without opening a window.
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
-  advanced inventory, activity transfer, talking to NPCs and trading (C4), bionics and
+  talking to NPCs and trading (C4), bionics and
   mutations (C19), the inventory screen (`i`) and the remaining basic menus.
 
 ---

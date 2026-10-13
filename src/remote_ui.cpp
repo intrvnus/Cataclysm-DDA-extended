@@ -20,6 +20,8 @@ struct state {
     bool recording = false;
     bool replaying = false;
     bool failed = false;
+    bool capture = false;
+    std::vector<std::string> activities;
     int muted = 0;
     std::vector<entry> answers;
     size_t next = 0;
@@ -46,15 +48,51 @@ bool replaying()
     return st().replaying;
 }
 
-record_scope::record_scope()
+record_scope::record_scope( bool capture_activities )
 {
     st() = state();
     st().recording = true;
+    st().capture = capture_activities;
 }
 
 record_scope::~record_scope()
 {
     st().recording = false;
+    st().capture = false;
+}
+
+std::vector<std::string> record_scope::activities() const
+{
+    return st().activities;
+}
+
+bool capturing()
+{
+    return st().recording && st().capture;
+}
+
+void capture_activity( const std::string &json )
+{
+    if( capturing() ) {
+        st().activities.push_back( json );
+    }
+}
+
+std::string remap_character_id( std::string json, int from_id, int to_id )
+{
+    const std::string from = "\"character\":" + std::to_string( from_id );
+    const std::string to = "\"character\":" + std::to_string( to_id );
+    for( size_t at = json.find( from ); at != std::string::npos; ) {
+        const size_t end = at + from.size();
+        // "character":12 is not "character":1
+        if( end < json.size() && json[end] >= '0' && json[end] <= '9' ) {
+            at = json.find( from, end );
+            continue;
+        }
+        json.replace( at, from.size(), to );
+        at = json.find( from, at + to.size() );
+    }
+    return json;
 }
 
 std::vector<entry> record_scope::answers() const
@@ -166,11 +204,7 @@ item_location location_from_string( const std::string &text )
     const state &s = st();
     if( s.replaying && s.actor != nullptr && s.client_id >= 0 ) {
         // what the client carries, the body carries
-        const std::string from = "\"character\":" + std::to_string( s.client_id );
-        const std::string to = "\"character\":" + std::to_string( s.actor->getID().get_value() );
-        for( size_t at = json.find( from ); at != std::string::npos; at = json.find( from, at + to.size() ) ) {
-            json.replace( at, from.size(), to );
-        }
+        json = remap_character_id( json, s.client_id, s.actor->getID().get_value() );
     }
     try {
         JsonValue jv = json_loader::from_string( json );

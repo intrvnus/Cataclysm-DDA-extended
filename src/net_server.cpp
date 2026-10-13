@@ -594,6 +594,34 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
 {
     const std::string what = msg.get_string( "a", "" );
     const int client_id = msg.get_int( "cid", -1 );
+    if( what == "aim" ) {
+        // advanced inventory: the client chose item moves on its copy, here they start
+        static const std::set<std::string> allowed = { "ACT_PICKUP", "ACT_DROP", "ACT_MOVE_ITEMS",
+                                                       "ACT_INSERT_ITEM", "ACT_WEAR", "ACT_WIELD", "ACT_STASH"
+                                                     };
+        for( JsonValue entry : msg.get_array( "acts" ) ) {
+            try {
+                const std::string act_json = entry.get_string();
+                JsonValue jv = json_loader::from_string( remote_ui::remap_character_id( act_json,
+                                client_id, guy.getID().get_value() ) );
+                JsonObject jo = jv.get_object();
+                jo.allow_omitted_members();
+                player_activity act;
+                act.deserialize( jo );
+                if( act.id().is_null() || !allowed.count( act.id().str() ) ) {
+                    send_text( rp, _( "That is not available in multiplayer yet." ) );
+                    continue;
+                }
+                guy.assign_activity( act );
+            } catch( const std::exception & ) {
+                send_text( rp, _( "Things changed while you were doing that: you stop." ) );
+            }
+        }
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: advanced inventory of " << rp.name << ": " <<
+                                   ( guy.activity ? guy.activity.id().str() : std::string( "no activity" ) );
+        resync_player( rp, guy );
+        return;
+    }
     std::vector<std::string> texts;
     bool failed = false;
     {
