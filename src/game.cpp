@@ -6399,8 +6399,9 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
     map &here = get_map();
     // multiplayer: while the host does a client's action this is the player's body
     Character &who = remote_ui::acting_player();
-    // Creatures, vehicles and consoles still use the local player everywhere: for a
-    // multiplayer player (and while recording its answers) they are not available yet.
+    // from here on "u" is the player whose action this is
+    Character &u = who;
+    // People are not examined this way for a multiplayer player (they are walked into).
     const bool mp_player = !who.is_avatar() || remote_ui::recording();
     const auto mp_unavailable = [&]() {
         if( remote_ui::replaying() ) {
@@ -6410,7 +6411,9 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
         }
     };
 
-    if( mp_player && get_creature_tracker().creature_at( examp ) != nullptr ) {
+    // monsters (pets, friends) work through the answers; people are talked to by walking into them
+    if( mp_player && get_creature_tracker().creature_at( examp ) != nullptr &&
+        get_creature_tracker().creature_at( examp )->is_npc() ) {
         mp_unavailable();
         return;
     }
@@ -6441,7 +6444,11 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
                     return;
                 }
             } else if( mon->has_flag( mon_flag_CONVERSATION ) && !mon->type->chat_topics.empty() ) {
-                get_avatar().talk_to( get_talker_for( mon ) );
+                if( mp_player ) {
+                    mp_unavailable();
+                } else {
+                    get_avatar().talk_to( get_talker_for( mon ) );
+                }
             }
         } else {
             u.cant_do_mounted();

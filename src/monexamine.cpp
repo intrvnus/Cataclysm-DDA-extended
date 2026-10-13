@@ -1,4 +1,5 @@
 #include "monexamine.h"
+#include "remote_ui.h"
 
 #include <list>
 #include <map>
@@ -80,7 +81,7 @@ item_location tack_loc()
         return it.has_flag( json_flag_TACK );
     };
 
-    return game_menus::inv::titled_filter_menu( filter, get_avatar(), _( "Tack" ) );
+    return game_menus::inv::titled_filter_menu( filter, get_player_character(), _( "Tack" ) );
 }
 
 void attach_saddle_to( monster &z )
@@ -207,7 +208,7 @@ void attach_bag_to( monster &z )
         return it.is_armor() && it.get_total_capacity() > 0_ml && !it.has_flag( flag_INTEGRATED );
     };
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     item_location loc = game_menus::inv::titled_filter_menu( filter, player_character,
                         _( "Bag item" ) );
 
@@ -283,7 +284,7 @@ bool give_items_to( monster &z )
     units::mass max_weight = z.weight_capacity() - z.get_carried_weight();
     units::volume max_volume = storage.get_total_capacity() - z.get_carried_volume();
     units::length max_length = storage.max_containable_length();
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     drop_locations items = game_menus::inv::multidrop( player_character );
     drop_locations to_move;
     for( const drop_location &itq : items ) {
@@ -335,7 +336,7 @@ item_location pet_armor_loc( monster &z )
                z.get_volume() <= it.get_pet_armor_max_vol();
     };
 
-    return game_menus::inv::titled_filter_menu( filter, get_avatar(), _( "Pet armor" ) );
+    return game_menus::inv::titled_filter_menu( filter, get_player_character(), _( "Pet armor" ) );
 }
 
 bool add_armor( monster &z )
@@ -913,7 +914,11 @@ bool monexamine::pet_menu( monster &z )
             }
             break;
         case talk_to:
-            get_avatar().talk_to( get_talker_for( z ) );
+            if( remote_ui::replaying() ) {
+                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+            } else {
+                get_avatar().talk_to( get_talker_for( z ) );
+            }
             break;
         case stop_bleeding:
             bandage_animal( z );
@@ -1036,7 +1041,11 @@ bool monexamine::mfriend_menu( monster &z )
             }
             break;
         case talk_to:
-            get_avatar().talk_to( get_talker_for( z ) );
+            if( remote_ui::replaying() ) {
+                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+            } else {
+                get_avatar().talk_to( get_talker_for( z ) );
+            }
             break;
         case stop_bleeding:
             bandage_animal( z );
