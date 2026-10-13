@@ -599,6 +599,13 @@ void report_test_vehicle( const npc &near )
         return;
     }
     map &here = get_map();
+    for( const npc *other : remote_player_npcs() ) {
+        if( other != &near ) {
+            const optional_vpart_position ovp = here.veh_at( other->pos_bub( here ) );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test other player " << other->getID().get_value() <<
+                                       " at " << other->pos_abs().to_string() << " in car " << static_cast<bool>( ovp );
+        }
+    }
     if( const optional_vpart_position vp = here.veh_at( near.pos_bub( here ) ) ) {
         const vehicle &veh = vp->vehicle();
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car at " << veh.pos_abs().to_string() <<
@@ -718,6 +725,24 @@ void place_test_vehicle( npc &guy )
         return;
     }
     map &here = get_map();
+    // the second player to join gets a passenger seat of the car that exists already
+    static std::optional<tripoint_abs_ms> first_car;
+    if( first_car ) {
+        if( const optional_vpart_position vp = here.veh_at( here.get_bub( *first_car ) ) ) {
+            vehicle &veh = vp->vehicle();
+            for( const vpart_reference &seat : veh.get_avail_parts( "BOARDABLE" ) ) {
+                const tripoint_bub_ms pos = seat.pos_bub( here );
+                if( get_creature_tracker().creature_at( pos ) == nullptr ) {
+                    guy.setpos( here, pos, false );
+                    here.board_vehicle( pos, &guy );
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test passenger seated in the car";
+                    return;
+                }
+            }
+        }
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no free seat for a test passenger";
+        return;
+    }
     const tripoint_bub_ms at = guy.pos_bub( here );
     for( int r = 3; r <= 60; r += 3 ) {
         for( const tripoint_bub_ms &c : here.points_in_radius( tripoint_bub_ms( at.x(), at.y(), 0 ), r ) ) {
@@ -743,6 +768,7 @@ void place_test_vehicle( npc &guy )
                 veh->is_locked = false;
                 guy.setpos( here, seat, false );
                 here.board_vehicle( seat, &guy );
+                first_car = veh->pos_abs();
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car placed, player at the controls";
                 return;
             }
