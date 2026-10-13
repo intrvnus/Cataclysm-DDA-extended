@@ -570,7 +570,11 @@ void report_test_zombie( const npc &near )
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie at distance " <<
                                        rl_dist( z.pos_abs(), near.pos_abs() ) << " hp " << z.get_hp() <<
                                        " body hp " << near.get_hp() << " target " <<
-                                       ( z.get_dest() == near.pos_abs() ? "client" : "other" );
+                                       ( z.get_dest() == near.pos_abs() ? "client" : "other" ) <<
+                                       " attitude " << static_cast<int>( z.attitude( &near ) ) <<
+                                       " aggro " << z.aggro_character << " anger " << z.anger <<
+                                       " morale " << z.morale << " sees " <<
+                                       z.sees( get_map(), near ) << " fac " << near.get_faction()->id.str();
             return;
         }
     }

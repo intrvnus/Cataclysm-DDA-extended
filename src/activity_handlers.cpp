@@ -1002,7 +1002,9 @@ void activity_handlers::start_engines_finish( player_activity *act, Character *y
     vehicle *veh = g->remoteveh();
     map &here = get_map();
     if( !veh ) {
-        const tripoint_bub_ms pos = get_player_character().pos_bub() + act->relative_placement;
+        // (the player whose activity this is: in multiplayer not necessarily the host's avatar)
+        const tripoint_bub_ms pos = ( you != nullptr ? you->pos_bub() : get_player_character().pos_bub() ) +
+                                    act->relative_placement;
         veh = veh_pointer_or_null( here.veh_at( pos ) );
         if( !veh ) {
             return;
