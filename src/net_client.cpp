@@ -27,6 +27,7 @@
 #include "color.h"
 #include "trade_ui.h"
 #include "avatar.h"
+#include "bodygraph.h"
 #include "avatar_action.h"
 #include "bodypart.h"
 #include "calendar.h"
@@ -618,10 +619,97 @@ void run_trade_ui()
     } ) );
 }
 
+// ---- walking into an NPC: the menu of the normal game ----
+
+struct npc_menu_msg {
+    struct entry {
+        int option = 0;
+        char key = ' ';
+        std::string text;
+        bool enabled = true;
+        bool risky = false;
+    };
+    int id = -1;
+    std::string title;
+    std::vector<entry> entries;
+};
+
+struct npc_view_msg {
+    std::string kind;
+    bool precise = false;
+    std::string npc_json;
+};
+
+std::deque<npc_menu_msg> &npc_menu_queue()
+{
+    static std::deque<npc_menu_msg> q;
+    return q;
+}
+
+std::deque<npc_view_msg> &npc_view_queue()
+{
+    static std::deque<npc_view_msg> q;
+    return q;
+}
+
+void run_npc_menu()
+{
+    const npc_menu_msg m = npc_menu_queue().front();
+    npc_menu_queue().pop_front();
+    uilist menu;
+    menu.text = m.title;
+    for( const npc_menu_msg::entry &e : m.entries ) {
+        menu.addentry( e.option, e.enabled, e.key, e.text );
+    }
+    menu.query();
+    if( menu.ret < 0 ) {
+        return;
+    }
+    for( const npc_menu_msg::entry &e : m.entries ) {
+        if( e.option == menu.ret && e.risky && !query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
+            return;
+        }
+    }
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "npc_do" );
+        jo.member( "id", m.id );
+        jo.member( "o", menu.ret );
+    } ) );
+}
+
+void run_npc_view()
+{
+    const npc_view_msg m = npc_view_queue().front();
+    npc_view_queue().pop_front();
+    try {
+        std::unique_ptr<npc> other = std::make_unique<npc>();
+        JsonValue jv = json_loader::from_string( std::string( m.npc_json ) );
+        JsonObject jo = jv.get_object();
+        jo.allow_omitted_members();
+        other->deserialize( jo );
+        if( m.kind == "wounds" ) {
+            other->body_window( _( "Limbs of: " ) + other->disp_name(), true, m.precise, 0, 0, 0, 0.0f,
+                                0.0f, 0.0f, 0.0f, 0.0f );
+        } else {
+            display_bodygraph( *other );
+        }
+    } catch( const std::exception &err ) {
+        DebugLog( D_WARNING, D_GAME ) << "Multiplayer: could not show an NPC: " << err.what();
+    }
+}
+
 // Reads one key (or times out) and sends the matching command to the host.
 // Returns true if the player wants to leave the game.
 bool handle_input()
 {
+    if( !npc_view_queue().empty() ) {
+        run_npc_view();
+        return false;
+    }
+    if( !npc_menu_queue().empty() ) {
+        run_npc_menu();
+        return false;
+    }
     if( !trade_queue().empty() ) {
         run_trade_ui();
         return false;
@@ -729,9 +817,8 @@ bool handle_input()
             } );
             break;
         case ACTION_CHAT:
-            impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
-                jo.member( "t", "chat" );
-            } ) );
+            // talking starts by walking into somebody, like in the normal game
+            add_msg( m_info, _( "Walk into somebody to talk to them." ) );
             break;
         case ACTION_INVENTORY:
             // the item menu of the screen sends its choice to the host (client_item_action)
@@ -1089,6 +1176,27 @@ void client_on_message( const JsonObject &msg )
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
     } else if( type == "state" ) {
         apply_state( msg );
+    } else if( type == "npc_menu" ) {
+        npc_menu_msg m;
+        m.id = msg.get_int( "id", -1 );
+        m.title = msg.get_string( "title", "" );
+        for( JsonObject o : msg.get_array( "entries" ) ) {
+            npc_menu_msg::entry e;
+            e.option = o.get_int( "o", 0 );
+            const std::string key = o.get_string( "k", " " );
+            e.key = key.empty() ? ' ' : key[0];
+            e.text = o.get_string( "x", "" );
+            e.enabled = o.get_bool( "ok", true );
+            e.risky = o.get_bool( "r", false );
+            m.entries.push_back( e );
+        }
+        npc_menu_queue().push_back( m );
+    } else if( type == "npc_view" ) {
+        npc_view_msg m;
+        m.kind = msg.get_string( "kind", "" );
+        m.precise = msg.get_bool( "precise", false );
+        m.npc_json = msg.get_string( "npc", "" );
+        npc_view_queue().push_back( m );
     } else if( type == "trade" ) {
         trade_msg m;
         m.npc_json = msg.get_string( "npc", "" );

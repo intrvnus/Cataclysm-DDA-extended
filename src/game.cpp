@@ -6103,58 +6103,81 @@ void game::control_vehicle()
     }
 }
 
+std::vector<game::npc_menu_entry> game::npc_menu_entries( Character &you, npc &who )
+{
+    const bool obeys = debug_mode || ( who.is_friendly( you ) && !who.in_sleep_state() );
+    std::vector<npc_menu_entry> entries;
+    const auto add = [&]( int option, char key, const std::string & text, bool enabled,
+    bool risky = false ) {
+        npc_menu_entry e;
+        e.option = option;
+        e.key = key;
+        e.text = text;
+        e.enabled = enabled;
+        e.risky = risky;
+        entries.push_back( e );
+    };
+    add( npc_opt_talk, 't', _( "Talk" ), true );
+    add( npc_opt_swap_pos, 's', _( "Swap positions" ), obeys && !who.is_mounted() &&
+         !you.is_mounted() );
+    add( npc_opt_push, 'p', _( "Push away" ), ( debug_mode || ( !who.is_enemy() &&
+         !who.in_sleep_state() ) ) && !who.is_mounted() );
+    add( npc_opt_examine_wounds, 'w', _( "Examine wounds" ), true );
+    add( npc_opt_examine_status, 'e', _( "Examine status" ), true );
+    add( npc_opt_use_item, 'i', _( "Use item on" ), true );
+    add( npc_opt_sort_armor, 'r', _( "Sort armor" ), true );
+    add( npc_opt_attack, 'a', _( "Attack" ), true, !who.is_enemy() );
+    if( !who.is_player_ally() ) {
+        add( npc_opt_disarm, 'd', _( "Disarm" ), who.is_armed(), !who.is_enemy() );
+        add( npc_opt_steal, 'S', _( "Steal" ), !who.is_enemy(), true );
+    } else {
+        add( npc_opt_trade, 'b', _( "Trade" ), true );
+    }
+    return entries;
+}
+
 bool game::npc_menu( npc &who )
 {
-    enum choices : int {
-        talk = 0,
-        swap_pos,
-        push,
-        examine_wounds,
-        examine_status,
-        use_item,
-        sort_armor,
-        attack,
-        disarm,
-        steal,
-        trade
-    };
-
-    const bool obeys = debug_mode || ( who.is_friendly( u ) && !who.in_sleep_state() );
-
     uilist amenu;
     amenu.text = string_format( _( "What to do with %s?" ), who.disp_name() );
-    amenu.addentry( talk, true, 't', _( "Talk" ) );
-    amenu.addentry( swap_pos, obeys && !who.is_mounted() &&
-                    !u.is_mounted(), 's', _( "Swap positions" ) );
-    amenu.addentry( push, ( debug_mode || ( !who.is_enemy() && !who.in_sleep_state() ) ) &&
-                    !who.is_mounted(), 'p', _( "Push away" ) );
-    amenu.addentry( examine_wounds, true, 'w', _( "Examine wounds" ) );
-    amenu.addentry( examine_status, true, 'e', _( "Examine status" ) );
-    amenu.addentry( use_item, true, 'i', _( "Use item on" ) );
-    amenu.addentry( sort_armor, true, 'r', _( "Sort armor" ) );
-    amenu.addentry( attack, true, 'a', _( "Attack" ) );
-    if( !who.is_player_ally() ) {
-        amenu.addentry( disarm, who.is_armed(), 'd', _( "Disarm" ) );
-        amenu.addentry( steal, !who.is_enemy(), 'S', _( "Steal" ) );
-    } else {
-        amenu.addentry( trade, true, 'b', _( "Trade" ) );
+    for( const npc_menu_entry &e : npc_menu_entries( u, who ) ) {
+        amenu.addentry( e.option, e.enabled, e.key, e.text );
     }
 
     amenu.query();
 
-    const int choice = amenu.ret;
+    return npc_menu_choice( u, who, amenu.ret );
+}
+
+bool game::npc_menu_choice( Character &you, npc &who, int choice )
+{
+    const bool obeys = debug_mode || ( who.is_friendly( you ) && !who.in_sleep_state() );
+    // the menu entries are the numbers of the enum
+    enum choices : int {
+        talk = npc_opt_talk,
+        swap_pos = npc_opt_swap_pos,
+        push = npc_opt_push,
+        examine_wounds = npc_opt_examine_wounds,
+        examine_status = npc_opt_examine_status,
+        use_item = npc_opt_use_item,
+        sort_armor = npc_opt_sort_armor,
+        attack = npc_opt_attack,
+        disarm = npc_opt_disarm,
+        steal = npc_opt_steal,
+        trade = npc_opt_trade
+    };
     if( choice == talk ) {
-        u.talk_to( get_talker_for( who ) );
+        get_avatar().talk_to( get_talker_for( who ) );
     } else if( choice == swap_pos ) {
         if( !prompt_dangerous_tile( who.pos_bub() ) ) {
             return true;
         }
-        if( u.get_grab_type() == object_type::NONE ) {
+        if( you.as_avatar() == nullptr || you.as_avatar()->get_grab_type() == object_type::NONE ) {
             // TODO: Make NPCs protest when displaced onto dangerous crap
             add_msg( _( "You swap places with %s." ), who.get_name() );
-            swap_critters( u, who );
+            swap_critters( you, who );
             // TODO: Make that depend on stuff
-            u.mod_moves( -200 );
+            you.mod_moves( -200 );
         } else {
             add_msg( _( "You cannot swap places while grabbing something." ) );
         }
@@ -6167,13 +6190,13 @@ bool game::npc_menu( npc &who )
             attitude.anger += 3;
             attitude.trust -= 3;
             attitude.value -= 1;
-            who.form_opinion( u );
+            who.form_opinion( you );
 
         }
         // TODO: Make NPCs protest when displaced onto dangerous crap
         tripoint_bub_ms oldpos = who.pos_bub();
-        who.move_away_from( u.pos_bub(), true );
-        u.mod_moves( -20 );
+        who.move_away_from( you.pos_bub(), true );
+        you.mod_moves( -20 );
         if( oldpos != who.pos_bub() ) {
             add_msg( _( "%s moves out of the way." ), who.get_name() );
         } else {
@@ -6182,10 +6205,10 @@ bool game::npc_menu( npc &who )
     } else if( choice == examine_wounds ) {
         ///\EFFECT_PER slightly increases precision when examining NPCs' wounds
         ///\EFFECT_FIRSTAID increases precision when examining NPCs' wounds
-        float prof_bonus = u.get_skill_level( skill_firstaid );
-        prof_bonus = u.has_proficiency( proficiency_prof_wound_care ) ? prof_bonus + 1 : prof_bonus;
-        prof_bonus = u.has_proficiency( proficiency_prof_wound_care_expert ) ? prof_bonus + 2 : prof_bonus;
-        const bool precise = prof_bonus * 4 + u.per_cur >= 20;
+        float prof_bonus = you.get_skill_level( skill_firstaid );
+        prof_bonus = you.has_proficiency( proficiency_prof_wound_care ) ? prof_bonus + 1 : prof_bonus;
+        prof_bonus = you.has_proficiency( proficiency_prof_wound_care_expert ) ? prof_bonus + 2 : prof_bonus;
+        const bool precise = prof_bonus * 4 + you.per_cur >= 20;
         who.body_window( _( "Limbs of: " ) + who.disp_name(), true, precise, 0, 0, 0, 0.0f, 0.0f, 0.0f,
                          0.0f, 0.0f );
     } else if( choice == examine_status ) {
@@ -6214,7 +6237,7 @@ bool game::npc_menu( npc &who )
                    actor->head_power >= 0 &&
                    actor->torso_power >= 0;
         };
-        item_location loc = game_menus::inv::titled_filter_menu( will_accept, u, _( "Use which item?" ) );
+        item_location loc = game_menus::inv::titled_filter_menu( will_accept, you, _( "Use which item?" ) );
 
         if( !loc ) {
             add_msg( _( "Never mind" ) );
@@ -6224,13 +6247,13 @@ bool game::npc_menu( npc &who )
         if( used.has_flag( json_flag_SPLINT ) ) {
             std::string reason = _( "Nope." );
             if( who.wear_if_wanted( used, reason ) ) {
-                u.i_rem( &used );
+                you.i_rem( &used );
             }
         } else {
-            bool did_use = u.invoke_item( &used, heal_string, who.pos_bub() );
+            bool did_use = you.invoke_item( &used, heal_string, who.pos_bub() );
             if( did_use ) {
                 // Note: exiting a body part selection menu counts as use here
-                u.mod_moves( -300 );
+                you.mod_moves( -300 );
             }
         }
     } else if( choice == sort_armor ) {
@@ -6238,19 +6261,27 @@ bool game::npc_menu( npc &who )
             who.say( SNIPPET.random_from_category( "<no>" ).value_or( translation() ).translated() );
         } else {
             who.worn.sort_armor( who );
-            u.mod_moves( -100 );
+            you.mod_moves( -100 );
         }
     } else if( choice == attack ) {
         if( who.is_enemy() || query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-            u.melee_attack( who, true );
+            you.melee_attack( who, true );
             who.on_attacked( u );
         }
     } else if( choice == disarm ) {
         if( who.is_enemy() || query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-            u.disarm( who );
+            if( avatar *av = you.as_avatar() ) {
+                av->disarm( who );
+            } else {
+                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+            }
         }
     } else if( choice == steal && query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-        u.steal( who );
+        if( avatar *av = you.as_avatar() ) {
+            av->steal( who );
+        } else {
+            remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+        }
     } else if( choice == trade ) {
         if( who.is_hallucination() ) {
             who.say( SNIPPET.random_from_category( "<hallu_dont_trade>" ).value_or(

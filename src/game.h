@@ -883,6 +883,33 @@ class game
 
         /** Returns true if the menu handled stuff and player shouldn't do anything else */
         bool npc_menu( npc &who );
+        /** The options of the menu that opens when walking into a friendly NPC. */
+        enum npc_menu_option : int {
+            npc_opt_talk = 0,
+            npc_opt_swap_pos,
+            npc_opt_push,
+            npc_opt_examine_wounds,
+            npc_opt_examine_status,
+            npc_opt_use_item,
+            npc_opt_sort_armor,
+            npc_opt_attack,
+            npc_opt_disarm,
+            npc_opt_steal,
+            npc_opt_trade
+        };
+        struct npc_menu_entry {
+            int option = 0;
+            char key = ' ';
+            std::string text;
+            bool enabled = true;
+            /** The player is asked "You may be attacked!  Proceed?" first. */
+            bool risky = false;
+        };
+        /** The menu entries for @p you walking into @p who (multiplayer hosts send them). */
+        std::vector<npc_menu_entry> npc_menu_entries( Character &you, npc &who );
+        /** Does an entry of that menu for @p you (a multiplayer host passes the body of a
+         * player; talking, examining and trading are handled by the caller there). */
+        bool npc_menu_choice( Character &you, npc &who, int option );
 
         // Handle phasing through walls, returns true if it handled the move
         bool phasing_move( const tripoint_bub_ms &dest, bool via_ramp = false );

@@ -115,6 +115,8 @@ struct remote_player {
     std::unique_ptr<remote_conversation> talk;
     // the NPC whose trading window is open on the player's computer, else -1
     int trade_npc = -1;
+    // the trading window was opened from the menu of an NPC, not from a conversation
+    bool trade_only = false;
 };
 
 // How long a downed player can wait for help, and how many steps of help bring them up.
@@ -243,24 +245,11 @@ void end_talk( remote_player &rp )
     }
 }
 
-// The player talks to the nearest NPC (that is not another player).
-void start_talk( remote_player &rp, npc &guy )
+// The player talks to @p best (an NPC that is not another player).
+void start_talk( remote_player &rp, npc &guy, npc *best )
 {
     if( rp.talk ) {
         return;
-    }
-    npc *best = nullptr;
-    int best_dist = 1000;
-    for( npc *other : g->get_npcs_if( [&]( const npc & n ) {
-    return &n != &guy && !n.is_dead() && find_client( n.getID() ) == nullptr &&
-           n.posz() == guy.posz() &&
-           ( rl_dist( guy.pos_abs(), n.pos_abs() ) <= 3 || guy.sees( get_map(), n ) );
-    } ) ) {
-        const int dist = rl_dist( guy.pos_abs(), other->pos_abs() );
-        if( dist <= SEEX * 2 && dist < best_dist ) {
-            best = other;
-            best_dist = dist;
-        }
     }
     if( best == nullptr ) {
         send_text( rp, _( "There is nobody to talk to." ) );
@@ -273,6 +262,34 @@ void start_talk( remote_player &rp, npc &guy )
         return;
     }
     send_talk_turn( rp, guy );
+}
+
+// An answer that starts trading: the window opens on the player's computer, the conversation
+// goes on when it is closed.  True if a window was opened.
+bool send_requested_trade( remote_player &rp )
+{
+    const std::optional<remote_ui::trade_request> tr = remote_ui::take_trade_request();
+    if( !tr ) {
+        return false;
+    }
+    npc *trader = g->find_npc( character_id( tr->npc_id ) );
+    if( trader == nullptr ) {
+        return false;
+    }
+    trader->shop_restock();
+    trader->drop_invalid_inventory();
+    std::ostringstream os;
+    JsonOut tjo( os );
+    trader->serialize( tjo );
+    const std::string trader_json = os.str();
+    rp.trade_npc = tr->npc_id;
+    impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "trade" );
+        jo.member( "npc", trader_json );
+        jo.member( "cost", tr->cost );
+        jo.member( "deal", tr->deal );
+    } ) );
+    return true;
 }
 
 // The player answered: the NPC reacts.
@@ -295,26 +312,8 @@ void pick_talk( remote_player &rp, npc &guy, int index )
         send_text( rp, text );
     }
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: answer done, " << texts.size() << " texts";
-    // an answer that starts trading: the window opens on the player's computer, the
-    // conversation goes on when it is closed
-    if( const std::optional<remote_ui::trade_request> tr = remote_ui::take_trade_request() ) {
-        npc *trader = g->find_npc( character_id( tr->npc_id ) );
-        if( trader != nullptr ) {
-            trader->shop_restock();
-            trader->drop_invalid_inventory();
-            std::ostringstream os;
-            JsonOut tjo( os );
-            trader->serialize( tjo );
-            const std::string trader_json = os.str();
-            rp.trade_npc = tr->npc_id;
-            impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
-                jo.member( "t", "trade" );
-                jo.member( "npc", trader_json );
-                jo.member( "cost", tr->cost );
-                jo.member( "deal", tr->deal );
-            } ) );
-            return;
-        }
+    if( send_requested_trade( rp ) ) {
+        return;
     }
     send_talk_turn( rp, guy );
 }
@@ -352,7 +351,109 @@ void finish_trade( remote_player &rp, npc &guy, const JsonObject &msg )
             send_text( rp, _( "The trade is no longer acceptable." ) );
         }
     }
+    if( rp.trade_only ) {
+        rp.trade_only = false;
+        end_talk( rp );
+        return;
+    }
     send_talk_turn( rp, guy );
+}
+
+// Walking into a friendly NPC: the menu of the normal game, shown on the player's computer.
+void send_npc_menu( remote_player &rp, npc &guy, npc &other )
+{
+    const std::vector<game::npc_menu_entry> entries = g->npc_menu_entries( guy, other );
+    impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "npc_menu" );
+        jo.member( "id", other.getID().get_value() );
+        jo.member( "title", string_format( _( "What to do with %s?" ), other.disp_name() ) );
+        jo.member( "entries" );
+        jo.start_array();
+        for( const game::npc_menu_entry &e : entries ) {
+            jo.start_object();
+            jo.member( "o", e.option );
+            jo.member( "k", std::string( 1, e.key ) );
+            jo.member( "x", e.text );
+            jo.member( "ok", e.enabled );
+            jo.member( "r", e.risky );
+            jo.end_object();
+        }
+        jo.end_array();
+    } ) );
+}
+
+// An NPC to look at on the player's computer (wounds, status).
+void send_npc_view( remote_player &rp, npc &other, const std::string &kind, bool precise )
+{
+    std::ostringstream os;
+    JsonOut tjo( os );
+    other.serialize( tjo );
+    const std::string npc_json = os.str();
+    impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "npc_view" );
+        jo.member( "kind", kind );
+        jo.member( "precise", precise );
+        jo.member( "npc", npc_json );
+    } ) );
+}
+
+// The player chose an entry of that menu.
+void do_npc_option( remote_player &rp, npc &guy, npc &other, int option )
+{
+    switch( option ) {
+        case game::npc_opt_talk:
+            start_talk( rp, guy, &other );
+            return;
+        case game::npc_opt_examine_wounds: {
+            float prof_bonus = guy.get_skill_level( skill_id( "firstaid" ) );
+            prof_bonus = guy.has_proficiency( proficiency_id( "prof_wound_care" ) ) ? prof_bonus + 1 :
+                         prof_bonus;
+            prof_bonus = guy.has_proficiency( proficiency_id( "prof_wound_care_expert" ) ) ? prof_bonus + 2 :
+                         prof_bonus;
+            send_npc_view( rp, other, "wounds", prof_bonus * 4 + guy.per_cur >= 20 );
+            return;
+        }
+        case game::npc_opt_examine_status:
+            if( other.op_of_u.trust >= 5 || other.is_friendly( guy ) || other.in_sleep_state() ) {
+                send_npc_view( rp, other, "status", false );
+            } else {
+                send_text( rp, string_format( _( "%s: \"No.\"" ), other.get_name() ) );
+            }
+            return;
+        case game::npc_opt_use_item:
+        case game::npc_opt_sort_armor:
+            send_text( rp, _( "That is not available in multiplayer yet." ) );
+            return;
+        case game::npc_opt_trade:
+            if( other.is_hallucination() ) {
+                return;
+            }
+            // the same window as the answer "let's trade" of a conversation
+            rp.talk = std::make_unique<remote_conversation>( guy, other );
+            if( rp.talk->started() ) {
+                rp.trade_only = true;
+                remote_ui::request_trade( other.getID().get_value(), 0, _( "Trade" ) );
+                if( !send_requested_trade( rp ) ) {
+                    end_talk( rp );
+                }
+            } else {
+                rp.talk.reset();
+            }
+            return;
+        default:
+            break;
+    }
+    // everything else happens to the body like it would to the player
+    std::vector<std::string> texts;
+    {
+        remote_ui::replay_scope replay( std::vector<remote_ui::entry>(), guy,
+                                        guy.getID().get_value() );
+        g->npc_menu_choice( guy, other, option );
+        texts = replay.texts();
+    }
+    for( const std::string &text : texts ) {
+        send_text( rp, text );
+    }
 }
 
 // ---- spawning the NPC of a new client ----
@@ -718,6 +819,16 @@ void execute( npc &guy, const command &cmd )
         if( critter != nullptr && critter->is_monster() ) {
             // Bumping into a monster attacks it, like the player does.
             guy.melee_attack( *critter, true );
+        } else if( critter != nullptr && critter->is_npc() &&
+                   find_client( critter->as_npc()->getID() ) == nullptr ) {
+            // like the player: an enemy is attacked, anybody else gets the menu
+            npc &other = *critter->as_npc();
+            if( other.is_enemy() ) {
+                guy.melee_attack( other, true );
+                other.make_angry();
+            } else if( remote_player *rp = find_client( guy.getID() ) ) {
+                send_npc_menu( *rp, guy, other );
+            }
         } else if( critter != nullptr ) {
             // Never attack other players by walking into them.
             guy.pause();
@@ -1240,10 +1351,13 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->start_character = msg.get_string( "char", "" );
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
-    } else if( type == "chat" && rp->npc_id.is_valid() ) {
+    } else if( type == "npc_do" && rp->npc_id.is_valid() ) {
         npc *guy = g->find_npc( rp->npc_id );
-        if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
-            start_talk( *rp, *guy );
+        npc *other = g->find_npc( character_id( msg.get_int( "id", -1 ) ) );
+        if( guy != nullptr && other != nullptr && !guy->is_dead() && !rp->downed && !rp->talk &&
+            find_client( other->getID() ) == nullptr &&
+            rl_dist( guy->pos_abs(), other->pos_abs() ) <= 2 ) {
+            do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
         }
     } else if( type == "trade_done" && rp->npc_id.is_valid() && rp->trade_npc >= 0 ) {
         npc *guy = g->find_npc( rp->npc_id );
