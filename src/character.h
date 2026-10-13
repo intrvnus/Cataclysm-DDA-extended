@@ -2624,6 +2624,10 @@ class Character : public Creature, public visitable
             bool success;
         };
         smash_result smash( tripoint_bub_ms &smashp );
+        /** Multiplayer: the worn items in layer order (to tell the host how a client sorted them) */
+        std::vector<const item *> worn_item_order() const;
+        /** Multiplayer: puts the worn items in that order (indices into a former worn_item_order) */
+        void reorder_worn( const std::vector<int> &order );
 
         // checks if your character is immune to an effect or field based on field_immunity_data
         bool check_immunity_data( const field_immunity_data &ft ) const override;

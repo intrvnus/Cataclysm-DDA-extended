@@ -98,6 +98,8 @@ struct remote_player {
     std::string start_character;
     bool greeted = false;
     character_id npc_id;
+    // the overmap tile this player's body was on when it last revealed the surroundings
+    tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
     std::deque<command> commands;
     // fluid mode: the newest input state of this client
     fluid::input_frame input;
@@ -1015,7 +1017,7 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
 {
     const std::string what = msg.get_string( "a", "" );
     const int client_id = msg.get_int( "cid", -1 );
-    if( what == "aim" || what == "capture" ) {
+    if( what == "aim" || what == "capture" || what == "sort_armor" ) {
         // advanced inventory, butchering, reloading ...: the client chose on its copy what to
         // do, here the activity it started starts on the body
         static const std::set<std::string> allowed = { "ACT_PICKUP", "ACT_DROP", "ACT_MOVE_ITEMS",
@@ -1043,6 +1045,19 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 send_text( rp, _( "Things changed while you were doing that: you stop." ) );
             }
         }
+        if( what == "sort_armor" ) {
+            for( const remote_ui::entry &e : remote_ui::from_json( msg.get_string( "ans", "[]" ) ) ) {
+                if( e.first == "s" ) {
+                    std::istringstream is( e.second );
+                    std::vector<int> order;
+                    int i = 0;
+                    while( is >> i ) {
+                        order.push_back( i );
+                    }
+                    guy.reorder_worn( order );
+                }
+            }
+        }
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << what << " of " << rp.name << ": " <<
                                    ( guy.activity ? guy.activity.id().str() : std::string( "no activity" ) );
         resync_player( rp, guy );
@@ -1068,7 +1083,9 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 }
             }
         } else if( what == "construct" ) {
-            const std::string group = remote_ui::answer( "s" ).value_or( "" );
+            // nothing was chosen when the client left the menu
+            const std::string group = remote_ui::next_is( "s" ) ?
+                                      remote_ui::answer( "s" ).value_or( "" ) : std::string();
             if( !group.empty() ) {
                 place_construction( { construction_group_str_id( group ) } );
             }
@@ -1466,23 +1483,32 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
         }
     } else if( type == "omap_req" && rp->npc_id.is_valid() ) {
-        // The overmap of a client is only a copy: send the terrain around the player's body.
+        // The overmap of a client is only a copy: send what the group knows around the body.
         npc *guy = g->find_npc( rp->npc_id );
         if( guy != nullptr && !guy->is_dead() ) {
             const tripoint_abs_omt c = guy->pos_abs_omt();
-            constexpr int r = 3;
+            const int r = std::clamp( msg.get_int( "r", 12 ), 3, 60 );
             std::vector<std::string> table;
             std::map<std::string, int> index;
             std::vector<int> cells;
+            std::vector<int> levels;
             for( int dy = -r; dy <= r; dy++ ) {
                 for( int dx = -r; dx <= r; dx++ ) {
-                    const std::string id = overmap_buffer.ter( c + point_rel_omt( dx, dy ) ).id().str();
+                    const tripoint_abs_omt q = c + point_rel_omt( dx, dy );
+                    const om_vision_level lv = overmap_buffer.seen( q );
+                    if( lv == om_vision_level::unseen ) {
+                        cells.push_back( -1 );
+                        levels.push_back( 0 );
+                        continue;
+                    }
+                    const std::string id = overmap_buffer.ter( q ).id().str();
                     auto it = index.find( id );
                     if( it == index.end() ) {
                         it = index.emplace( id, static_cast<int>( table.size() ) ).first;
                         table.push_back( id );
                     }
                     cells.push_back( it->second );
+                    levels.push_back( static_cast<int>( lv ) );
                 }
             }
             impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
@@ -1493,6 +1519,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
                 jo.member( "w", 2 * r + 1 );
                 jo.member( "tbl", table );
                 jo.member( "v", cells );
+                jo.member( "l", levels );
             } ) );
         }
     } else if( type == "trade_done" && rp->npc_id.is_valid() && rp->trade_npc >= 0 ) {
@@ -1906,6 +1933,18 @@ void host_end_of_turn()
                 jo.member( "id", guy->getID().get_value() );
                 jo.member( "fluid", fluid::enabled() );
             } ) );
+        }
+        if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
+            // overmap knowledge is shared by all players: what anybody sees is known to everybody
+            rp.last_omt = guy->pos_abs_omt();
+            for( int dy = -2; dy <= 2; dy++ ) {
+                for( int dx = -2; dx <= 2; dx++ ) {
+                    const tripoint_abs_omt q = rp.last_omt + point_rel_omt( dx, dy );
+                    if( overmap_buffer.seen( q ) < om_vision_level::details ) {
+                        overmap_buffer.set_seen( q, om_vision_level::details );
+                    }
+                }
+            }
         }
         if( guy == nullptr ) {
             // Not in the reality bubble (or gone).  Milestone 1 keeps everybody in one bubble.

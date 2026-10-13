@@ -13841,3 +13841,32 @@ bool character_martial_arts::pick_style( const Character &you ) // Style selecti
 
     return true;
 }
+
+std::vector<const item *> Character::worn_item_order() const
+{
+    std::vector<const item *> ret;
+    for( const item &it : worn.worn ) {
+        ret.push_back( &it );
+    }
+    return ret;
+}
+
+void Character::reorder_worn( const std::vector<int> &order )
+{
+    std::vector<std::list<item>::iterator> its;
+    for( auto it = worn.worn.begin(); it != worn.worn.end(); ++it ) {
+        its.push_back( it );
+    }
+    std::list<item> sorted;
+    std::vector<bool> used( its.size(), false );
+    for( const int i : order ) {
+        if( i >= 0 && i < static_cast<int>( its.size() ) && !used[i] ) {
+            used[i] = true;
+            sorted.splice( sorted.end(), worn.worn, its[i] );
+        }
+    }
+    // whatever the client did not mention stays where it is, after the sorted ones
+    sorted.splice( sorted.end(), worn.worn );
+    worn.worn.swap( sorted );
+    calc_encumbrance();
+}

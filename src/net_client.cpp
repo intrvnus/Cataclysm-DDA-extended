@@ -659,6 +659,12 @@ std::deque<npc_menu_msg> &npc_menu_queue()
     return q;
 }
 
+bool &omap_arrived()
+{
+    static bool b = false;
+    return b;
+}
+
 std::deque<npc_view_msg> &npc_view_queue()
 {
     static std::deque<npc_view_msg> q;
@@ -962,6 +968,21 @@ bool handle_input()
                 haul_menu();
             } );
             break;
+        case ACTION_SORT_ARMOR:
+            send_ui( "sort_armor", [] {
+                avatar &you = get_avatar();
+                const std::vector<const item *> before = you.worn_item_order();
+                you.worn.sort_armor( you );
+                std::string order;
+                for( const item *it : you.worn_item_order() ) {
+                    const auto found = std::find( before.begin(), before.end(), it );
+                    if( found != before.end() ) {
+                        order += std::to_string( found - before.begin() ) + " ";
+                    }
+                }
+                remote_ui::record( "s", order );
+            }, true );
+            break;
         case ACTION_WORKOUT:
             send_ui( "workout", [] {} );
             break;
@@ -969,6 +990,16 @@ bool handle_input()
             g->peek();
             break;
         case ACTION_MAP:
+            // ask for everything the group knows nearby; it arrives while the map is open
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+                jo.member( "t", "omap_req" );
+                jo.member( "r", 60 );
+            } ) );
+            omap_arrived() = false;
+            for( int wait = 0; wait < 50 && !omap_arrived(); wait++ ) {
+                poll();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+            }
             if( !get_map().is_outside( get_avatar().pos_bub() ) ) {
                 uistate.overmap_visible_weather = false;
             }
@@ -1386,6 +1417,7 @@ void client_on_message( const JsonObject &msg )
         npc_menu_queue().push_back( m );
     } else if( type == "omap" ) {
         // terrain of the overmap around this player: what is near is seen
+        omap_arrived() = true;
         const int x0 = msg.get_int( "x", 0 );
         const int y0 = msg.get_int( "y", 0 );
         const int z = msg.get_int( "z", 0 );
@@ -1394,15 +1426,22 @@ void client_on_message( const JsonObject &msg )
         for( const std::string s : msg.get_array( "tbl" ) ) {
             table.push_back( s );
         }
+        std::vector<int> levels;
+        for( const int l : msg.get_array( "l" ) ) {
+            levels.push_back( l );
+        }
         int i = 0;
         for( const int v : msg.get_array( "v" ) ) {
             const tripoint_abs_omt p( x0 + i % w, y0 + i / w, z );
+            const int lv = i < static_cast<int>( levels.size() ) ? levels[i] : 0;
             i++;
             if( v >= 0 && v < static_cast<int>( table.size() ) ) {
                 const oter_str_id oid( table[v] );
                 if( oid.is_valid() ) {
                     overmap_buffer.ter_set( p, oid.id() );
-                    overmap_buffer.set_seen( p, om_vision_level::full );
+                    if( overmap_buffer.seen( p ) < static_cast<om_vision_level>( lv ) ) {
+                        overmap_buffer.set_seen( p, static_cast<om_vision_level>( lv ) );
+                    }
                 }
             }
         }
