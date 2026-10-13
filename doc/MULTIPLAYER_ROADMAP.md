@@ -5,6 +5,22 @@ proposal and the decisions Noah needs to make. Nothing here is implemented yet u
 Rule from now on: big batches of changes, checked by the Linux build/CI; Windows builds only
 when a batch is worth playing.
 
+## Decisions (Noah, 2026-10-13)
+
+* Everything not commented below: implement as proposed. Order as in section D.
+  No Windows builds until the whole batch is done; Linux build/CI checks every big change.
+* A1: yes. Seasons keep the same number of days (SEASON_LENGTH unchanged); days are short,
+  so everything (hunger, thirst, healing, evolution) moves at a playable pace.
+* A2: the goal is a dedicated server.
+* A3, A4: do it (A4 is important).
+* A5: no windows at all: a short warning sound and a coloured message in the sidebar log.
+* B2: regen slower than 5-10 s (stamina takes a while to run down); rest as proposed.
+* B3: stations keep working when nobody is around.
+* C1: implement. C2: every player gets their own reality bubble. C3: implement.
+* C4: reworked faction menu: players can ally with each other and do missions as a faction.
+* C5, C6: implement. C7: not a concern (everything is faster).
+* C15: faction UI: only allied players see each other's health.
+
 ---
 
 ## A. Foundations (other items depend on these)
