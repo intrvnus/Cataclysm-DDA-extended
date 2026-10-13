@@ -1,0 +1,29 @@
+# Overnight report (updated as I go; last update at the end of the file)
+
+All work is on `claude/fluid-proto`, every step committed and pushed. No Windows build, no PR, `intrvnus-mod` untouched.
+
+## Verified in the running game (logs quoted from the host/client debug logs)
+- **Driving**: a client takes the controls, the engine starts (timed action), the car accelerates (velocity up to 2400, moved ~48 tiles); the client's screen follows. Cause of the earlier "car never moves": the cruise-control check only looked at the host avatar; and the engine-start activity looked for the car at the host avatar.
+- **Passengers**: a second player seated in the car travels with it (positions 7853 -> 7893 while the driver drives).
+- **Downed / help / bleed-out**: the body goes down, a helper gets it up, and after the bleed-out timer a new body spawns.
+- **Dedicated server**: keeps ticking with a client connected (35 heartbeat lines, 0 errors).
+- **Sort armor**: the host's worn order really changes after a client sorts (shirt moved from 2nd to 4th).
+- **Chat**: F2 on a client; the host logs `chat William Reece: hello friends`.
+- Earlier rounds: map (shared reveal), missions list (group), zones window, haul menu, item action menu, peek prompt, construction menu opens, NPC menu entries (talk, examine, steal, disarm, use item).
+
+## Built (compiles) but not run in game
+- Factions read-only view, pets/mounts/friendly monsters examine, computers/consoles, disarm/steal/use-item replay (the confirmation prompts reach the host), sort armor for friends, repeat last craft, construction placement on the host, workout.
+
+## Found and fixed on the way
+- The host (and now clients) never show a blocking debug popup in multiplayer; they log instead (a popup froze the world / ate the keys).
+- NPCs loaded without a template id logged "invalid npc: NC_NONE" every second (client bodies are such NPCs): made the lookup safe.
+- A test binary was committed by mistake three times (about 100 MB in history); it is untracked now. Removing it from history needs a force-push: decision for you.
+- Test-environment bugs (not game bugs): missing UTF-8 locale crashed the client on "90°"; SDL only delivers keys to the focused window when two clients run; stale game processes held the port.
+
+## Not done / decisions for you
+- Grab/drag: needs a rewrite of `game::walk_move` for any character (about 1000 lines tied to the host avatar). Not attempted on the main branch.
+- Host chat key, dialogue side-column commands (look at / size up / yell), spells (not needed), the faction rework (C4), per-player bubbles (C2).
+- Zombie check is only partly verified: in one run it walked from 9 to 3 tiles toward a client with line of sight, in another it wandered off while out of sight. Monsters use the nearest player now; a cleaner test is still missing.
+- Balance/gameplay: nothing changed.
+
+(Last update: chat verified; queue continues: host chat key, more verification, docs.)
