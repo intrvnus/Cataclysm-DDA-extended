@@ -35,6 +35,7 @@
 #include "safemode_ui.h"
 #include "worldfactory.h"
 #include "avatar.h"
+#include "construction.h"
 #include "diary.h"
 #include "character_martial_arts.h"
 #include "bodygraph.h"
@@ -945,6 +946,32 @@ bool handle_input()
                 avatar_action::use_item( get_avatar(), loc );
             } );
             break;
+        case ACTION_CONSTRUCT:
+            if( get_avatar().in_vehicle ) {
+                add_msg( m_info, _( "You can't construct while in a vehicle." ) );
+            } else {
+                send_ui( "construct", [] {
+                    construction_menu( false );
+                } );
+            }
+            break;
+        case ACTION_HAUL:
+            send_ui( "haul", [] {
+                haul_menu();
+            } );
+            break;
+        case ACTION_WORKOUT:
+            send_ui( "workout", [] {} );
+            break;
+        case ACTION_PEEK:
+            g->peek();
+            break;
+        case ACTION_MAP:
+            if( !get_map().is_outside( get_avatar().pos_bub() ) ) {
+                uistate.overmap_visible_weather = false;
+            }
+            ui::omap::display();
+            break;
         case ACTION_HAUL_TOGGLE:
             send_ui( "haul_toggle", [] {
                 get_avatar().toggle_hauling();
@@ -1355,6 +1382,28 @@ void client_on_message( const JsonObject &msg )
             m.entries.push_back( e );
         }
         npc_menu_queue().push_back( m );
+    } else if( type == "omap" ) {
+        // terrain of the overmap around this player: what is near is seen
+        const int x0 = msg.get_int( "x", 0 );
+        const int y0 = msg.get_int( "y", 0 );
+        const int z = msg.get_int( "z", 0 );
+        const int w = std::max( 1, msg.get_int( "w", 1 ) );
+        std::vector<std::string> table;
+        for( const std::string s : msg.get_array( "tbl" ) ) {
+            table.push_back( s );
+        }
+        int i = 0;
+        for( const int v : msg.get_array( "v" ) ) {
+            const tripoint_abs_omt p( x0 + i % w, y0 + i / w, z );
+            i++;
+            if( v >= 0 && v < static_cast<int>( table.size() ) ) {
+                const oter_str_id oid( table[v] );
+                if( oid.is_valid() ) {
+                    overmap_buffer.ter_set( p, oid.id() );
+                    overmap_buffer.set_seen( p, om_vision_level::full );
+                }
+            }
+        }
     } else if( type == "npc_view" ) {
         npc_view_msg m;
         m.kind = msg.get_string( "kind", "" );
@@ -1453,6 +1502,17 @@ bool client_do_turn()
     mod_engine::tick();
     fluid::client_frame();
     ui_manager::redraw_invalidated();
+    // the overmap copy gets the terrain around the player whenever it moves to another tile
+    {
+        static tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
+        const tripoint_abs_omt here_omt = get_avatar().pos_abs_omt();
+        if( here_omt != last_omt ) {
+            last_omt = here_omt;
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
+                jo.member( "t", "omap_req" );
+            } ) );
+        }
+    }
     if( handle_input() ) {
         shutdown();
         // The next do_turn() ends the game without saving.

@@ -24,6 +24,7 @@
 #include "alerts.h"
 #include "avatar_action.h"
 #include "avatar.h"
+#include "construction.h"
 #include "calendar.h"
 #include "cata_path.h"
 #include "cata_utility.h"
@@ -1066,6 +1067,15 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                     guy.change_side( loc );
                 }
             }
+        } else if( what == "construct" ) {
+            const std::string group = remote_ui::answer( "s" ).value_or( "" );
+            if( !group.empty() ) {
+                place_construction( { construction_group_str_id( group ) } );
+            }
+        } else if( what == "haul" ) {
+            haul_menu();
+        } else if( what == "workout" ) {
+            guy.assign_activity( workout_activity_actor( guy.pos_bub() ) );
         } else if( what == "haul_toggle" ) {
             guy.toggle_hauling();
         } else if( what == "style" ) {
@@ -1454,6 +1464,36 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             find_client( other->getID() ) == nullptr &&
             rl_dist( guy->pos_abs(), other->pos_abs() ) <= 2 ) {
             do_npc_option( *rp, *guy, *other, msg.get_int( "o", -1 ) );
+        }
+    } else if( type == "omap_req" && rp->npc_id.is_valid() ) {
+        // The overmap of a client is only a copy: send the terrain around the player's body.
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() ) {
+            const tripoint_abs_omt c = guy->pos_abs_omt();
+            constexpr int r = 3;
+            std::vector<std::string> table;
+            std::map<std::string, int> index;
+            std::vector<int> cells;
+            for( int dy = -r; dy <= r; dy++ ) {
+                for( int dx = -r; dx <= r; dx++ ) {
+                    const std::string id = overmap_buffer.ter( c + point_rel_omt( dx, dy ) ).id().str();
+                    auto it = index.find( id );
+                    if( it == index.end() ) {
+                        it = index.emplace( id, static_cast<int>( table.size() ) ).first;
+                        table.push_back( id );
+                    }
+                    cells.push_back( it->second );
+                }
+            }
+            impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "omap" );
+                jo.member( "x", c.x() - r );
+                jo.member( "y", c.y() - r );
+                jo.member( "z", c.z() );
+                jo.member( "w", 2 * r + 1 );
+                jo.member( "tbl", table );
+                jo.member( "v", cells );
+            } ) );
         }
     } else if( type == "trade_done" && rp->npc_id.is_valid() && rp->trade_npc >= 0 ) {
         npc *guy = g->find_npc( rp->npc_id );

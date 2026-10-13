@@ -712,5 +712,7 @@ std::string toggle_mark_of( const std::string &action );
 
 /** The "smash where?" menu (and what follows), for the acting character (see remote_ui.h). */
 void smash_menu();
+/** the hauling menu (a multiplayer client records its answers) */
+void haul_menu();
 
 #endif // CATA_SRC_ACTION_H

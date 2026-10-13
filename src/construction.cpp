@@ -52,6 +52,7 @@
 #include "panels.h"
 #include "player_activity.h"
 #include "point.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "rng.h"
 #include "skill.h"
@@ -1071,6 +1072,7 @@ construction_id construction_menu( const bool blueprint )
                         restore_view.reset();
                         restore_ui.reset();
                         ui.reset();
+                        remote_ui::record( "s", constructs[select].str() );
                         place_construction( { constructs[select] } );
                         uistate.last_construction = constructs[select];
                     }
@@ -1232,7 +1234,8 @@ std::pair<std::map<tripoint_bub_ms, const construction *>, std::vector<construct
 
 void place_construction( std::vector<construction_group_str_id> const &groups )
 {
-    avatar &player_character = get_avatar();
+    // multiplayer: the body of the player whose action this is
+    Character &player_character = remote_ui::acting_player();
     const inventory &total_inv = player_character.crafting_inventory();
 
     std::pair<std::map<tripoint_bub_ms, const construction *>, std::vector<construction *>>
@@ -1288,6 +1291,10 @@ void place_construction( std::vector<construction_group_str_id> const &groups )
 
     if( valid.find( pnt ) == valid.end() ) {
         cons.front()->explain_failure( pnt );
+        return;
+    }
+    if( remote_ui::recording() ) {
+        // a client only chooses; the host does the building (components, tools, the activity)
         return;
     }
     // Maybe there is already a partial_con on an existing trap, that isn't caught by the usual trap-checking.

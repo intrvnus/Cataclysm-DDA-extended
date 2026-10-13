@@ -835,7 +835,7 @@ static void grab()
     }
 }
 
-static void haul()
+void haul_menu()
 {
     Character &player_character = get_player_character();
 
@@ -2583,7 +2583,7 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_HAUL:
-            haul();
+            haul_menu();
             break;
 
         case ACTION_HAUL_TOGGLE:

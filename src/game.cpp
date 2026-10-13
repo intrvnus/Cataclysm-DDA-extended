@@ -6643,7 +6643,7 @@ void game::peek()
 {
     map &here = get_map();
 
-    const std::optional<tripoint_rel_ms> p = choose_direction( _( "Peek where?" ), true );
+    const std::optional<tripoint_rel_ms> p = choose_direction( _( "Peek where?" ), !net::is_client() );
     if( !p ) {
         return;
     }
@@ -6693,7 +6693,8 @@ void game::peek( const tripoint_bub_ms &p )
         u.setpos( here, prev, false );
     }
 
-    if( result.peek_action ) {
+    // a client's peek is only a view; throwing is aimed in the fluid mode
+    if( result.peek_action && !net::is_client() ) {
         if( *result.peek_action == PA_BLIND_THROW ) {
             item_location loc;
             avatar_action::plthrow( u, loc, p );
