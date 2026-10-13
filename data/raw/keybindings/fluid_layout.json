@@ -176,5 +176,45 @@
     "name": "Toggle run",
     "category": "DEFAULTMODE",
     "bindings": [ { "input_method": "keyboard_any", "key": "TAB" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "toggle_crouch",
+    "name": "Toggle crouch",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "c" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "toggle_prone",
+    "name": "Toggle prone",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "z" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "close",
+    "name": "Close",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "O" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "loot",
+    "name": "Loot",
+    "category": "DEFAULTMODE",
+    "bindings": [ { "input_method": "keyboard_any", "key": "CTRL+O" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "zoom_in",
+    "name": "Zoom in",
+    "bindings": [ { "input_method": "keyboard_any", "key": "CTRL+Z" }, { "input_method": "gamepad", "key": "JOY_30" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "zoom_out",
+    "name": "Zoom out",
+    "bindings": [ { "input_method": "keyboard_char", "key": "Z" } ]
   }
 ]

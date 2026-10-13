@@ -320,6 +320,8 @@ bool poll_device( input_frame &out )
     out.primary = ( raw & ( bit_primary | bit_primary_alt ) ) != 0;
     out.secondary = ( raw & ( bit_secondary | bit_secondary_alt ) ) != 0;
     out.cancel = ( raw & bit_cancel ) != 0;
+    // hold Shift to sprint
+    out.sprint = ( SDL_GetModState() & KMOD_SHIFT ) != 0;
     out.primary_presses = d.primary_presses;
     out.secondary_presses = d.secondary_presses;
     out.cursor_valid = false;

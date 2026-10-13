@@ -114,6 +114,8 @@ struct input_frame {
     int secondary_presses = 0;
     // cancels a wind-up / drops the aim
     bool cancel = false;
+    // held: sprint (B4)
+    bool sprint = false;
     // cursor in world tiles; the integer part is the absolute tile, 0.5 its centre
     bool cursor_valid = false;
     double cursor_x = 0.0;
@@ -142,6 +144,8 @@ enum class phase : int {
 struct actor_state {
     // the actor may start something new at this time
     ms_t ready_at = 0;
+    // sprint key state of the last frame (hold to sprint)
+    bool prev_sprint = false;
 
     // ---- melee
     phase melee = phase::idle;

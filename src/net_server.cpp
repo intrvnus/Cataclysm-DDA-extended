@@ -351,6 +351,14 @@ void execute( npc &guy, const command &cmd )
         }
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
+    } else if( cmd.action == "run" || cmd.action == "crouch" || cmd.action == "prone" ) {
+        // movement mode toggles (B4): pressing the same one again goes back to walking
+        const move_mode_id wanted( cmd.action );
+        if( guy.current_movement_mode() == wanted ) {
+            guy.set_movement_mode( move_mode_id( "walk" ) );
+        } else if( cmd.action != "run" || guy.can_run() ) {
+            guy.set_movement_mode( wanted );
+        }
     } else {
         guy.pause();
     }
@@ -516,6 +524,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         f.primary_presses = msg.get_int( "pc", 0 );
         f.secondary_presses = msg.get_int( "sc", 0 );
         f.cancel = msg.get_bool( "c", false );
+        f.sprint = msg.get_bool( "sp", false );
         f.cursor_valid = msg.get_bool( "cv", false );
         f.cursor_x = msg.get_float( "cx", 0.0 );
         f.cursor_y = msg.get_float( "cy", 0.0 );
@@ -578,7 +587,7 @@ bool host_drive_npc( npc &guy )
         while( !rp->commands.empty() ) {
             const command cmd = rp->commands.front();
             rp->commands.pop_front();
-            if( cmd.action == "pickup" ) {
+            if( cmd.action != "move" && cmd.action != "wait" ) {
                 execute( guy, cmd );
             }
         }

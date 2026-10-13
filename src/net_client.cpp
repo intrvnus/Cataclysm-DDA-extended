@@ -280,6 +280,15 @@ bool handle_input()
         case ACTION_PICKUP_ALL:
             send_action( "pickup" );
             break;
+        case ACTION_TOGGLE_RUN:
+            send_action( "run" );
+            break;
+        case ACTION_TOGGLE_CROUCH:
+            send_action( "crouch" );
+            break;
+        case ACTION_TOGGLE_PRONE:
+            send_action( "prone" );
+            break;
         case ACTION_LOOK:
             g->look_around();
             break;
@@ -369,7 +378,8 @@ void client_send_input( const fluid::input_frame &in )
     const fluid::ms_t now = fluid::now_ms();
     const bool buttons = in.move_x != last.move_x || in.move_y != last.move_y ||
                          in.primary != last.primary || in.secondary != last.secondary ||
-                         in.cancel != last.cancel || in.primary_presses != last.primary_presses ||
+                         in.cancel != last.cancel || in.sprint != last.sprint ||
+                         in.primary_presses != last.primary_presses ||
                          in.secondary_presses != last.secondary_presses ||
                          in.cursor_valid != last.cursor_valid;
     const double moved = std::abs( in.cursor_x - last.cursor_x ) + std::abs( in.cursor_y - last.cursor_y );
@@ -389,6 +399,7 @@ void client_send_input( const fluid::input_frame &in )
         jo.member( "pc", in.primary_presses );
         jo.member( "sc", in.secondary_presses );
         jo.member( "c", in.cancel );
+        jo.member( "sp", in.sprint );
         jo.member( "cv", in.cursor_valid );
         jo.member( "cx", in.cursor_x );
         jo.member( "cy", in.cursor_y );

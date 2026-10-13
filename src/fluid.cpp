@@ -43,6 +43,9 @@
 #include "ui_manager.h"
 #include "units.h"
 
+static const move_mode_id move_mode_run( "run" );
+static const move_mode_id move_mode_walk( "walk" );
+
 namespace fluid
 {
 
@@ -903,6 +906,14 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     st.seen_secondary_presses = in.secondary_presses;
     st.prev_primary = in.primary;
     st.prev_secondary = in.secondary;
+
+    // ---- hold to sprint (B4); back to walking on release or when out of stamina
+    if( in.sprint && !st.prev_sprint && who.can_run() ) {
+        who.set_movement_mode( move_mode_run );
+    } else if( who.is_running() && ( ( !in.sprint && st.prev_sprint ) || !who.can_run() ) ) {
+        who.set_movement_mode( move_mode_walk );
+    }
+    st.prev_sprint = in.sprint;
 
     const tripoint_abs_ms pos = who.pos_abs();
     const bool have_cursor = in.cursor_valid && in.cursor_z == pos.z();
