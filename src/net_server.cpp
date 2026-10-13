@@ -592,6 +592,19 @@ void test_downed_cycle( remote_player &rp, npc &guy )
     }
 }
 
+void report_test_armor( const npc &near )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_ARMOR" ) != nullptr;
+    if( !on || !calendar::once_every( 5_seconds ) ) {
+        return;
+    }
+    std::string order;
+    for( const item *it : near.worn_item_order() ) {
+        order += it->tname() + " | ";
+    }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test worn order: " << order;
+}
+
 void report_test_vehicle( const npc &near )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_VEHICLE" ) != nullptr;
@@ -2252,6 +2265,7 @@ void host_end_of_turn()
         if( guy != nullptr ) {
             report_test_zombie( *guy );
             report_test_vehicle( *guy );
+            report_test_armor( *guy );
             test_downed_cycle( rp, *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {

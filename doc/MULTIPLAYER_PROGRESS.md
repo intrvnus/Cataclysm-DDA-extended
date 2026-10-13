@@ -39,3 +39,8 @@ Host + clients over ENet. The host simulates the world. Each client has its own 
 
 ## Next
 Finish the remaining basic menus and untested items, then stop for a decision (C2) before the next phase. No Windows build until this batch is done.
+
+## Verified from logs (overnight run)
+- Driving: a client takes the controls, starts the engine and drives; the car reached speed 2400 and moved about 48 tiles, the driver and a passenger travel with it, the client screen follows.
+- Downed players: the body goes down, a helper gets it up, and when it bleeds out a new body spawns.
+- Dedicated server keeps ticking with a client connected (heartbeat log).
