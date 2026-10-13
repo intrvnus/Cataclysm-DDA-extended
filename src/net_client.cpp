@@ -469,8 +469,21 @@ bool handle_input()
             send_action( "wait" );
             break;
         case ACTION_PICKUP:
+            // choose the tile and what to take on the own character, the host does the same
+            send_ui( "pickup", [] {
+                g->pickup();
+            } );
+            break;
         case ACTION_PICKUP_ALL:
-            send_action( "pickup" );
+            send_ui( "pickup_all", [] {
+                g->pickup_all();
+            } );
+            break;
+        case ACTION_EXAMINE:
+        case ACTION_EXAMINE_AND_PICKUP:
+            send_ui( act == ACTION_EXAMINE ? "examine" : "examine_pickup", [act] {
+                g->examine( act == ACTION_EXAMINE_AND_PICKUP );
+            } );
             break;
         case ACTION_SLEEP:
             send_action( "sleep" );
@@ -596,6 +609,29 @@ void apply_full_character( std::string json )
     avatar &u = get_avatar();
     const tripoint_abs_ms pos = u.pos_abs();
     const character_id own_id = u.getID();
+    try {
+        // Item locations in it (an activity's targets ...) name the host's body; here that
+        // is the own character, which has another id.
+        JsonValue jv = json_loader::from_string( std::string( json ) );
+        JsonObject jo = jv.get_object();
+        jo.allow_omitted_members();
+        const int body_id = jo.get_int( "id", -1 );
+        if( body_id >= 0 && body_id != own_id.get_value() ) {
+            const std::string from = "\"character\":" + std::to_string( body_id );
+            const std::string to = "\"character\":" + std::to_string( own_id.get_value() );
+            for( size_t at = json.find( from ); at != std::string::npos;
+                 at = json.find( from, at + to.size() ) ) {
+                // not "character":12 when 1 is meant
+                const size_t end = at + from.size();
+                if( end < json.size() && json[end] >= '0' && json[end] <= '9' ) {
+                    continue;
+                }
+                json.replace( at, from.size(), to );
+            }
+        }
+    } catch( const std::exception & ) {
+        // handled below by the real load
+    }
     // loading sets the id from the data, which it refuses while one is set
     u.setID( character_id(), true );
     try {

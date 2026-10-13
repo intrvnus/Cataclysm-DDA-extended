@@ -1272,8 +1272,8 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const std::
                                       allow_vertical, allow_autoselect );
 }
 
-std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripoint_bub_ms &pos,
-        const std::string &message,
+static std::optional<tripoint_bub_ms> choose_adjacent_highlight_impl( map &here,
+        const tripoint_bub_ms &pos, const std::string &message,
         const std::string &failure_message, const std::function<bool( const tripoint_bub_ms & )> &allowed,
         bool allow_vertical, bool allow_autoselect )
 {
@@ -1310,6 +1310,44 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripo
     }
 
     return std::nullopt;
+}
+
+std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripoint_bub_ms &pos,
+        const std::string &message,
+        const std::string &failure_message, const std::function<bool( const tripoint_bub_ms & )> &allowed,
+        bool allow_vertical, bool allow_autoselect )
+{
+    // Multiplayer: the tile is one answer, also when it was chosen without asking (a single
+    // valid tile): the host may see a different set of valid tiles.
+    if( remote_ui::replaying() ) {
+        const std::optional<std::string> given = remote_ui::answer( "p" );
+        if( !given || *given == "-" ) {
+            return std::nullopt;
+        }
+        std::istringstream is( *given );
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        is >> x >> y >> z;
+        const tripoint_bub_ms result = pos + tripoint_rel_ms( x, y, z );
+        if( allowed && !allowed( result ) ) {
+            return std::nullopt;
+        }
+        return result;
+    }
+    if( remote_ui::recording() ) {
+        std::optional<tripoint_bub_ms> result;
+        {
+            remote_ui::mute_scope mute;
+            result = choose_adjacent_highlight_impl( here, pos, message, failure_message, allowed,
+                     allow_vertical, allow_autoselect );
+        }
+        const tripoint_rel_ms rel = result ? *result - pos : tripoint_rel_ms();
+        remote_ui::record( "p", result ? string_format( "%d %d %d", rel.x(), rel.y(), rel.z() ) : "-" );
+        return result;
+    }
+    return choose_adjacent_highlight_impl( here, pos, message, failure_message, allowed,
+                                           allow_vertical, allow_autoselect );
 }
 
 namespace mod_actions

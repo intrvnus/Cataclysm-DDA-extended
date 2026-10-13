@@ -941,6 +941,8 @@ class game
         bool grabbed_veh_move( const tripoint_rel_ms &dp );
 
         void control_vehicle(); // Use vehicle controls  '^'
+    public:
+        // Menus a multiplayer client runs on its own character (see remote_ui.h)
         // Examine nearby terrain 'e', with or without picking up items
         void examine( const tripoint_bub_ms &p, bool with_pickup = false );
         void examine( bool with_pickup = true );
@@ -949,6 +951,7 @@ class game
         void pickup();
         // Pick up items from all nearby tiles
         void pickup_all();
+    private:
 
         void unload_container(); // Unload a container w/ direction  'd'
         void drop_in_direction( const tripoint_bub_ms &pnt ); // Drop w/ direction  'D'

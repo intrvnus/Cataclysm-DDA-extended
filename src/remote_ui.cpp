@@ -20,6 +20,7 @@ struct state {
     bool recording = false;
     bool replaying = false;
     bool failed = false;
+    int muted = 0;
     std::vector<entry> answers;
     size_t next = 0;
     std::vector<std::string> texts;
@@ -59,6 +60,16 @@ record_scope::~record_scope()
 std::vector<entry> record_scope::answers() const
 {
     return st().answers;
+}
+
+mute_scope::mute_scope()
+{
+    ++st().muted;
+}
+
+mute_scope::~mute_scope()
+{
+    --st().muted;
 }
 
 replay_scope::replay_scope( std::vector<entry> answers, Character &actor, int client_id )
@@ -104,7 +115,7 @@ std::vector<std::string> replay_scope::texts() const
 
 void record( const std::string &kind, const std::string &value )
 {
-    if( st().recording ) {
+    if( st().recording && st().muted == 0 ) {
         st().answers.emplace_back( kind, value );
     }
 }

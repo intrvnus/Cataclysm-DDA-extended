@@ -43,6 +43,17 @@ class record_scope
         std::vector<entry> answers() const;
 };
 
+/** Client: answers of menus that open while this lives are not recorded (the caller records
+ * one answer for the whole thing). */
+class mute_scope
+{
+    public:
+        mute_scope();
+        ~mute_scope();
+        mute_scope( const mute_scope & ) = delete;
+        mute_scope &operator=( const mute_scope & ) = delete;
+};
+
 /** Host: menus are answered from @p answers while this lives. */
 class replay_scope
 {

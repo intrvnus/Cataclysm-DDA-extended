@@ -602,6 +602,12 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         if( what == "apply" ) {
             item_location loc;
             avatar_action::use_item( guy, loc );
+        } else if( what == "examine" || what == "examine_pickup" ) {
+            g->examine( what == "examine_pickup" );
+        } else if( what == "pickup" ) {
+            g->pickup();
+        } else if( what == "pickup_all" ) {
+            g->pickup_all();
         } else {
             send_text( rp, _( "That is not available in multiplayer yet." ) );
         }

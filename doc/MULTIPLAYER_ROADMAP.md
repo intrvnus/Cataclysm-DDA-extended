@@ -76,9 +76,14 @@ when a batch is worth playing.
 * **Done:** wield, wear, take off, eat/drink, read, drop, pick up (everything on the tile),
   crafting, open/close doors, look, character sheet, sleep, movement modes; apply only for
   uses that never ask anything (switching things on/off).
-* **Open:** apply with targets/choices (fire starting, cutting up, phones, music players),
-  examine furniture/containers, advanced inventory and choosing what to pick up, talking to
-  NPCs, bionics (C19).
+* **Done (record/replay, `src/remote_ui.*`, tested with Xvfb host + client):** apply with
+  targets/choices (the lighter asks for a direction: the host uses it and the charge drops),
+  examine terrain/furniture, choosing the tile and the items to pick up (`g`, `e`).
+  The client does the action on its copy of the character and records every menu answer; the
+  host repeats it on the body without opening a window.
+* **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
+  advanced inventory, activity transfer, talking to NPCs and trading (C4), bionics and
+  mutations (C19), the inventory screen (`i`) and the remaining basic menus.
 
 ---
 

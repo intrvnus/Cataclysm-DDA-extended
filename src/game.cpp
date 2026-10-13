@@ -6264,12 +6264,14 @@ bool game::npc_menu( npc &who )
 void game::examine( bool with_pickup )
 {
     map &here = get_map();
+    // multiplayer: while the host does a client's action this is the player's body
+    Character &who = remote_ui::acting_player();
 
     // if we are driving a vehicle, examine the
     // current tile without asking.
-    const optional_vpart_position vp = here.veh_at( u.pos_bub() );
-    if( vp && vp->vehicle().player_in_control( here, u ) ) {
-        examine( u.pos_bub(), with_pickup );
+    const optional_vpart_position vp = here.veh_at( who.pos_bub() );
+    if( vp && vp->vehicle().player_in_control( here, who ) ) {
+        examine( who.pos_bub(), with_pickup );
         return;
     }
 
@@ -6289,9 +6291,9 @@ void game::examine( bool with_pickup )
     if( !examp ) {
         return;
     }
-    u.manual_examine = true;
+    who.manual_examine = true;
     examine( *examp, with_pickup );
-    u.manual_examine = false;
+    who.manual_examine = false;
 }
 
 static std::string get_fire_fuel_string( const tripoint_bub_ms &examp )
@@ -6364,6 +6366,31 @@ static std::string get_fire_fuel_string( const tripoint_bub_ms &examp )
 void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
 {
     map &here = get_map();
+    // multiplayer: while the host does a client's action this is the player's body
+    Character &who = remote_ui::acting_player();
+    // Creatures, vehicles and consoles still use the local player everywhere: for a
+    // multiplayer player (and while recording its answers) they are not available yet.
+    const bool mp_player = !who.is_avatar() || remote_ui::recording();
+    const auto mp_unavailable = [&]() {
+        if( remote_ui::replaying() ) {
+            remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+        } else {
+            add_msg( m_info, _( "That is not available in multiplayer yet." ) );
+        }
+    };
+
+    if( mp_player && get_creature_tracker().creature_at( examp ) != nullptr ) {
+        mp_unavailable();
+        return;
+    }
+    if( mp_player && here.veh_at( examp ) ) {
+        mp_unavailable();
+        return;
+    }
+    if( mp_player && here.has_flag( ter_furn_flag::TFLAG_CONSOLE, examp ) ) {
+        mp_unavailable();
+        return;
+    }
 
     if( disable_robot( examp ) ) {
         return;
@@ -6418,7 +6445,7 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
         }
     }
 
-    iexamine::part_con( get_avatar(), examp );
+    iexamine::part_con( who, examp );
     // trap::iexamine will handle the invisible traps.
     here.tr_at( examp ).examine( examp );
 
@@ -6431,29 +6458,29 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
     const furn_t &xfurn_t = here.furn( examp ).obj();
     const ter_t &xter_t = here.ter( examp ).obj();
 
-    const tripoint_bub_ms player_pos = u.pos_bub();
+    const tripoint_bub_ms player_pos = who.pos_bub();
 
     if( here.has_furn( examp ) ) {
-        if( !u.cant_do_mounted() ) {
+        if( !who.cant_do_mounted() ) {
             if( !here.has_flag( "FREE_TO_EXAMINE", examp ) &&
                 !warn_player_maybe_anger_local_faction( false, true ) ) {
                 return; // player declined to mess with faction's stuff
             }
-            xfurn_t.examine( u, examp );
+            xfurn_t.examine( who, examp );
         }
     } else {
-        if( xter_t.can_examine( examp ) && !u.is_mounted() ) {
+        if( xter_t.can_examine( examp ) && !who.is_mounted() ) {
             if( !here.has_flag( "FREE_TO_EXAMINE", examp ) &&
                 !warn_player_maybe_anger_local_faction( false, true ) ) {
                 return; // player declined to mess with faction's stuff
             }
-            xter_t.examine( u, examp );
+            xter_t.examine( who, examp );
         }
     }
 
     // Did the player get moved? Bail out if so; our examp probably
     // isn't valid anymore.
-    if( player_pos != u.pos_bub() ) {
+    if( player_pos != who.pos_bub() ) {
         return;
     }
 
@@ -6463,7 +6490,7 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
     }
 
     // In case of teleport trap or somesuch
-    if( player_pos != u.pos_bub() ) {
+    if( player_pos != who.pos_bub() ) {
         return;
     }
 
@@ -6491,9 +6518,9 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
                    xfurn_t.has_examine( iexamine::workbench ) ) {
             return;
         } else {
-            sounds::process_sound_markers( &u );
+            sounds::process_sound_markers( &who );
             // Pick up items, if there are any, unless there is reason to not to
-            if( with_pickup && here.has_items( examp ) && !u.is_mounted() &&
+            if( with_pickup && here.has_items( examp ) && !who.is_mounted() &&
                 !here.has_flag( ter_furn_flag::TFLAG_NO_PICKUP_ON_EXAMINE, examp ) &&
                 !here.only_liquid_in_liquidcont( examp ) ) {
                 pickup( examp );
@@ -6554,13 +6581,13 @@ void game::pickup()
         return;
     }
     // Pick up items only from the selected tile
-    u.pick_up( game_menus::inv::pickup( where_ ) );
+    remote_ui::acting_player().pick_up( game_menus::inv::pickup( where_ ) );
 }
 
 void game::pickup_all()
 {
     // Pick up items from current and all adjacent tiles
-    u.pick_up( game_menus::inv::pickup() );
+    remote_ui::acting_player().pick_up( game_menus::inv::pickup() );
 }
 
 void game::pickup( const tripoint_bub_ms &p )
@@ -6574,7 +6601,7 @@ void game::pickup( const tripoint_bub_ms &p )
     add_draw_callback( hilite_cb );
 
     // Pick up items only from the selected tile
-    u.pick_up( game_menus::inv::pickup( p ) );
+    remote_ui::acting_player().pick_up( game_menus::inv::pickup( p ) );
 }
 
 //Shift player by one tile, look_around(), then restore previous position.
@@ -10541,7 +10568,7 @@ bool game::disable_robot( const tripoint_bub_ms &p )
     if( !mon_item_id.is_empty() &&
         query_yn( _( "Deactivate the %s?" ), critter.name() ) ) {
         const disable_activity_actor actor( p, disable_activity_actor::get_disable_turns(), false );
-        u.assign_activity( actor );
+        remote_ui::acting_player().assign_activity( actor );
         return true;
     }
     // Manhacks are special, they have their own menu here.
@@ -10554,8 +10581,8 @@ bool game::disable_robot( const tripoint_bub_ms &p )
         }
 
         if( choice == 0 ) {
-            u.assign_activity( disable_activity_actor( p, disable_activity_actor::get_disable_turns(),
-                               true ) );
+            remote_ui::acting_player().assign_activity( disable_activity_actor( p,
+                    disable_activity_actor::get_disable_turns(), true ) );
         }
     }
     return false;
