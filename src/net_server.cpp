@@ -539,6 +539,23 @@ bool load_body( npc &guy, std::string json )
 // For testing: with the environment variable CATA_MP_TEST_NPC set, an NPC appears next to
 // every player who joins (so that conversations and trading can be tried without the debug menu).
 // Test helper: a zombie a few steps from the player (tests whether monsters go for clients).
+void report_test_zombie( const npc &near )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_ZOMBIE" ) != nullptr;
+    if( !on || !calendar::once_every( 5_seconds ) ) {
+        return;
+    }
+    for( monster &z : g->all_monsters() ) {
+        if( z.type->id == mtype_id( "mon_zombie" ) ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie at distance " <<
+                                       rl_dist( z.pos_abs(), near.pos_abs() ) << " hp " << z.get_hp() <<
+                                       " body hp " << near.get_hp() << " target " <<
+                                       ( z.get_dest() == near.pos_abs() ? "client" : "other" );
+            return;
+        }
+    }
+}
+
 void spawn_test_zombie( const npc &near )
 {
     if( std::getenv( "CATA_MP_TEST_ZOMBIE" ) == nullptr ) {
@@ -1999,6 +2016,9 @@ void host_end_of_turn()
                 jo.member( "id", guy->getID().get_value() );
                 jo.member( "fluid", fluid::enabled() );
             } ) );
+        }
+        if( guy != nullptr ) {
+            report_test_zombie( *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
             // overmap knowledge is shared by all players: what anybody sees is known to everybody
