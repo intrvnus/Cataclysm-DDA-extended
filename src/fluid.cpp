@@ -699,6 +699,11 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     st.face_dx = dx;
     st.face_dy = dy;
 
+    // walking into a downed player helps them up
+    if( net::host_try_revive( who, dest ) ) {
+        st.ready_at = t0 + moves_to_ms( who, 100 );
+        return true;
+    }
     // walking into an enemy attacks it
     if( target_at( who, dest ) != nullptr ) {
         start_swing( who, st, t0, dx, dy, out );

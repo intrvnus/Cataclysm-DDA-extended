@@ -77,6 +77,7 @@ std::string enum_to_string<game_message_type>( game_message_type data )
         case game_message_type::m_headshot: return "headshot";
         case game_message_type::m_critical: return "critical";
         case game_message_type::m_grazing: return "grazing";
+        case game_message_type::m_alert: return "alert";
             // *INDENT-ON*
         case game_message_type::num_game_message_type:
             break;

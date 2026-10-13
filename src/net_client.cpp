@@ -330,11 +330,15 @@ void client_on_message( const JsonObject &msg )
 {
     const std::string type = msg.get_string( "t", "" );
     if( type == "welcome" ) {
+        const bool respawn = cstate().welcomed;
         cstate().welcomed = true;
+        // a new character after dying (C1)
+        cstate().lost = false;
         cstate().my_id = msg.get_int( "id", 0 );
         cstate().fluid_on = msg.get_bool( "fluid", false ) && fluid::enabled();
         fluid::client_set_mode( cstate().fluid_on, cstate().my_id );
-        add_msg( m_good, _( "Multiplayer: you joined the game." ) );
+        add_msg( m_good, respawn ? _( "Multiplayer: you are back with a new character." ) :
+                 _( "Multiplayer: you joined the game." ) );
     } else if( type == "reject" ) {
         add_msg( m_bad, _( "Multiplayer: the host refused the connection (%s)." ),
                  msg.get_string( "reason", "" ) );

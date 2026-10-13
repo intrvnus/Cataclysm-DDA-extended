@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "action.h"
+#include "alerts.h"
 #include "activity_type.h"
 #include "avatar.h"
 #include "bionics.h"
@@ -477,6 +478,8 @@ bool do_turn()
         return turn_handler::cleanup_at_end();
     }
 
+    // From here on, popups and questions must not block while time runs (see alerts.h).
+    alerts::set_in_game( true );
     // Experimental multiplayer: a client only shows the host's world, it simulates nothing.
     net::start_pending();
     if( net::is_client() ) {
@@ -692,6 +695,13 @@ bool do_turn()
     if( !u.has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
         scent.set( u.pos_bub(), u.scent, u.get_type_of_scent() );
         overmap_buffer.set_scent( u.pos_abs_omt(),  u.scent );
+    }
+    // Multiplayer: every player leaves a trail that monsters can follow, not only the host.
+    for( npc *other : net::remote_player_npcs() ) {
+        if( !other->has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
+            scent.set( other->pos_bub(), other->scent, other->get_type_of_scent() );
+            overmap_buffer.set_scent( other->pos_abs_omt(), other->scent );
+        }
     }
     scent.update( u.pos_bub(), m );
 

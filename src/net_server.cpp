@@ -15,6 +15,7 @@
 
 #include <enet/enet.h>
 
+#include "alerts.h"
 #include "avatar.h"
 #include "calendar.h"
 #include "character.h"
@@ -44,6 +45,7 @@
 #include "translations.h"
 #include "type_id.h"
 
+static const efftype_id effect_downed( "downed" );
 static const faction_id faction_your_followers( "your_followers" );
 
 namespace net
@@ -69,7 +71,17 @@ struct remote_player {
     fluid::ms_t aim_sent = 0;
     // hash of the last version of every submap sent to this client
     std::map<tripoint_abs_sm, size_t> sent_submaps;
+    // down instead of dead (C1): helped up by a friend, or dies when the time runs out
+    bool downed = false;
+    bool allow_death = false;
+    fluid::ms_t bleed_out_at = 0;
+    int revive_progress = 0;
+    fluid::ms_t last_revive_step = 0;
 };
+
+// How long a downed player can wait for help, and how many steps of help bring them up.
+constexpr fluid::ms_t bleed_out_ms = 60000;
+constexpr int revive_steps = 3;
 
 std::vector<remote_player> &clients()
 {
@@ -344,7 +356,104 @@ void execute( npc &guy, const command &cmd )
     }
 }
 
+// Keeps a downed player on the ground; lets them die when the time is up.
+// Returns true while the player is down (they cannot act).
+bool update_downed( remote_player &rp, npc &guy )
+{
+    if( !rp.downed ) {
+        return false;
+    }
+    guy.add_effect( effect_downed, 2_turns, false, 0, true );
+    guy.set_moves( 0 );
+    if( fluid::now_ms() >= rp.bleed_out_at ) {
+        rp.downed = false;
+        rp.allow_death = true;
+        send_text( rp, _( "Nobody came to help.  You died." ) );
+        alerts::warn( string_format( _( "%s died." ), guy.get_name() ), alerts::level::danger,
+                      guy.pos_abs() );
+        guy.die( &get_map(), nullptr );
+    }
+    return true;
+}
+
 } // namespace
+
+bool host_prevent_death( npc &guy )
+{
+    if( !is_host() ) {
+        return false;
+    }
+    remote_player *rp = find_client( guy.getID() );
+    if( rp == nullptr || rp->allow_death ) {
+        return false;
+    }
+    // Keep the body alive: every broken vital part gets 1 hit point back.
+    for( const bodypart_id &bp : guy.get_all_body_parts() ) {
+        if( guy.get_part_hp_cur( bp ) <= 0 ) {
+            guy.set_part_hp_cur( bp, 1 );
+        }
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    if( !rp->downed ) {
+        rp->downed = true;
+        rp->bleed_out_at = now + bleed_out_ms;
+        rp->revive_progress = 0;
+        send_text( *rp, string_format(
+                       _( "You are down!  A friend can help you up by walking into you.  You have %d seconds." ),
+                       static_cast<int>( bleed_out_ms / 1000 ) ) );
+        alerts::warn( string_format( _( "%s is down!  Walk into them to help them up." ),
+                                     guy.get_name() ), alerts::level::danger, guy.pos_abs() );
+    } else {
+        // hit again while down: less time left
+        rp->bleed_out_at -= 10000;
+    }
+    guy.add_effect( effect_downed, 2_turns, false, 0, true );
+    return true;
+}
+
+bool host_try_revive( Character &helper, const tripoint_abs_ms &p )
+{
+    if( !is_host() ) {
+        return false;
+    }
+    map &here = get_map();
+    if( !here.inbounds( p ) ) {
+        return false;
+    }
+    npc *patient = get_creature_tracker().creature_at<npc>( here.get_bub( p ) );
+    if( patient == nullptr ) {
+        return false;
+    }
+    remote_player *rp = find_client( patient->getID() );
+    if( rp == nullptr || !rp->downed ) {
+        return false;
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    // help has to be continuous: a long pause starts over
+    if( now - rp->last_revive_step > 3000 ) {
+        rp->revive_progress = 0;
+    }
+    rp->last_revive_step = now;
+    ++rp->revive_progress;
+    if( rp->revive_progress < revive_steps ) {
+        helper.add_msg_if_player( m_info, _( "You help %s up…" ), patient->get_name() );
+        send_text( *rp, string_format( _( "%s is helping you up…" ), helper.get_name() ) );
+        return true;
+    }
+    rp->downed = false;
+    rp->revive_progress = 0;
+    patient->remove_effect( effect_downed );
+    // back on their feet with a fifth of their health on every part
+    for( const bodypart_id &bp : patient->get_all_body_parts() ) {
+        const int min_hp = std::max( 1, patient->get_part_hp_max( bp ) / 5 );
+        if( patient->get_part_hp_cur( bp ) < min_hp ) {
+            patient->set_part_hp_cur( bp, min_hp );
+        }
+    }
+    helper.add_msg_if_player( m_good, _( "You help %s back on their feet." ), patient->get_name() );
+    send_text( *rp, string_format( _( "%s helped you back on your feet." ), helper.get_name() ) );
+    return true;
+}
 
 // ---- connection events ----
 
@@ -449,6 +558,9 @@ bool host_drive_npc( npc &guy )
         return false;
     }
     remote_player *rp = find_client( guy.getID() );
+    if( rp != nullptr && update_downed( *rp, guy ) ) {
+        return true;
+    }
     if( rp == nullptr ) {
         if( abandoned_npcs().count( guy.getID() ) == 0 ) {
             return false;
@@ -516,7 +628,7 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             continue;
         }
         npc *guy = g->find_npc( rp.npc_id );
-        if( guy == nullptr || guy->is_dead() ) {
+        if( guy == nullptr || guy->is_dead() || rp.downed ) {
             continue;
         }
         fluid::input_frame frame = rp.input;
@@ -576,6 +688,22 @@ void host_send_events( const std::vector<fluid::event> &events )
     }
 }
 
+std::vector<npc *> remote_player_npcs()
+{
+    std::vector<npc *> result;
+    if( !is_host() ) {
+        return result;
+    }
+    for( const remote_player &rp : clients() ) {
+        if( rp.npc_id.is_valid() ) {
+            if( npc *guy = g->find_npc( rp.npc_id ) ) {
+                result.push_back( guy );
+            }
+        }
+    }
+    return result;
+}
+
 void host_end_of_turn()
 {
     if( !is_host() ) {
@@ -587,6 +715,15 @@ void host_end_of_turn()
             continue;
         }
         npc *guy = rp.npc_id.is_valid() ? g->find_npc( rp.npc_id ) : nullptr;
+        // Died for good (C1): respawn with a new character next to the others.
+        if( rp.allow_death && ( guy == nullptr || guy->is_dead() ) ) {
+            fluid::forget_state( rp.npc_id.get_value() );
+            rp.npc_id = character_id();
+            rp.allow_death = false;
+            rp.commands.clear();
+            guy = nullptr;
+            send_text( rp, _( "Respawning…" ) );
+        }
         if( !rp.npc_id.is_valid() ) {
             guy = spawn_remote_npc( rp );
             if( guy == nullptr ) {

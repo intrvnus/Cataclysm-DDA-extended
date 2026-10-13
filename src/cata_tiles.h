@@ -653,6 +653,9 @@ class cata_tiles
         void draw_footsteps_frame( const tripoint_bub_ms &center );
         // experimental fluid mode: crosshair, spread circle and the tile of a blow
         void draw_fluid_overlays();
+        /** Realtime/multiplayer: points at the newest threat (alerts.h), at the screen edge
+         * when it is off screen. */
+        void draw_threat_arrow( const point &dest, int width, int height );
 
         // pseudo-animated layer, not really though.
         void init_draw_line( const tripoint_bub_ms &p, std::vector<tripoint_bub_ms> trajectory,

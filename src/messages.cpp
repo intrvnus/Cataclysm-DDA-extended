@@ -503,6 +503,7 @@ static const std::vector<std::pair<game_message_type, const char *>> &msg_type_a
         { m_info, translate_marker_context( "message type", "info" ) },
         { m_neutral, translate_marker_context( "message type", "neutral" ) },
         { m_debug, translate_marker_context( "message type", "debug" ) },
+        { m_alert, translate_marker_context( "message type", "alert" ) },
     };
     return type_n_names;
 }

@@ -30,6 +30,7 @@
 
 #include <flatbuffers/util.h>
 
+#include "alerts.h"
 #include "cached_options.h"
 #include "cata_path.h"
 #include "color.h"
@@ -902,6 +903,7 @@ int main( int argc, const char *argv[] )
         while( !do_turn() ) {}
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
+        alerts::set_in_game( false );
     }
 
     exit_handler( -999 );

@@ -44,6 +44,7 @@
 #include "monster.h"
 #include "move_mode.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -193,6 +194,12 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
             add_msg( m_warning, _( "You can't move while in your shell.  Deactivate it to go mobile." ) );
         }
         return false;
+    }
+
+    // Multiplayer: walking into a downed player helps them up.
+    if( net::host_try_revive( you, you.pos_abs() + d ) ) {
+        you.mod_moves( -you.get_speed() );
+        return true;
     }
 
     //TODO: Replace with dirtying vision_transparency_cache

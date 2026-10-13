@@ -57,6 +57,7 @@
 #include "monster.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc_class.h"
 #include "npctalk.h"
 #include "npctrade.h"
@@ -2963,6 +2964,10 @@ void npc::die( map *here, Creature *nkiller )
     if( dead ) {
         // We are already dead, don't die again, note that npc::dead is
         // *only* set to true in this function!
+        return;
+    }
+    // Multiplayer: a player goes down first and can be helped up (see net_server.cpp).
+    if( net::host_prevent_death( *this ) ) {
         return;
     }
     prevent_death_reminder = false;

@@ -375,6 +375,8 @@ enum game_message_type : int {
     m_headshot,
     m_critical,
     m_grazing,
+    /* multiplayer/realtime alert: a warning that replaces a popup or a time stop */
+    m_alert,
     num_game_message_type
 };
 

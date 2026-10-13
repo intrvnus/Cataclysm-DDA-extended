@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "alerts.h"
 #include "cached_options.h" // IWYU pragma: keep
 #include "cata_imgui.h"
 #include "cata_utility.h"
@@ -842,6 +843,10 @@ int border_helper::border_connection::as_curses_line() const
 
 bool query_yn( const std::string &text )
 {
+    // Realtime / multiplayer: no window, no time stop, "do it again" means yes.
+    if( alerts::nonblocking() ) {
+        return alerts::confirm( remove_color_tags( text ) );
+    }
 #if defined(__ANDROID__)
     if( get_option<bool>( "ANDROID_NATIVE_UI" ) ) {
         JNIEnv *env = ( JNIEnv * )SDL_AndroidGetJNIEnv();
@@ -882,6 +887,10 @@ bool query_yn( const std::string &text )
 
 query_ynq_result query_ynq( const std::string &text )
 {
+    if( alerts::nonblocking() ) {
+        return alerts::confirm( remove_color_tags( text ) ) ? query_ynq_result::yes :
+               query_ynq_result::no;
+    }
     // TODO: android native UI
     const bool force_uc = get_option<bool>( "FORCE_CAPITAL_YN" );
     const auto &allow_key = force_uc ? input_context::disallow_lower_case_or_non_modified_letters
@@ -955,6 +964,12 @@ PopupFlags popup_flag_from_string( const std::string &str )
 
 int popup( const std::string &text, PopupFlags flags )
 {
+    // Plain message popups become sidebar messages while time runs.  Popups that wait for a
+    // specific key, and full-screen info screens the player opened, stay.
+    if( ( flags == PF_NONE || flags == PF_ON_TOP ) && alerts::nonblocking() ) {
+        alerts::warn( text, alerts::level::notice );
+        return UNKNOWN_UNICODE;
+    }
 #if defined(__ANDROID__)
     if( get_option<bool>( "ANDROID_NATIVE_UI" ) && flags == PF_NONE ) {
         JNIEnv *env = ( JNIEnv * )SDL_AndroidGetJNIEnv();
@@ -3262,7 +3277,8 @@ nc_color msgtype_to_color( const game_message_type type, const bool bOldMsg )
         {m_debug,    {c_white,   c_light_gray}},
         {m_headshot, {c_pink,    c_magenta}},
         {m_critical, {c_yellow,  c_brown}},
-        {m_grazing,  {c_light_blue,  c_blue}}
+        {m_grazing,  {c_light_blue,  c_blue}},
+        {m_alert,    {c_light_cyan,  c_cyan}}
     };
 
     const auto it = colors.find( type );

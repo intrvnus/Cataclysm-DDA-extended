@@ -22,6 +22,7 @@
 #include <variant>
 
 #include "action.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "cached_options.h"
 #include "calendar.h"
@@ -1959,9 +1960,70 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     if( !is_isometric() && fluid::enabled() ) {
         draw_fluid_overlays();
     }
+    if( !is_isometric() && alerts::nonblocking() ) {
+        draw_threat_arrow( dest, width, height );
+    }
 
     printErrorIf( SDL_RenderSetClipRect( renderer.get(), nullptr ) != 0,
                   "SDL_RenderSetClipRect failed" );
+}
+
+void cata_tiles::draw_threat_arrow( const point &dest, int width, int height )
+{
+    const std::optional<tripoint_abs_ms> threat = alerts::recent_threat();
+    if( !threat ) {
+        return;
+    }
+    map &here = get_map();
+    const avatar &you = get_avatar();
+    if( !here.inbounds( *threat ) ) {
+        return;
+    }
+    const point me = player_to_screen( you.pos_bub().xy() ) + point( tile_width / 2,
+                     tile_height / 2 );
+    const point them = player_to_screen( here.get_bub( *threat ).xy() ) + point( tile_width / 2,
+                       tile_height / 2 );
+    SDL_Renderer *r = renderer.get();
+    SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+    // pulse a few times a second
+    const double pulse = 0.5 + 0.5 * std::sin( fluid::now_ms() / 120.0 );
+    const Uint8 alpha = static_cast<Uint8>( 120 + 120 * pulse );
+    const int margin = std::max( tile_width, tile_height );
+    const bool on_screen = them.x >= dest.x + margin && them.x <= dest.x + width - margin &&
+                           them.y >= dest.y + margin && them.y <= dest.y + height - margin;
+    if( on_screen ) {
+        SDL_Rect rect = { them.x - tile_width / 2 - 2, them.y - tile_height / 2 - 2, tile_width + 4, tile_height + 4 };
+        SDL_SetRenderDrawColor( r, 255, 60, 40, alpha );
+        SDL_RenderDrawRect( r, &rect );
+        rect = { rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2 };
+        SDL_RenderDrawRect( r, &rect );
+    } else {
+        // place the arrow where the line to the threat leaves the view
+        const double dx = them.x - me.x;
+        const double dy = them.y - me.y;
+        const double len = std::max( 1.0, std::sqrt( dx * dx + dy * dy ) );
+        const double ux = dx / len;
+        const double uy = dy / len;
+        const double half_w = width / 2.0 - margin;
+        const double half_h = height / 2.0 - margin;
+        const double scale = std::min( std::abs( ux ) > 1e-6 ? half_w / std::abs( ux ) : 1e9,
+                                       std::abs( uy ) > 1e-6 ? half_h / std::abs( uy ) : 1e9 );
+        const double cx = dest.x + width / 2.0 + ux * scale;
+        const double cy = dest.y + height / 2.0 + uy * scale;
+        const double size = std::max( 12, tile_width );
+        const SDL_Color col = { 255, 60, 40, alpha };
+        // triangle: tip towards the threat
+        SDL_Vertex v[3];
+        v[0].position = { static_cast<float>( cx + ux * size ), static_cast<float>( cy + uy * size ) };
+        v[1].position = { static_cast<float>( cx - uy * size * 0.6 ), static_cast<float>( cy + ux * size * 0.6 ) };
+        v[2].position = { static_cast<float>( cx + uy * size * 0.6 ), static_cast<float>( cy - ux * size * 0.6 ) };
+        for( SDL_Vertex &vert : v ) {
+            vert.color = col;
+            vert.tex_coord = { 0.0f, 0.0f };
+        }
+        SDL_RenderGeometry( r, nullptr, v, 3, nullptr, 0 );
+    }
+    SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
 }
 
 void cata_tiles::draw_fluid_overlays()

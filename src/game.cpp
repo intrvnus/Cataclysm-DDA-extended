@@ -41,6 +41,7 @@
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
 #include "activity_type.h"
+#include "alerts.h"
 #include "ascii_art.h"
 #include "auto_note.h"
 #include "auto_pickup.h"
@@ -1597,6 +1598,19 @@ static bool cancel_auto_move( Character &you, const std::string &text )
 
 bool game::cancel_activity_or_ignore_query( const distraction_type type, const std::string &text )
 {
+    // Realtime / multiplayer: never ask.  Warn; auto-travel stops (it is easy to restart),
+    // the current activity goes on until the player cancels it.
+    if( alerts::nonblocking() ) {
+        if( u.has_destination() ) {
+            u.abort_automove();
+            alerts::warn( string_format( _( "%s Auto move stopped." ), text ), alerts::level::danger );
+            return true;
+        }
+        if( u.activity && !u.activity.is_distraction_ignored( type ) ) {
+            alerts::warn( text, alerts::level::danger );
+        }
+        return false;
+    }
     if( u.has_distant_destination() ) {
         if( cancel_auto_move( u, text ) ) {
             return true;
@@ -10303,9 +10317,11 @@ void game::reload_weapon( bool try_everything )
 
 bool game::check_safe_mode_allowed( bool repeat_safe_mode_warnings )
 {
+    // Realtime / multiplayer: safe mode warns (sound, message, arrow) but never stops you.
+    const bool warn_only = alerts::nonblocking();
     if( !repeat_safe_mode_warnings && safe_mode_warning_logged ) {
         // Already warned player since safe_mode_warning_logged is set.
-        return false;
+        return warn_only;
     }
 
     std::string msg_ignore = press_x( ACTION_IGNORE_ENEMY );
@@ -10318,7 +10334,9 @@ bool game::check_safe_mode_allowed( bool repeat_safe_mode_warnings )
 
     if( u.has_effect( effect_laserlocked ) ) {
         // Automatic and mandatory safemode.  Make BLOODY sure the player notices!
-        if( u.get_int_base() < 5 || u.has_trait( trait_PROF_CHURL ) ) {
+        if( warn_only ) {
+            alerts::warn( _( "You are being laser-targeted!" ), alerts::level::danger );
+        } else if( u.get_int_base() < 5 || u.has_trait( trait_PROF_CHURL ) ) {
             add_msg( game_message_params{ m_warning, gmf_bypass_cooldown },
                      _( "There's an angry red dot on your body, %s to brush it off." ), msg_ignore );
         } else {
@@ -10326,7 +10344,7 @@ bool game::check_safe_mode_allowed( bool repeat_safe_mode_warnings )
                      _( "You are being laser-targeted, %s to ignore." ), msg_ignore );
         }
         safe_mode_warning_logged = true;
-        return false;
+        return warn_only;
     }
     if( safe_mode != SAFE_MODE_STOP ) {
         return true;
@@ -10438,6 +10456,16 @@ bool game::check_safe_mode_allowed( bool repeat_safe_mode_warnings )
                                    press_x( ACTION_WHITELIST_ENEMY ) );
     }
 
+    if( warn_only ) {
+        std::optional<tripoint_abs_ms> source;
+        if( !new_seen_mon.empty() ) {
+            source = new_seen_mon.back()->pos_abs();
+        }
+        alerts::warn( string_format( _( "Spotted %s!" ), spotted_creature_text ), alerts::level::danger,
+                      source );
+        safe_mode_warning_logged = true;
+        return true;
+    }
     const std::string msg_safe_mode = press_x( ACTION_TOGGLE_SAFEMODE );
     add_msg( game_message_params{ m_warning, gmf_bypass_cooldown },
              _( "Spotted %1$s -- safe mode is on!  (%2$s to turn it off, %3$s to ignore monster%4$s)" ),
