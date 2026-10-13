@@ -421,7 +421,7 @@ static std::string furniture_qualities_string( const furn_id &fid )
 
 static std::pair<std::map<tripoint_bub_ms, const construction *>, std::vector<construction *>>
         valid_constructions_near_player( const std::vector<construction_group_str_id> &groups,
-                const inventory &total_inv, avatar &player_character );
+                const inventory &total_inv, Character &player_character );
 
 static shared_ptr_fast<game::draw_callback_t> construction_preview_callback(
     const std::map<tripoint_bub_ms, const construction *> &valid,
@@ -1211,7 +1211,7 @@ bool can_construct( const construction &con )
 
 std::pair<std::map<tripoint_bub_ms, const construction *>, std::vector<construction *>>
         valid_constructions_near_player( const std::vector<construction_group_str_id> &groups,
-                const inventory &total_inv, avatar &player_character )
+                const inventory &total_inv, Character &player_character )
 {
     std::pair<std::map<tripoint_bub_ms, const construction *>, std::vector<construction *>> ret;
     std::map<tripoint_bub_ms, const construction *> &valid = ret.first;

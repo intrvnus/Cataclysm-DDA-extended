@@ -31,6 +31,8 @@
 #include "distraction_manager.h"
 #include "martialarts.h"
 #include "overmap_ui.h"
+#include "uistate.h"
+#include "ui_manager.h"
 #include "panels.h"
 #include "safemode_ui.h"
 #include "worldfactory.h"
