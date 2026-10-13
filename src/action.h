@@ -714,6 +714,8 @@ std::string toggle_mark_of( const std::string &action );
 void smash_menu();
 /** the hauling menu (a multiplayer client records its answers) */
 void haul_menu();
+/** steers or accelerates the vehicle the acting character drives (x: steering, y: speed) */
+void drive_vehicle( const tripoint_rel_ms &p );
 /** the loot sorting menu (creates zones) */
 void loot_menu();
 

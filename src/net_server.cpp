@@ -546,7 +546,7 @@ void report_test_zombie( const npc &near )
         return;
     }
     for( monster &z : g->all_monsters() ) {
-        if( z.type->id == mtype_id( "mon_zombie" ) ) {
+        if( z.unique_name == "TESTZED" ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie at distance " <<
                                        rl_dist( z.pos_abs(), near.pos_abs() ) << " hp " << z.get_hp() <<
                                        " body hp " << near.get_hp() << " target " <<
@@ -562,14 +562,23 @@ void spawn_test_zombie( const npc &near )
         return;
     }
     map &here = get_map();
-    for( const tripoint_bub_ms &p : here.points_in_radius( near.pos_bub( here ), 7 ) ) {
-        if( rl_dist( p, near.pos_bub( here ) ) >= 6 && here.passable( p ) &&
-            get_creature_tracker().creature_at( p ) == nullptr ) {
-            g->place_critter_at( mtype_id( "mon_zombie" ), p );
-            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie spawned";
-            return;
+    const tripoint_bub_ms at = near.pos_bub( here );
+    // first a spot the player can see, else any free spot close by
+    for( const bool need_sight : { true, false } ) {
+        for( const tripoint_bub_ms &p : here.points_in_radius( at, 7 ) ) {
+            if( rl_dist( p, at ) >= 2 && here.passable( p ) &&
+                ( !need_sight || here.sees( at, p, 20 ) ) &&
+                get_creature_tracker().creature_at( p ) == nullptr ) {
+                if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), p ) ) {
+                    z->unique_name = "TESTZED";
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie spawned, distance " <<
+                                               rl_dist( p, at ) << ( need_sight ? " in sight" : " out of sight" );
+                    return;
+                }
+            }
         }
     }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no place for a test zombie";
 }
 
 void spawn_test_npc( const npc &near )
@@ -622,6 +631,46 @@ void place_on_test_stairs( npc &guy )
         guy.setpos( here, *stairs, false );
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test player put on stairs";
     }
+}
+
+// Test helper: a car on open ground and the player in its driver's seat.
+void place_test_vehicle( npc &guy )
+{
+    if( std::getenv( "CATA_MP_TEST_VEHICLE" ) == nullptr ) {
+        return;
+    }
+    map &here = get_map();
+    const tripoint_bub_ms at = guy.pos_bub( here );
+    for( int r = 3; r <= 60; r += 3 ) {
+        for( const tripoint_bub_ms &c : here.points_in_radius( tripoint_bub_ms( at.x(), at.y(), 0 ), r ) ) {
+            bool free = true;
+            for( int dx = 0; dx < 8 && free; dx++ ) {
+                for( int dy = 0; dy < 5 && free; dy++ ) {
+                    const tripoint_bub_ms q( c.x() + dx, c.y() + dy, 0 );
+                    free = here.inbounds( q ) && here.passable( q ) && !here.has_furn( q ) &&
+                           here.is_outside( q ) && !here.veh_at( q ) &&
+                           get_creature_tracker().creature_at( q ) == nullptr;
+                }
+            }
+            if( !free ) {
+                continue;
+            }
+            vehicle *veh = here.add_vehicle( vproto_id( "car" ), c + point_rel_ms( 2, 2 ), 0_degrees, 100,
+                                             0 );
+            if( veh == nullptr ) {
+                continue;
+            }
+            for( const vpart_reference &vpr : veh->get_avail_parts( "CONTROLS" ) ) {
+                const tripoint_bub_ms seat = vpr.pos_bub( here );
+                guy.setpos( here, seat, false );
+                guy.in_vehicle = true;
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car placed, player at the controls";
+                return;
+            }
+            return;
+        }
+    }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no open ground for a test car";
 }
 
 npc *spawn_remote_npc( remote_player &rp )
@@ -1130,6 +1179,17 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             npc *other = g->find_npc( character_id( id ) );
             if( other != nullptr && !other->is_dead() && rl_dist( guy.pos_abs(), other->pos_abs() ) <= 2 ) {
                 g->npc_menu_choice( guy, *other, game::npc_opt_use_item );
+            }
+        } else if( what == "control_vehicle" ) {
+            g->mp_control_vehicle();
+        } else if( what == "drive" ) {
+            std::istringstream is( remote_ui::answer( "d" ).value_or( "0 0 0" ) );
+            int x = 0;
+            int y = 0;
+            int z = 0;
+            is >> x >> y >> z;
+            if( guy.controlling_vehicle ) {
+                drive_vehicle( tripoint_rel_ms( x, y, z ) );
             }
         } else if( what == "haul" ) {
             haul_menu();
@@ -1887,6 +1947,13 @@ void dedicated_turn()
             }
         }
     }
+    static fluid::ms_t last_beat = fluid::now_ms();
+    if( std::getenv( "CATA_MP_TEST_BEAT" ) != nullptr && fluid::now_ms() - last_beat > 5000 ) {
+        last_beat = fluid::now_ms();
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: dedicated heartbeat, turn " <<
+                                   to_turns<int>( calendar::turn - calendar::turn_zero ) << " players " <<
+                                   bodies.size();
+    }
     // save now and then (a dedicated server has nobody to press "save")
     static fluid::ms_t last_save = fluid::now_ms();
     if( fluid::now_ms() - last_save > 10 * 60 * 1000 ) {
@@ -2007,8 +2074,9 @@ void host_end_of_turn()
             }
             rp.npc_id = guy->getID();
             spawn_test_npc( *guy );
-            spawn_test_zombie( *guy );
             place_on_test_stairs( *guy );
+            place_test_vehicle( *guy );
+            spawn_test_zombie( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
             impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
                 jo.member( "t", "welcome" );

@@ -523,9 +523,9 @@ static void rcdrive( const point_rel_ms &d )
     }
 }
 
-static void pldrive( const tripoint_rel_ms &p )
+void drive_vehicle( const tripoint_rel_ms &p )
 {
-    if( !g->check_safe_mode_allowed() ) {
+    if( !net::active() && !g->check_safe_mode_allowed() ) {
         return;
     }
     vehicle *veh = g->remoteveh();
@@ -600,12 +600,12 @@ static void pldrive( const tripoint_rel_ms &p )
             return;
         }
     }
-    veh->pldrive( here, get_avatar(), p.x(), p.y(), p.z() );
+    veh->pldrive( here, player_character, p.x(), p.y(), p.z() );
 }
 
 static void pldrive( point_rel_ms d )
 {
-    pldrive( tripoint_rel_ms( d, 0 ) );
+    drive_vehicle( tripoint_rel_ms( d, 0 ) );
 }
 
 static void open()
@@ -2463,7 +2463,7 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             if( has_vehicle_control( player_character ) ) {
                 const optional_vpart_position vp = here.veh_at( player_character.pos_bub() );
                 if( vp->vehicle().is_rotorcraft( here ) ) {
-                    pldrive( tripoint_rel_ms::below );
+                    drive_vehicle( tripoint_rel_ms::below );
                     break;
                 }
             }
@@ -2521,7 +2521,7 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             } else if( has_vehicle_control( player_character ) ) {
                 const optional_vpart_position vp = here.veh_at( player_character.pos_bub() );
                 if( vp->vehicle().is_rotorcraft( here ) ) {
-                    pldrive( tripoint_rel_ms::above );
+                    drive_vehicle( tripoint_rel_ms::above );
                 }
             }
             break;

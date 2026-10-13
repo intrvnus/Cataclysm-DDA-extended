@@ -951,7 +951,20 @@ bool handle_input()
         case ACTION_MOVE_BACK_LEFT:
         case ACTION_MOVE_LEFT:
         case ACTION_MOVE_FORTH_LEFT:
+            if( get_avatar().controlling_vehicle ) {
+                // at the wheel: x steers, y speeds up or brakes
+                const point_rel_ms d = get_delta_from_movement_action( act, iso_rotate::no );
+                send_ui( "drive", [d] {
+                    remote_ui::record( "d", string_format( "%d %d 0", d.x(), d.y() ) );
+                } );
+                break;
+            }
             send_action( "move", get_delta_from_movement_action( act, iso_rotate::yes ) );
+            break;
+        case ACTION_CONTROL_VEHICLE:
+            send_ui( "control_vehicle", [] {
+                g->mp_control_vehicle();
+            } );
             break;
         case ACTION_PAUSE:
             // also stops a timed action (B7)

@@ -911,6 +911,9 @@ class game
          * player; talking, examining and trading are handled by the caller there). */
         bool npc_menu_choice( Character &you, npc &who, int option );
         // Entry points for the menus of a multiplayer client (see net_client.cpp)
+        void mp_control_vehicle() {
+            control_vehicle();
+        }
         void mp_item_action_menu() {
             item_action_menu();
         }

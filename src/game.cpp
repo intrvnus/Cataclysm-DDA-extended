@@ -5975,6 +5975,8 @@ void game::moving_vehicle_dismount( const tripoint_bub_ms &dest_loc )
 void game::control_vehicle()
 {
     map &here = get_map();
+    // multiplayer: the body of the player whose action this is
+    Character &u = remote_ui::acting_player();
 
     if( vehicle *remote_veh = remoteveh() ) { // remote controls have priority
         for( const vpart_reference &vpr : remote_veh->get_avail_parts( "REMOTE_CONTROLS" ) ) {
@@ -6093,7 +6095,9 @@ void game::control_vehicle()
         // If we reached here, we gained control of a vehicle.
         // Clear the map memory for the area covered by the vehicle to eliminate ghost vehicles.
         for( const tripoint_abs_ms &target : veh->get_points() ) {
-            u.memorize_clear_decoration( target, "vp_" );
+            if( avatar *av = u.as_avatar() ) {
+                av->memorize_clear_decoration( target, "vp_" );
+            }
             here.memory_cache_dec_set_dirty( here.get_bub( target ), true );
         }
         veh->is_following = false;
@@ -6413,10 +6417,6 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
     };
 
     if( mp_player && get_creature_tracker().creature_at( examp ) != nullptr ) {
-        mp_unavailable();
-        return;
-    }
-    if( mp_player && here.veh_at( examp ) ) {
         mp_unavailable();
         return;
     }
