@@ -56,6 +56,7 @@ constexpr int confirm_window_ms = 4000;
 // The same message is not repeated faster than this.
 constexpr int repeat_text_ms = 2000;
 
+#if defined(SDL_SOUND)
 const char *sound_file( level lvl )
 {
     switch( lvl ) {
@@ -68,6 +69,7 @@ const char *sound_file( level lvl )
     }
     return "warning.wav";
 }
+#endif
 
 } // namespace
 

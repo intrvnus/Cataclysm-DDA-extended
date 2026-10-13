@@ -1,6 +1,7 @@
 #include "calendar.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <array>
 #include <cmath>
 #include <limits>
