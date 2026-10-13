@@ -59,6 +59,11 @@ when a batch is worth playing.
 * Proposal: the client's own character (made in character creation) is sent to the host on
   join; the host saves each player character in the world save; reconnect by name/key puts you
   back into your body. Map memory and overmap notes per player.
+* **Done:** the client's character is sent on join; the host keeps each player's body in
+  `<world>/mp_players/<key>.json` (the key lives in the client's `config/mp_identity.txt`);
+  rejoining puts you back into your body where you left (if that spot is loaded, else next to
+  the host); the client gets its full character every 3 s. Open: map memory / overmap notes
+  per player.
 
 ### A5 [C] 353 yes/no popups and "Really do X?" prompts
 * Every `query_yn` stops time on the host. Most must become non-blocking (default answer,
@@ -68,6 +73,12 @@ when a batch is worth playing.
 * The client can only move/attack/wait/pick up. Every menu has to run on the client and send
   the chosen action to the host. Needed before most of the items below are playable as a
   client. Also needed for mod features (music player etc., already on the list).
+* **Done:** wield, wear, take off, eat/drink, read, drop, pick up (everything on the tile),
+  crafting, open/close doors, look, character sheet, sleep, movement modes; apply only for
+  uses that never ask anything (switching things on/off).
+* **Open:** apply with targets/choices (fire starting, cutting up, phones, music players),
+  examine furniture/containers, advanced inventory and choosing what to pick up, talking to
+  NPCs, bionics (C19).
 
 ---
 
