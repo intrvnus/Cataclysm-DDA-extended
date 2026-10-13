@@ -4001,7 +4001,9 @@ void npc::update_missions_target( character_id old_character, character_id new_c
 
 const dialogue_chatbin_snippets &npc::chat_snippets() const
 {
-    if( idz.is_null() ) {
+    // (an NPC loaded without an "idz" gets its class as template id, which need not exist: the
+    // bodies of multiplayer players are such NPCs)
+    if( idz.is_null() || !idz.is_valid() ) {
         static dialogue_chatbin_snippets dummy;
         return dummy;
     }

@@ -1,4 +1,5 @@
 #include "vehicle.h" // IWYU pragma: associated
+#include "net_session.h"
 #include "vpart_position.h" // IWYU pragma: associated
 #include "vpart_range.h" // IWYU pragma: associated
 
@@ -306,6 +307,12 @@ bool vehicle::player_is_driving_this_veh( map *here ) const
         return true;
     }
 
+    // multiplayer: the player at the wheel may be the body of a client
+    if( const Character *driver = get_driver( *here ) ) {
+        if( net::is_remote_player( *driver ) ) {
+            return true;
+        }
+    }
     Character &player_character = get_player_character();
     // Check if the player is controlling *this* vehicle
     return player_in_control( *here,  player_character );
@@ -6052,7 +6059,7 @@ void vehicle::idle( map &here, bool on_map )
     if( engine_on && total_power( here ) > 0_W ) {
         // Consume fuel at here only if the vehicle is not thrusting.
         // See the condition under which vehicle::thrust() is called in vehicle::gain_moves().
-        if( !( ( player_in_control( here, player_character ) || is_following || is_patrolling ) &&
+        if( !( ( player_is_driving_this_veh( &here ) || is_following || is_patrolling ) &&
                cruise_velocity != 0 ) ) {
             int idle_rate = alternator_load;
             if( idle_rate < 10 ) {

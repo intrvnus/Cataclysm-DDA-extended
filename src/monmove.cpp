@@ -1,6 +1,6 @@
 // Monster movement code; essentially, the AI
-#include "monster.h"
-#include "net_session.h" // IWYU pragma: associated
+#include "monster.h" // IWYU pragma: associated
+#include "net_session.h"
 
 #include <algorithm>
 #include <cfloat>
