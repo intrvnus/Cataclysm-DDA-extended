@@ -1,68 +1,76 @@
-# Experimental multiplayer (milestone 1)
+# Experimental multiplayer: playing with friends
 
-Status: compiles (Linux CI incl. LOCALIZE). Tested on Linux, curses build, on localhost
-with the three custom mods enabled on all worlds: host + 2 clients at once, joining,
-client movement, attacking monsters (bump), monsters shown on the clients, items/corpses
-synced, pick up, leaving and rejoining, time running on all sides with nobody pressing keys.
-Not yet tested: the Windows tiles build.
+Status: works between a host and clients on one machine (Linux, Xvfb tests) and is meant for
+friends on a LAN or over the internet (UDP port 7777). The Windows tiles build has not been
+tried yet. For what is done and what is open see `MULTIPLAYER_PROGRESS.md` (short) and
+`MULTIPLAYER_ROADMAP.md` (full plan).
 
 ## How to start
 
-Both players need the same game build, and the host's and the client's worlds must have
-the same mods enabled (the client gets map data with the host's mod items in it).
+Everybody needs the same game build, and the host's and the client's worlds need the same mods.
 
-Host (plays normally, owns the world):
+Host (plays normally and owns the world):
 
     cataclysm-tiles --world <host world> --mp-host [port]
 
-Client (only shows the host's world; use a throwaway world, it is never saved):
+Dedicated server (nobody plays on the server itself; it follows the group and keeps running
+without any menus, saves itself every 10 minutes):
+
+    cataclysm-tiles --world <world> --mp-server [port]
+
+Client (makes its own character; the client's world is only a view and is never saved):
 
     cataclysm-tiles --world <any world> --mp-connect <host address>[:port]
 
-The default port is 7777 (UDP). After loading, the host's message log says
-"Multiplayer: hosting…", and the client is placed next to the host as soon as it joins.
+Open UDP 7777 on the host's router/firewall for play over the internet.
 
-## What works in milestone 1
+Your character is saved on the host. A secret key in your `config/mp_identity.txt` identifies
+you: when you come back, you are back in your own body where you left it.
 
-- Host + up to 4 clients in one reality bubble (the host's).
-- Continuous time: while a session runs, realtime turns are on (the `TURN_DURATION`
-  option, or 1 second per turn if it is off). Nobody waits for anyone's input; a player
-  who does not press a key just waits that turn.
-- Client: move, attack by walking into a monster, wait (`.`), pick up everything on the
-  own tile (`g`/`,`), look around (`x`). Escape leaves the session.
-- The client sees terrain, furniture, items and vehicles (whole submaps sent in the
-  savegame format), monsters, the host and the other clients, and the game time.
+## How it plays
+
+- The world runs in real time for everybody; nobody waits for anybody. The host's own menus do
+  not stop the clients' game on a dedicated server (on a normal host they still do).
+- Days are short in multiplayer: the option `REALTIME_DAY_MINUTES` sets the real-time length of
+  one day (needs, healing, plants, weather follow the calendar; fights and walking follow
+  action time).
+- Fluid mode (the host's `FLUID_MODE` option) gives real-time movement and combat: walk, swing
+  at enemies, aim and fire with the mouse, throw with the throw key. See
+  `MULTIPLAYER_FLUID.md`.
+- Menus run on your own computer and only their result is sent to the host: inventory and item
+  menu, crafting, construction, examine, pick up, advanced inventory, bionics, mutations, sort
+  armor, smash, haul, workout, peek, item action menu, computers, pets, vehicle controls and
+  driving, disarm/steal/heal on NPCs. Missions are a group list; zones are shared; the
+  overmap shows what any player has seen.
+- Talk to people by walking into them: you get a menu (talk, push, examine, attack, trade ...).
+  While you talk you cannot be seen or hurt.
+- Dangers warn you with a sound and a coloured message instead of stopping the game.
+- Downed players can be helped up by walking into them.
+- Everybody sleeping skips the night.
+
+## Known limits
+
+- Players must stay within about 60 tiles of each other (one simulated area); the dedicated
+  server follows the middle of the group.
+- Grab/drag, spells, the faction menu, chat and a player list are not available yet.
+- Classic (non-fluid) shooting and throwing are not available to clients: use fluid mode.
+- "Wait" is refused on purpose (the world does not stop).
 
 ## How it works
 
 - `src/net_session.*`: ENet setup, connections, command line requests.
-- `src/net_server.cpp` (host): each client is an NPC on the host. In `monmove()` that NPC
-  does not use the NPC AI; it executes the commands its client sent (or waits). At the end
-  of every turn the host sends each client the changed submaps and the state
-  (own position and HP, other players, monsters, turn).
-- `src/net_client.cpp` (client): `do_turn()` does not simulate anything; it applies what
-  the host sends and sends key presses.
-- `src/net_protocol.h`: message list. Every message is one JSON object.
-- ENet 1.3.18 is vendored in `src/third-party/enet` (MIT license).
+- `src/net_server.cpp` (host): each client is an NPC body on the host. Its client sends input
+  and menu answers; the host repeats them on the body. At the end of every turn the host sends
+  changed submaps and the state.
+- `src/net_client.cpp` (client): does not simulate anything; shows what the host sends and
+  sends input and menu results.
+- `src/remote_ui.*`: record/replay of menus (the client answers a menu on its own copy of its
+  character and the host repeats the answers on the body).
+- `src/net_protocol.h`: the messages (one JSON object each). ENet 1.3.18 is vendored in
+  `src/third-party/enet` (MIT license).
 
-## Known limits (later milestones)
+## Test helpers (environment variables on the host)
 
-- No saving or reconnecting for clients; the client's NPC on the host is a random NPC.
-- Most menus (inventory, crafting, …) are not available to clients; the host's menus
-  still pause the world.
-- No sleep or long activities for clients.
-- Monsters on the client are recreated every update (no animations/effects shown).
-- The client only gets the host's messages about its own actions, and only what the host
-  can see (in the dark that is often just "You hear whack!").
-- If the host dies, the clients freeze until the host leaves the death screen; then they
-  get "connection lost".
-- Realtime turns ignore safe mode while a session is active (otherwise a monster in view
-  would stop time for everybody).
-- Parts of the client's map outside the host's reality bubble come from the client's
-  own world.
-
-## Planned (wished for by Noah)
-
-- Mod features for clients: each player can use their own mod items and windows, e.g.
-  their own mp3 player with the Own Music Player window and album choice, mod hotkeys,
-  item marks menus. Needs client menus/item use forwarded to the host first.
+`CATA_MP_TEST_NPC`, `CATA_MP_TEST_STAIRS`, `CATA_MP_TEST_ZOMBIE`, `CATA_MP_TEST_VEHICLE`,
+`CATA_MP_TEST_BEAT`: spawn an NPC / put a joining player on stairs / spawn a zombie / place a car
+and seat the player / log a heartbeat of the dedicated server. Used by the automated checks.
