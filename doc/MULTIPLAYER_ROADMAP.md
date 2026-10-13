@@ -100,6 +100,22 @@ when a batch is worth playing.
   item was available). Classic (non-fluid) shooting and throwing are not available to clients:
   they need the mouse-aimed fluid mode. Test helper: with `CATA_MP_TEST_NPC` set the host
   spawns an NPC beside every player who joins.
+* **Done and tested (client parity batch):** walking into an NPC (enemies are attacked, anybody
+  else opens the normal menu: talk, push, examine wounds/status shown on the client, attack,
+  disarm, steal, trade; "use item on" and "sort armor" say not available yet; no chat key),
+  stairs and ladders (`<` / `>`: a player can be on another floor than the host: the client got
+  "You climb up." onto the roof and back), the action menu (`.`-style) dispatches to the client
+  actions, local views and settings (zoom, item list `V`, medical `N`, body status, options,
+  auto-pickup/notes, safe mode lists, colours, distraction manager, sky, active mods, compare),
+  and host actions: drop in a direction, consume menu, martial-arts style, fire mode, movement
+  mode cycling/reset, thief mode. Wait is refused on purpose (the world does not stop).
+  Test helpers: `CATA_MP_TEST_NPC` (an NPC beside every joining player), `CATA_MP_TEST_STAIRS`
+  (a joining player stands on the nearest stairs).
+* **Not done: separate reality bubbles (C2).** The game simulates one reality bubble around
+  the host's avatar; a player's body only exists while it is inside it (any floor, within
+  roughly 60 tiles). Giving every player their own simulated area needs several maps
+  simulated at once, which this engine does not support; it needs its own design (options:
+  a tether distance with a warning, or a dedicated server that follows the player group).
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
   talking to NPCs and trading (C4), the inventory screen (`i`, its item menu has
   immediate effects), throw/fire/smash and the other remaining basic menus.

@@ -910,6 +910,16 @@ class game
         /** Does an entry of that menu for @p you (a multiplayer host passes the body of a
          * player; talking, examining and trading are handled by the caller there). */
         bool npc_menu_choice( Character &you, npc &who, int option );
+        // Entry points for the menus of a multiplayer client (see net_client.cpp)
+        void mp_list_items() {
+            list_items_monsters();
+        }
+        void mp_drop_in_direction( const tripoint_bub_ms &pnt ) {
+            drop_in_direction( pnt );
+        }
+        void mp_open_consume_menu() {
+            open_consume_item_menu();
+        }
 
         // Handle phasing through walls, returns true if it handled the move
         bool phasing_move( const tripoint_bub_ms &dest, bool via_ramp = false );

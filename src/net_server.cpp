@@ -48,6 +48,10 @@
 #include "json_loader.h"
 #include "map.h"
 #include "map_iterator.h"
+#include "martialarts.h"
+#include "mapdata.h"
+#include "move_mode.h"
+#include "character_martial_arts.h"
 #include "mapbuffer.h"
 #include "memory_fast.h"
 #include "messages.h"
@@ -536,8 +540,12 @@ void spawn_test_npc( const npc &near )
         return;
     }
     map &here = get_map();
+    // right above the player when that is free (so that a test can walk into it), else near
+    const tripoint_bub_ms north = near.pos_bub( here ) + tripoint_rel_ms::north;
     for( const tripoint_bub_ms &p : here.points_in_radius( near.pos_bub( here ), 3 ) ) {
-        if( rl_dist( p, near.pos_bub( here ) ) < 2 || !here.passable( p ) ||
+        const bool is_north = p == north;
+        if( ( !is_north && ( rl_dist( p, near.pos_bub( here ) ) < 2 ||
+                             here.passable( north ) ) ) || !here.passable( p ) ||
             get_creature_tracker().creature_at( p ) != nullptr ) {
             continue;
         }
@@ -557,6 +565,24 @@ void spawn_test_npc( const npc &near )
         g->load_npcs();
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test NPC " << temp->get_name() << " spawned";
         return;
+    }
+}
+
+// For testing: with CATA_MP_TEST_STAIRS set, a player who joins stands on the nearest stairs.
+void place_on_test_stairs( npc &guy )
+{
+    if( std::getenv( "CATA_MP_TEST_STAIRS" ) == nullptr ) {
+        return;
+    }
+    map &here = get_map();
+    std::optional<tripoint_bub_ms> stairs = find_point_closest_first( guy.pos_bub( here ), 0, 40,
+    [&]( const tripoint_bub_ms & p ) {
+        return here.has_flag( ter_furn_flag::TFLAG_GOES_UP, p ) &&
+               get_creature_tracker().creature_at( p ) == nullptr;
+    } );
+    if( stairs ) {
+        guy.setpos( here, *stairs, false );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test player put on stairs";
     }
 }
 
@@ -878,6 +904,70 @@ void execute( npc &guy, const command &cmd )
         } else if( cmd.action != "run" || guy.can_run() ) {
             guy.set_movement_mode( wanted );
         }
+    } else if( cmd.action == "cycle_move" ) {
+        const move_mode_id next = guy.current_movement_mode()->cycle();
+        guy.set_movement_mode( next );
+        if( !guy.movement_mode_is( next ) ) {
+            guy.set_movement_mode( next->cycle() );
+        }
+    } else if( cmd.action == "cycle_move_back" ) {
+        const move_mode_id prev = guy.current_movement_mode()->cycle_reverse();
+        guy.set_movement_mode( prev );
+        if( !guy.movement_mode_is( prev ) ) {
+            guy.set_movement_mode( prev->cycle_reverse() );
+        }
+    } else if( cmd.action == "reset_move" ) {
+        if( !guy.is_walking() ) {
+            guy.set_movement_mode( move_mode_id( "walk" ) );
+        }
+    } else if( cmd.action == "thief" ) {
+        // honest -> steal -> ask, like the thief mode key of the player
+        const std::string mode = guy.get_value( "THIEF_MODE" ).str();
+        if( mode == "THIEF_ASK" ) {
+            guy.set_value( "THIEF_MODE", "THIEF_HONEST" );
+        } else if( mode == "THIEF_HONEST" ) {
+            guy.set_value( "THIEF_MODE", "THIEF_STEAL" );
+        } else {
+            guy.set_value( "THIEF_MODE", "THIEF_ASK" );
+        }
+        if( remote_player *rp = find_client( guy.getID() ) ) {
+            send_text( *rp, string_format( _( "Thief mode: %s" ), guy.get_value( "THIEF_MODE" ).str() ) );
+        }
+    } else if( cmd.action == "fire_mode" ) {
+        item_location weapon = guy.get_wielded_item();
+        if( weapon && weapon->is_gun() && !weapon->is_gunmod() && weapon->gun_all_modes().size() > 1 ) {
+            weapon->gun_cycle_mode();
+        }
+    } else if( cmd.action == "vertical" ) {
+        // stairs and ladders: like monsters do, the closest matching stairs on the other level
+        const int dz = cmd.delta.x() > 0 ? 1 : -1;
+        const tripoint_bub_ms pos = guy.pos_bub( here );
+        const ter_furn_flag here_flag = dz > 0 ? ter_furn_flag::TFLAG_GOES_UP :
+                                        ter_furn_flag::TFLAG_GOES_DOWN;
+        const ter_furn_flag there_flag = dz > 0 ? ter_furn_flag::TFLAG_GOES_DOWN :
+                                         ter_furn_flag::TFLAG_GOES_UP;
+        remote_player *rp = find_client( guy.getID() );
+        if( !here.has_flag( here_flag, pos ) ) {
+            if( rp != nullptr ) {
+                send_text( *rp, dz > 0 ? _( "You can't go up here." ) : _( "You can't go down here." ) );
+            }
+        } else {
+            const tripoint_bub_ms above( pos.xy(), pos.z() + dz );
+            std::optional<tripoint_bub_ms> found = find_point_closest_first( above, 0, 10,
+            [&]( const tripoint_bub_ms & candidate ) {
+                return here.has_flag( there_flag, candidate ) &&
+                       get_creature_tracker().creature_at( candidate ) == nullptr;
+            } );
+            if( found ) {
+                guy.setpos( here, *found, false );
+                guy.mod_moves( -100 );
+                if( rp != nullptr ) {
+                    send_text( *rp, dz > 0 ? _( "You climb up." ) : _( "You climb down." ) );
+                }
+            } else if( rp != nullptr ) {
+                send_text( *rp, _( "The way is blocked." ) );
+            }
+        }
     } else {
         guy.pause();
     }
@@ -974,6 +1064,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                     guy.change_side( loc );
                 }
             }
+        } else if( what == "style" ) {
+            guy.martial_arts_data->pick_style( guy );
         } else if( what == "smash" ) {
             smash_menu();
         } else if( what == "mutations" ) {
@@ -1762,6 +1854,7 @@ void host_end_of_turn()
             }
             rp.npc_id = guy->getID();
             spawn_test_npc( *guy );
+            place_on_test_stairs( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
             impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
                 jo.member( "t", "welcome" );

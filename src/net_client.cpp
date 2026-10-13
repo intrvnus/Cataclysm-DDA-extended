@@ -26,7 +26,16 @@
 #include "remote_talk.h"
 #include "color.h"
 #include "trade_ui.h"
+#include "auto_pickup.h"
+#include "auto_note.h"
+#include "distraction_manager.h"
+#include "martialarts.h"
+#include "overmap_ui.h"
+#include "panels.h"
+#include "safemode_ui.h"
+#include "worldfactory.h"
 #include "avatar.h"
+#include "character_martial_arts.h"
 #include "bodygraph.h"
 #include "avatar_action.h"
 #include "bodypart.h"
@@ -742,12 +751,131 @@ bool handle_input()
         send_action( "focus" );
         return false;
     }
-    const action_id act = look_up_action( action );
+    action_id act = look_up_action( action );
     if( act == ACTION_NULL ) {
         // an unbound key (e.g. Shift + a movement key while sprinting): nothing to say
         return false;
     }
+    // the action menu picks another action: that one is then done here
+    for( ;; ) {
     switch( act ) {
+        case ACTION_ACTIONMENU: {
+            const action_id chosen = handle_action_menu( get_map() );
+            if( chosen != ACTION_NULL && chosen != ACTION_ACTIONMENU ) {
+                act = chosen;
+                continue;
+            }
+            break;
+        }
+        // stairs and ladders
+        case ACTION_MOVE_UP:
+            send_action( "vertical", point_rel_ms( 1, 0 ) );
+            break;
+        case ACTION_MOVE_DOWN:
+            send_action( "vertical", point_rel_ms( -1, 0 ) );
+            break;
+        // movement modes
+        case ACTION_CYCLE_MOVE:
+            send_action( "cycle_move" );
+            break;
+        case ACTION_CYCLE_MOVE_REVERSE:
+            send_action( "cycle_move_back" );
+            break;
+        case ACTION_RESET_MOVE:
+            send_action( "reset_move" );
+            break;
+        case ACTION_TOGGLE_THIEF_MODE:
+            send_action( "thief" );
+            break;
+        case ACTION_SELECT_FIRE_MODE:
+            send_action( "fire_mode" );
+            break;
+        case ACTION_PICK_STYLE:
+            send_ui( "style", [] {
+                get_avatar().martial_arts_data->pick_style( get_avatar() );
+            } );
+            break;
+        case ACTION_DIR_DROP:
+            send_ui( "capture", [] {
+                if( const std::optional<tripoint_bub_ms> pnt = choose_adjacent( _( "Drop where?" ) ) ) {
+                    g->mp_drop_in_direction( *pnt );
+                }
+            }, true );
+            break;
+        case ACTION_OPEN_CONSUME:
+            send_ui( "capture", [] {
+                if( !avatar_action::eat_here( get_avatar() ) ) {
+                    g->mp_open_consume_menu();
+                }
+            }, true );
+            break;
+        case ACTION_WAIT:
+            add_msg( m_info, _( "Waiting is not possible in multiplayer: the world does not stop for you." ) );
+            break;
+        // views and settings that stay on this computer
+        case ACTION_ZOOM_IN:
+            g->zoom_in();
+            g->mark_main_ui_adaptor_resize();
+            break;
+        case ACTION_ZOOM_OUT:
+            g->zoom_out();
+            g->mark_main_ui_adaptor_resize();
+            break;
+        case ACTION_TOGGLE_FULLSCREEN:
+            g->toggle_fullscreen();
+            break;
+        case ACTION_TOGGLE_PIXEL_MINIMAP:
+            g->toggle_pixel_minimap();
+            break;
+        case ACTION_TOGGLE_PANEL_ADM:
+            panel_manager::get_manager().show_adm();
+            break;
+        case ACTION_RELOAD_TILESET:
+            g->reload_tileset();
+            break;
+        case ACTION_TOGGLE_MAP_MEMORY:
+            get_avatar().toggle_map_memory();
+            break;
+        case ACTION_OPTIONS:
+            get_options().show( true );
+            break;
+        case ACTION_AUTOPICKUP:
+            get_auto_pickup().show();
+            break;
+        case ACTION_AUTONOTES:
+            get_auto_notes_settings().show_gui();
+            break;
+        case ACTION_SAFEMODE:
+            get_safemode().show();
+            break;
+        case ACTION_DISTRACTION_MANAGER:
+            get_distraction_manager().show();
+            break;
+        case ACTION_COLOR:
+            all_colors.show_gui();
+            break;
+        case ACTION_WORLD_MODS:
+            world_generator->show_active_world_mods( world_generator->active_world->active_mod_order );
+            break;
+        case ACTION_LIST_ITEMS:
+            g->mp_list_items();
+            break;
+        case ACTION_SKY:
+            if( get_map().is_outside( get_avatar().pos_bub() ) ) {
+                ui::omap::display_visible_weather();
+            } else {
+                add_msg( m_info, _( "You can't see the sky from here." ) );
+            }
+            break;
+        case ACTION_MEDICAL:
+            get_avatar().disp_medical();
+            break;
+        case ACTION_BODYSTATUS:
+            display_bodygraph( get_avatar() );
+            break;
+        case ACTION_COMPARE:
+            game_menus::inv::compare( std::nullopt );
+            break;
         case ACTION_MOVE_FORTH:
         case ACTION_MOVE_FORTH_RIGHT:
         case ACTION_MOVE_RIGHT:
@@ -944,6 +1072,8 @@ bool handle_input()
         default:
             add_msg( m_info, _( "Not available in multiplayer yet." ) );
             break;
+    }
+    break;
     }
     return false;
 }
