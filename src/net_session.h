@@ -108,6 +108,10 @@ bool is_remote_player( const Character &who );
  * client) with the alerts system (sound, coloured message, arrow to @p source). */
 void alert_player( const Character &who, const std::string &text, int level,
                    const std::optional<tripoint_abs_ms> &source );
+/** The player whose character is closest to @p from (the host's avatar or the body of a
+ * client).  Monsters use it where the single player used to be "the" player.  Without a
+ * session this is the avatar. */
+Character &nearest_player( const tripoint_abs_ms &from );
 /** The NPCs on the host that are played by connected clients (in the reality bubble). */
 std::vector<npc *> remote_player_npcs();
 /** Called once at the end of every turn: handles joins and sends the world state. */

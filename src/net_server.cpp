@@ -2,6 +2,7 @@
 // the world state to the clients. See net_session.h.
 
 #include <algorithm>
+#include <limits>
 #include <optional>
 #include <iterator>
 #include <cctype>
@@ -2049,6 +2050,23 @@ std::vector<npc *> remote_player_npcs()
         }
     }
     return result;
+}
+
+Character &nearest_player( const tripoint_abs_ms &from )
+{
+    Character *best = &get_player_character();
+    if( !is_host() ) {
+        return *best;
+    }
+    int best_dist = dedicated() ? std::numeric_limits<int>::max() : rl_dist( from, best->pos_abs() );
+    for( npc *guy : remote_player_npcs() ) {
+        const int d = rl_dist( from, guy->pos_abs() );
+        if( d < best_dist ) {
+            best = guy;
+            best_dist = d;
+        }
+    }
+    return *best;
 }
 
 void host_end_of_turn()

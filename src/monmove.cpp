@@ -1,5 +1,6 @@
 // Monster movement code; essentially, the AI
-#include "monster.h" // IWYU pragma: associated
+#include "monster.h"
+#include "net_session.h" // IWYU pragma: associated
 
 #include <algorithm>
 #include <cfloat>
@@ -481,7 +482,8 @@ void monster::plan()
     map &here = get_map();
     std::bitset<OVERMAP_LAYERS> seen_levels = here.get_inter_level_visibility( posz() );
     monster_attitude mood = attitude();
-    Character &player_character = get_player_character();
+    // multiplayer: the closest player
+    Character &player_character = net::nearest_player( pos_abs() );
     // If we can see the player, move toward them or flee.
     if( friendly == 0 && seen_levels.test( player_character.posz() + OVERMAP_DEPTH ) &&
         sees( here, player_character ) ) {
@@ -841,7 +843,7 @@ void monster::move()
         die( &here, nullptr );
         return;
     }
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( pos_abs() );
 
     behavior::monster_oracle_t oracle( this );
     behavior::tree goals;
@@ -1465,7 +1467,7 @@ tripoint_bub_ms monster::scent_move()
         smell_threshold = 400;
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( pos_abs() );
     const bool fleeing = is_fleeing( player_character );
     int scent_here = scents.get_unsafe( pos_bub() );
     if( fleeing ) {
@@ -1846,7 +1848,7 @@ bool monster::attack_at( const tripoint_bub_ms &p )
         return false;
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( pos_abs() );
     const bool sees_player = sees( here, player_character );
     // Targeting player location
     if( p == player_character.pos_bub() ) {
@@ -2414,7 +2416,7 @@ bool monster::will_reach( const point_bub_ms &p )
     const map &here = get_map();
     const tripoint_bub_ms t = { p, posz() };
 
-    monster_attitude att = attitude( &get_player_character() );
+    monster_attitude att = attitude( &net::nearest_player( pos_abs() ) );
     if( att != MATT_FOLLOW && att != MATT_ATTACK && att != MATT_FRIEND ) {
         return false;
     }
