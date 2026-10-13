@@ -146,6 +146,7 @@ struct actor_state {
     ms_t ready_at = 0;
     // sprint key state of the last frame (hold to sprint)
     bool prev_sprint = false;
+    bool prev_cancel = false;
 
     // ---- melee
     phase melee = phase::idle;

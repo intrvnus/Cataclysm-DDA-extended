@@ -368,6 +368,11 @@ bool handle_input()
         send_action( "wake" );
         return false;
     }
+    if( ctxt.get_raw_input().get_first_input() == ' ' ) {
+        // the focus minigame key (B3/B5); the host ignores it when no prompt is open
+        send_action( "focus" );
+        return false;
+    }
     const action_id act = look_up_action( action );
     switch( act ) {
         case ACTION_MOVE_FORTH:

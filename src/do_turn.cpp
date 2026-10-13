@@ -34,6 +34,7 @@
 #include "explosion.h"
 #include "field.h"
 #include "fluid.h"
+#include "focus_minigame.h"
 #include "game.h"
 #include "game_constants.h"
 #include "gamemode.h"
@@ -255,6 +256,11 @@ void handle_key_blocking_activity()
         bool refresh = true;
         // Realtime / multiplayer (B7): one key stops an action at once, no question asked.
         if( alerts::nonblocking() ) {
+            if( ctxt.get_raw_input().get_first_input() == ' ' ) {
+                // SPACE answers the focus prompt (B3/B5) instead of stopping the action
+                focus_minigame::press( u );
+                return;
+            }
             const action_id act = look_up_action( action );
             const bool movement = act >= ACTION_MOVE_FORTH && act <= ACTION_MOVE_UP;
             if( action == "pause" || action == "QUIT" || act == ACTION_MAIN_MENU || movement ) {
@@ -603,13 +609,19 @@ bool do_turn()
     // Short days (A1/B7): activities (crafting, reading, butchering ...) progress in world
     // time like everything else, so a 30 minute job takes 30 game minutes, not 30 turns.
     const int world_step_turns = to_turns<int>( calendar::last_step() );
-    if( u.activity && world_step_turns > 1 && alerts::nonblocking() ) {
-        u.mod_moves( u.get_speed() * ( world_step_turns - 1 ) );
+    // Focus minigame (B3/B5): hitting SPACE on the prompt doubles the work done for a moment.
+    focus_minigame::tick( u );
+    const double focus = focus_minigame::multiplier( u );
+    if( u.activity && alerts::nonblocking() ) {
+        const int bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
+        if( bonus_turns > 0 ) {
+            u.mod_moves( u.get_speed() * bonus_turns );
+        }
     }
     while( u.get_moves() > 0 && u.activity ) {
         u.activity.do_turn( u );
     }
-    if( world_step_turns > 1 && !u.activity && u.get_moves() > u.get_speed() ) {
+    if( ( world_step_turns > 1 || focus > 1.0 ) && !u.activity && u.get_moves() > u.get_speed() ) {
         // no burst of free actions after the activity ended
         u.set_moves( u.get_speed() );
     }

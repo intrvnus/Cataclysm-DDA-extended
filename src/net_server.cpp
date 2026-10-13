@@ -34,6 +34,7 @@
 #include "filesystem.h"
 #include "flexbuffer_json.h"
 #include "fluid.h"
+#include "focus_minigame.h"
 #include "game.h"
 #include "game_constants.h"
 #include "item.h"
@@ -606,8 +607,12 @@ bool run_activity( remote_player &rp, npc &guy )
         return false;
     }
     const int world_step_turns = to_turns<int>( calendar::last_step() );
-    if( world_step_turns > 1 && alerts::nonblocking() ) {
-        guy.mod_moves( guy.get_speed() * ( world_step_turns - 1 ) );
+    if( alerts::nonblocking() ) {
+        const double focus = focus_minigame::multiplier( guy );
+        const int bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
+        if( bonus_turns > 0 ) {
+            guy.mod_moves( guy.get_speed() * bonus_turns );
+        }
     }
     const size_t messages_before = Messages::size();
     for( int guard = 0; guard < 1000 && guy.get_moves() > 0 && guy.activity; ++guard ) {
@@ -880,10 +885,15 @@ bool host_drive_npc( npc &guy )
                     send_text( *rp, _( "You stop." ) );
                 }
                 it = rp->commands.erase( it );
+            } else if( it->action == "focus" ) {
+                // the focus minigame key (B3/B5)
+                focus_minigame::press( guy );
+                it = rp->commands.erase( it );
             } else {
                 ++it;
             }
         }
+        focus_minigame::tick( guy );
         run_activity( *rp, guy );
         if( guy.activity ) {
             return true;

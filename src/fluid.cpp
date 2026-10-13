@@ -21,6 +21,7 @@
 #include "dispersion.h"
 #include "flag.h"
 #include "flexbuffer_json.h"
+#include "focus_minigame.h"
 #include "game.h"
 #include "game_constants.h"
 #include "gun_mode.h"
@@ -894,9 +895,15 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         ( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) ) {
         who.wake_up();
     }
-    // B7: moving or the cancel key stops a timed action (crafting, eating ...) at once
+    // B7: moving stops a timed action (crafting, eating ...) at once; SPACE during one
+    // answers the focus prompt (B3/B5) instead
+    const bool cancel_pressed = in.cancel && !st.prev_cancel;
+    st.prev_cancel = in.cancel;
+    if( who.activity && cancel_pressed ) {
+        focus_minigame::press( who );
+    }
     if( who.activity && who.activity.is_interruptible_with_kb() &&
-        ( in.move_x != 0 || in.move_y != 0 || in.cancel ) ) {
+        ( in.move_x != 0 || in.move_y != 0 ) ) {
         who.add_msg_if_player( m_alert, _( "You stop %s." ), who.activity.get_verb().translated() );
         who.cancel_activity();
     }
