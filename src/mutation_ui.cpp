@@ -102,6 +102,10 @@ static void show_mutations_titlebar( const catacurses::window &window,
 // Multiplayer host: does what a client did in its mutations menu (see remote_ui.h).
 void Character::replay_mutations_menu()
 {
+    if( !remote_ui::next_is( "mut" ) ) {
+        // the menu was only looked at
+        return;
+    }
     std::istringstream is( remote_ui::answer( "mut" ).value_or( "" ) );
     std::string kind;
     std::string name;

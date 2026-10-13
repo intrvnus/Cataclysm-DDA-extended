@@ -83,9 +83,14 @@ when a batch is worth playing.
   the host starts them on the body; only pickup/drop/move/insert/wear/wield/stash are accepted).
   The client does the action on its copy of the character and records every menu answer; the
   host repeats it on the body without opening a window.
+* **Done (also tested):** bionics (`p`) and mutations (`[`): the client records which one it
+  (de)activated, the host repeats it on the body. Actions that only start an activity run
+  their menus on the client and the host starts the captured activity: unload (`U`),
+  disassemble (`(`), butcher, mend, insert (`v`), reload (`r`). Views that need nothing
+  from the host run locally: messages (`P`), morale, help.
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
-  talking to NPCs and trading (C4), bionics and
-  mutations (C19), the inventory screen (`i`) and the remaining basic menus.
+  talking to NPCs and trading (C4), the inventory screen (`i`, its item menu has
+  immediate effects), throw/fire/smash and the other remaining basic menus.
 
 ---
 

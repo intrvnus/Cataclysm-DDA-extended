@@ -233,6 +233,8 @@ bool load_body( npc &guy, std::string json )
         JsonObject jo = jv.get_object();
         jo.allow_omitted_members();
         guy.deserialize( jo );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: loaded body of " << guy.get_name() << " with " <<
+                                   guy.get_mutations().size() << " traits";
     } catch( const std::exception &err ) {
         DebugLog( D_WARNING, D_GAME ) << "Multiplayer: could not load a player character: " << err.what();
         return false;
