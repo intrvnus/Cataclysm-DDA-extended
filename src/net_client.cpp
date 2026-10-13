@@ -35,6 +35,7 @@
 #include "safemode_ui.h"
 #include "worldfactory.h"
 #include "avatar.h"
+#include "diary.h"
 #include "character_martial_arts.h"
 #include "bodygraph.h"
 #include "avatar_action.h"
@@ -943,6 +944,14 @@ bool handle_input()
                 remote_ui::record( "i", remote_ui::location_to_string( loc ) );
                 avatar_action::use_item( get_avatar(), loc );
             } );
+            break;
+        case ACTION_HAUL_TOGGLE:
+            send_ui( "haul_toggle", [] {
+                get_avatar().toggle_hauling();
+            } );
+            break;
+        case ACTION_DIARY:
+            diary::show_diary_ui( get_avatar().get_avatar_diary() );
             break;
         case ACTION_ITEMACTION:
             send_ui( "apply_menu", [] {

@@ -116,6 +116,7 @@ when a batch is worth playing.
   roughly 60 tiles). Giving every player their own simulated area needs several maps
   simulated at once, which this engine does not support; it needs its own design (options:
   a tether distance with a warning, or a dedicated server that follows the player group).
+* **Done (compiled, not run in game):** the item action menu (`*`-style, host runs the chosen use), haul toggle, diary, option toggles (auto-pickup etc.) and the panel manager.
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
   vehicles (C3), spells, construction, zones/loot/haul/grab, overmap map, missions/factions/
   diary, classic (non-fluid) shooting/throwing, "use item on" and "sort armor" for NPCs,

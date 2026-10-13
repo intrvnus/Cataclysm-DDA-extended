@@ -1066,6 +1066,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                     guy.change_side( loc );
                 }
             }
+        } else if( what == "haul_toggle" ) {
+            guy.toggle_hauling();
         } else if( what == "style" ) {
             guy.martial_arts_data->pick_style( guy );
         } else if( what == "smash" ) {
