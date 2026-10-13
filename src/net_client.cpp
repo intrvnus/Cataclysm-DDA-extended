@@ -1231,6 +1231,24 @@ bool handle_input()
         case ACTION_LONGCRAFT:
             send_craft( true );
             break;
+        case ACTION_RECRAFT: {
+            // the last recipe again (the host has the same "last recipe" for this player)
+            const avatar &you = get_avatar();
+            if( you.lastrecipe.str().empty() ) {
+                add_msg( m_info, _( "Craft something first." ) );
+                break;
+            }
+            const recipe_id last = you.lastrecipe;
+            const int batch = std::max( 1, you.last_batch );
+            impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "use" );
+                jo.member( "a", "craft" );
+                jo.member( "r", last.str() );
+                jo.member( "b", batch );
+                jo.member( "long", false );
+            } ) );
+            break;
+        }
         case ACTION_OPEN:
             send_door( "open" );
             break;
