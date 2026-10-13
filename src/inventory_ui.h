@@ -965,6 +965,8 @@ class inventory_pick_selector : public inventory_selector
         }
         bool drag_enabled;
         item_location execute();
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        item_location execute_local();
 };
 
 class container_inventory_selector : public inventory_pick_selector
@@ -989,6 +991,8 @@ class ammo_inventory_selector : public inventory_selector
                                           const inventory_selector_preset &preset = default_preset );
 
         drop_location execute();
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        drop_location execute_local();
         void set_all_entries_chosen_count();
     private:
         void mod_chosen_count( inventory_entry &entry, int val );
@@ -1008,6 +1012,8 @@ class inventory_multiselector : public inventory_selector
                                           const GetStats & = {},
                                           bool allow_select_contained = false );
         drop_locations execute( bool allow_empty = false );
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        drop_locations execute_local( bool allow_empty );
         void toggle_entry( inventory_entry &entry, size_t count );
     protected:
         void rearrange_columns( size_t client_width ) override;
@@ -1062,6 +1068,8 @@ class inventory_drop_selector : public inventory_multiselector
             const std::string &selection_column_title = _( "ITEMS TO DROP" ),
             bool warn_liquid = true );
         drop_locations execute();
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        drop_locations execute_local();
     protected:
         stats get_raw_stats() const override;
 
@@ -1088,6 +1096,8 @@ class pickup_selector : public inventory_multiselector
                                   const std::string &selection_column_title = _( "ITEMS TO PICK UP" ),
                                   const std::optional<tripoint_bub_ms> &where = std::nullopt );
         drop_locations execute();
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        drop_locations execute_local();
         void apply_selection( std::vector<drop_location> selection );
     protected:
         stats get_raw_stats() const override;
@@ -1105,6 +1115,8 @@ class unload_selector : public inventory_pick_selector
     public:
         explicit unload_selector( Character &p, const inventory_selector_preset &preset = default_preset );
         std::pair<item_location, bool> execute();
+        /** The menu itself (execute() also records / replays it for multiplayer). */
+        std::pair<item_location, bool> execute_local();
     private:
         std::string hint_string();
 };

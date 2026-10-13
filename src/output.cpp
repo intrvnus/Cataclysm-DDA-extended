@@ -35,6 +35,7 @@
 #include "options.h"
 #include "point.h"
 #include "popup.h"
+#include "remote_ui.h"
 #include "rng.h"
 #include "sdltiles.h" // IWYU pragma: keep
 #include "string_formatter.h"
@@ -843,9 +844,15 @@ int border_helper::border_connection::as_curses_line() const
 
 bool query_yn( const std::string &text )
 {
+    // Multiplayer: the host does a client's action with the client's answers
+    if( remote_ui::replaying() ) {
+        return remote_ui::answer( "y" ).value_or( "0" ) == "1";
+    }
     // Realtime / multiplayer: no window, no time stop, "do it again" means yes.
     if( alerts::nonblocking() ) {
-        return alerts::confirm( remove_color_tags( text ) );
+        const bool yes = alerts::confirm( remove_color_tags( text ) );
+        remote_ui::record( "y", yes ? "1" : "0" );
+        return yes;
     }
 #if defined(__ANDROID__)
     if( get_option<bool>( "ANDROID_NATIVE_UI" ) ) {
@@ -887,9 +894,14 @@ bool query_yn( const std::string &text )
 
 query_ynq_result query_ynq( const std::string &text )
 {
+    if( remote_ui::replaying() ) {
+        return remote_ui::answer( "y" ).value_or( "0" ) == "1" ? query_ynq_result::yes :
+               query_ynq_result::quit;
+    }
     if( alerts::nonblocking() ) {
-        return alerts::confirm( remove_color_tags( text ) ) ? query_ynq_result::yes :
-               query_ynq_result::no;
+        const bool yes = alerts::confirm( remove_color_tags( text ) );
+        remote_ui::record( "y", yes ? "1" : "0" );
+        return yes ? query_ynq_result::yes : query_ynq_result::no;
     }
     // TODO: android native UI
     const bool force_uc = get_option<bool>( "FORCE_CAPITAL_YN" );
@@ -964,6 +976,11 @@ PopupFlags popup_flag_from_string( const std::string &str )
 
 int popup( const std::string &text, PopupFlags flags )
 {
+    // Multiplayer: what the host's copy of a client's action says goes to that player
+    if( remote_ui::replaying() ) {
+        remote_ui::tell( remove_color_tags( text ) );
+        return UNKNOWN_UNICODE;
+    }
     // Plain message popups become sidebar messages while time runs.  Popups that wait for a
     // specific key, and full-screen info screens the player opened, stay.
     if( ( flags == PF_NONE || flags == PF_ON_TOP ) && alerts::nonblocking() ) {

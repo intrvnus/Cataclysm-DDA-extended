@@ -17,6 +17,7 @@
 #include "action.h"
 #include "alerts.h"
 #include "avatar.h"
+#include "avatar_action.h"
 #include "bodypart.h"
 #include "calendar.h"
 #include "cata_path.h"
@@ -53,6 +54,7 @@
 #include "path_info.h"
 #include "point.h"
 #include "recipe.h"
+#include "remote_ui.h"
 #include "sounds.h"
 #include "scenario.h"
 #include "string_formatter.h"
@@ -335,42 +337,28 @@ void send_use( const std::string &action, const item_location &loc )
     } ) );
 }
 
-// Apply: the item and (if it has several) the way to use it are chosen here.
-void send_apply( const item_location &loc )
+// A6: does an action with menus on the own copy of the character, recording the answers, and
+// sends them; the host does the same on the real body (see remote_ui.h).  What the action did
+// to the local copy is replaced by the host's version soon after.
+void send_ui( const std::string &action, const std::function<void()> &run )
 {
-    if( !loc ) {
-        return;
+    std::vector<remote_ui::entry> answers;
+    {
+        remote_ui::record_scope rec;
+        run();
+        answers = rec.answers();
     }
-    const std::map<std::string, use_function> &methods = loc->type->use_methods;
-    if( methods.empty() ) {
-        add_msg( m_info, _( "You can't do anything interesting with your %s." ), loc->tname() );
-        return;
+    avatar &u = get_avatar();
+    // timed actions run on the host
+    if( u.activity ) {
+        u.activity.set_to_null();
     }
-    std::string method = methods.begin()->first;
-    if( methods.size() > 1 ) {
-        uilist menu;
-        menu.text = string_format( _( "How do you want to use your %s?" ), loc->tname() );
-        std::vector<std::string> keys;
-        for( const std::pair<const std::string, use_function> &m : methods ) {
-            menu.addentry( static_cast<int>( keys.size() ), true, MENU_AUTOASSIGN, m.second.get_name() );
-            keys.push_back( m.first );
-        }
-        menu.query();
-        if( menu.ret < 0 || menu.ret >= static_cast<int>( keys.size() ) ) {
-            return;
-        }
-        method = keys[menu.ret];
-    }
-    std::ostringstream os;
-    JsonOut lj( os );
-    loc.serialize( lj );
-    const std::string loc_json = os.str();
+    u.backlog.clear();
     impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
-        jo.member( "t", "use" );
-        jo.member( "a", "apply" );
-        jo.member( "cid", get_avatar().getID().get_value() );
-        jo.member( "loc", loc_json );
-        jo.member( "m", method );
+        jo.member( "t", "ui" );
+        jo.member( "a", action );
+        jo.member( "cid", u.getID().get_value() );
+        jo.member( "ans", remote_ui::to_json( answers ) );
     } ) );
 }
 
@@ -506,10 +494,17 @@ bool handle_input()
             send_drop( game_menus::inv::multidrop( get_avatar() ) );
             break;
         case ACTION_USE:
-            send_apply( game_menus::inv::use() );
+            send_ui( "apply", [] {
+                avatar_action::use_item( get_avatar() );
+            } );
             break;
         case ACTION_USE_WIELDED:
-            send_apply( get_avatar().get_wielded_item() );
+            send_ui( "apply", [] {
+                item_location loc = get_avatar().get_wielded_item();
+                // the host picks the item from the answers, like from the menu
+                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+                avatar_action::use_item( get_avatar(), loc );
+            } );
             break;
         case ACTION_CRAFT:
             send_craft( false );

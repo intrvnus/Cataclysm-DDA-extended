@@ -1154,7 +1154,7 @@ void avatar_action::use_item( avatar &you )
     avatar_action::use_item( you, loc );
 }
 
-void avatar_action::use_item( avatar &you, item_location &loc, std::string const &method )
+void avatar_action::use_item( Character &you, item_location &loc, std::string const &method )
 {
     map &here = get_map();
 
@@ -1175,7 +1175,7 @@ void avatar_action::use_item( avatar &you, item_location &loc, std::string const
         }
     }
 
-    if( !avatar_action::check_stealing( get_player_character(), *loc.get_item() ) ) {
+    if( !avatar_action::check_stealing( you, *loc.get_item() ) ) {
         return;
     }
 

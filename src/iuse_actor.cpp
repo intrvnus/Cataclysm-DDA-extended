@@ -80,6 +80,7 @@
 #include "point.h"
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "rng.h"
 #include "safe_reference.h"
@@ -1303,7 +1304,7 @@ static ret_val<tripoint_bub_ms> check_deploy_square( Character *p, item &it,
         // Check that there is no liquid on the floor.
         // If there is, it needs to be mopped dry with a mop.
         if( here->terrain_moppable( pnt ) ) {
-            if( get_avatar().crafting_inventory().has_quality( qual_MOP ) ) {
+            if( p->crafting_inventory().has_quality( qual_MOP ) ) {
                 here->mop_spills( pnt );
                 p->add_msg_if_player( m_info, _( "You mopped up the spill with a nearby mop when deploying a %s." ),
                                       it.tname() );
@@ -2224,7 +2225,7 @@ std::optional<int> inscribe_actor::use( Character *p, item &it, map *here,
                                              here, dest_.value() );
     }
 
-    item_location loc = game_menus::inv::titled_menu( get_avatar(), _( "Inscribe which item?" ) );
+    item_location loc = game_menus::inv::titled_menu( *p, _( "Inscribe which item?" ) );
     if( !loc ) {
         p->add_msg_if_player( m_info, _( "Never mind." ) );
         return std::nullopt;
@@ -2526,7 +2527,7 @@ std::optional<int> musical_instrument_actor::use( Character *p, item &it,
         return std::nullopt;
     }
 
-    if( !p->is_npc() && music::is_active_music_id( music::music_id::instrument ) ) {
+    if( remote_ui::acts_as_player( *p ) && music::is_active_music_id( music::music_id::instrument ) ) {
         music::deactivate_music_id( music::music_id::instrument );
         // Because musical instrument creates musical sound too
         if( music::is_active_music_id( music::music_id::sound ) ) {
@@ -2583,7 +2584,7 @@ std::optional<int> musical_instrument_actor::use( Character *p, item &it,
     }
 
     // We can play the music now
-    if( !p->is_npc() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         music::activate_music_id( music::music_id::instrument );
     }
 
@@ -2596,16 +2597,16 @@ std::optional<int> musical_instrument_actor::use( Character *p, item &it,
     /** @EFFECT_PER increases morale bonus when playing an instrument */
     const int morale_effect = fun + fun_bonus * p->per_cur;
     if( morale_effect >= 0 && calendar::once_every( description_frequency ) ) {
-        if( !player_descriptions.empty() && p->is_avatar() ) {
+        if( !player_descriptions.empty() && remote_ui::acts_as_player( *p ) ) {
             desc = random_entry( player_descriptions ).translated();
-        } else if( !npc_descriptions.empty() && p->is_npc() ) {
+        } else if( !npc_descriptions.empty() && !remote_ui::acts_as_player( *p ) ) {
             //~ %1$s: npc name, %2$s: npc action description
             desc = string_format( pgettext( "play music", "%1$s %2$s" ), p->disp_name( false ),
                                   random_entry( npc_descriptions ) );
         }
     } else if( morale_effect < 0 && calendar::once_every( 1_minutes ) ) {
         // No musical skills = possible morale penalty
-        if( p->is_avatar() ) {
+        if( remote_ui::acts_as_player( *p ) ) {
             desc = _( "You produce an annoying sound." );
         } else {
             desc = string_format( _( "%s produces an annoying sound." ), p->disp_name( false ) );
@@ -3421,7 +3422,7 @@ repair_item_actor::repair_type repair_item_actor::default_action( const item &fi
         return RT_REFIT;
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     const bool smol = player_character.get_size() == creature_size::tiny;
 
     const bool is_undersized = fix.has_flag( flag_UNDERSIZE );
@@ -3849,9 +3850,9 @@ int heal_actor::finish_using( Character &healer, Character &patient, item &it,
     }
 
     Character &player_character = get_player_character();
-    const bool u_see = healer.is_avatar() || patient.is_avatar() ||
+    const bool u_see = remote_ui::acts_as_player( healer ) || remote_ui::acts_as_player( patient ) ||
                        player_character.sees( here, healer ) || player_character.sees( here,  patient );
-    const bool player_healing_player = healer.is_avatar() && patient.is_avatar();
+    const bool player_healing_player = remote_ui::acts_as_player( healer ) && remote_ui::acts_as_player( patient );
     // Need a helper here - messages are from healer's point of view
     // but it would be cool if NPCs could use this function too
     const auto heal_msg = [&]( game_message_type msg_type,
@@ -4042,7 +4043,7 @@ bodypart_id heal_actor::use_healing_item( Character &healer, Character &patient,
         return bodypart_str_id::NULL_ID().id(); // canceled
     }
 
-    if( healer.is_npc() ) {
+    if( !remote_ui::acts_as_player( healer ) ) {
         // NPCs heal whatever has sustained the most damage that they can heal but don't
         // rebandage parts unless they are bleeding significantly
         int highest_damage = 0;
@@ -4064,7 +4065,7 @@ bodypart_id heal_actor::use_healing_item( Character &healer, Character &patient,
                 healed = part_id;
             }
         }
-    } else if( patient.is_avatar() ) {
+    } else if( remote_ui::acts_as_player( patient ) ) {
         // Player healing self - let player select
         if( healer.activity.id() != ACT_FIRSTAID ) {
             const std::string menu_header = _( "Select a body part for: " ) + it.tname();
@@ -5713,7 +5714,7 @@ std::optional<int> deploy_tent_actor::use( Character *p, item &it, map *here,
     //checks done start activity:
     tent_placement_activity_actor actor( to_moves<int>( 20_minutes ), direction, radius, it, wall,
                                          floor, floor_center, door_closed );
-    get_player_character().assign_activity( actor );
+    p->assign_activity( actor );
     p->i_rem( &it );
     return 0;
 }
@@ -5807,7 +5808,7 @@ std::optional<int> sew_advanced_actor::use( Character *p, item &it,
 std::optional<int> sew_advanced_actor::use( Character *p, item &it, map *here,
         const tripoint_bub_ms & ) const
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
     if( p->cant_do_mounted() ) {
@@ -5828,7 +5829,7 @@ std::optional<int> sew_advanced_actor::use( Character *p, item &it, map *here,
     };
     // note: if !p.is_npc() then p is avatar.
     item_location loc = game_menus::inv::titled_filter_menu(
-                            filter, *p->as_avatar(), _( "Enhance which clothing?" ) );
+                            filter, *p, _( "Enhance which clothing?" ) );
     if( !loc ) {
         p->add_msg_if_player( m_info, _( "You do not have that item!" ) );
         return std::nullopt;

@@ -181,6 +181,7 @@
 #include "proficiency.h"
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "remote_ui.h"
 #include "ret_val.h"
 #include "rng.h"
 #include "safemode_ui.h"
@@ -7983,6 +7984,44 @@ std::optional<tripoint_bub_ms> game::look_around()
 }
 
 look_around_result game::look_around(
+    const bool show_window, tripoint_bub_ms &center, const tripoint_bub_ms &start_point,
+    bool has_first_point,
+    bool select_zone, bool peeking, bool is_moving_zone, const tripoint_bub_ms &end_point,
+    bool change_lv )
+{
+    // Multiplayer: the host does a client's action with the client's answers (a place, kept
+    // in absolute coordinates: the two maps are not shifted the same way)
+    map &here = get_map();
+    if( remote_ui::replaying() ) {
+        look_around_result res;
+        const std::string got = remote_ui::answer( "p" ).value_or( "-" );
+        if( got != "-" ) {
+            std::istringstream is( got );
+            int x = 0;
+            int y = 0;
+            int z = 0;
+            is >> x >> y >> z;
+            const tripoint_abs_ms p( x, y, z );
+            if( here.inbounds( p ) ) {
+                res.position = here.get_bub( p );
+            }
+        }
+        return res;
+    }
+    look_around_result res = look_around_local( show_window, center, start_point, has_first_point,
+                             select_zone, peeking, is_moving_zone, end_point, change_lv );
+    if( remote_ui::recording() ) {
+        if( res.position ) {
+            const tripoint_abs_ms p = here.get_abs( *res.position );
+            remote_ui::record( "p", string_format( "%d %d %d", p.x(), p.y(), p.z() ) );
+        } else {
+            remote_ui::record( "p", "-" );
+        }
+    }
+    return res;
+}
+
+look_around_result game::look_around_local(
     const bool show_window, tripoint_bub_ms &center, const tripoint_bub_ms &start_point,
     bool has_first_point,
     bool select_zone, bool peeking, bool is_moving_zone, const tripoint_bub_ms &end_point,

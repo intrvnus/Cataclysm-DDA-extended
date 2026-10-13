@@ -11,6 +11,7 @@
 #include "input_context.h"
 #include "input_enums.h"
 #include "output.h"
+#include "remote_ui.h"
 #include "point.h"
 #include "ret_val.h"
 #include "translation.h"
@@ -380,6 +381,23 @@ std::optional<int64_t> string_input_popup::query_int64_t( const bool loop, const
 }
 
 const std::string &string_input_popup::query_string( const bool loop, const bool draw_only )
+{
+    // Multiplayer: the host does a client's action with the client's answers.  Only whole
+    // answers count (loop); live filter boxes inside other menus are not recorded.
+    if( loop && !draw_only && remote_ui::replaying() ) {
+        const std::string got = remote_ui::answer( "s" ).value_or( "c" );
+        _canceled = got.empty() || got[0] != 't';
+        _text = _canceled ? std::string() : got.substr( 1 );
+        return _text;
+    }
+    const std::string &res = query_string_local( loop, draw_only );
+    if( loop && !draw_only ) {
+        remote_ui::record( "s", ( _canceled ? "c" : "t" ) + res );
+    }
+    return res;
+}
+
+const std::string &string_input_popup::query_string_local( const bool loop, const bool draw_only )
 {
     if( !custom_window && !w_full ) {
         create_window();

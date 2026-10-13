@@ -79,7 +79,7 @@ void plthrow_wielded( avatar &you,
 void unload( avatar &you );
 
 // Use item; also tries E,R,W  'a'
-void use_item( avatar &you, item_location &loc, std::string const &method = {} );
+void use_item( Character &you, item_location &loc, std::string const &method = {} );
 void use_item( avatar &you );
 
 /** Check if avatar is stealing a weapon. */

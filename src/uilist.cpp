@@ -7,6 +7,8 @@
 #include <iterator>
 #include <memory>
 #include <set>
+#include <sstream>
+#include <string>
 
 #include "avatar.h"
 #include "cached_options.h" // IWYU pragma: keep
@@ -17,7 +19,9 @@
 #include "input.h"
 #include "memory_fast.h"
 #include "output.h"
+#include "remote_ui.h"
 #include "sdltiles.h"
+#include "string_formatter.h"
 #include "input_popup.h"
 #include "translations.h"
 #include "ui_manager.h"
@@ -944,6 +948,21 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
         ret = UILIST_ERROR;
         return nullptr;
     }
+    // Multiplayer: the host does a client's action with the answers the client gave
+    if( remote_ui::replaying() ) {
+        const std::optional<std::string> given = remote_ui::answer( "u" );
+        ret = UILIST_CANCEL;
+        if( given ) {
+            std::istringstream is( *given );
+            int sel = 0;
+            is >> ret >> sel;
+            std::getline( is >> std::ws, ret_act );
+            if( sel >= 0 && sel < static_cast<int>( entries.size() ) ) {
+                selected = sel;
+            }
+        }
+        return nullptr;
+    }
     ret = UILIST_WAIT_INPUT;
 
     input_context ctxt = create_main_input_context();
@@ -1031,6 +1050,9 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
         }
     } while( loop && ret == UILIST_WAIT_INPUT );
 
+    if( remote_ui::recording() && ret != UILIST_WAIT_INPUT ) {
+        remote_ui::record( "u", string_format( "%d %d %s", ret, selected, ret_act ) );
+    }
     return ui;
 }
 

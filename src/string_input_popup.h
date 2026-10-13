@@ -252,6 +252,8 @@ class string_input_popup // NOLINT(cata-xy)
         std::optional<int> query_int( bool loop = true, bool draw_only = false );
         std::optional<int64_t> query_int64_t( bool loop = true, bool draw_only = false );
         const std::string &query_string( bool loop = true, bool draw_only = false );
+        /** The text box itself (query_string() also records / replays it for multiplayer). */
+        const std::string &query_string_local( bool loop, bool draw_only );
         std::optional<tripoint_abs_omt> query_coordinate_abs_impl( bool loop = true,
                 bool draw_only = false );
         /**@}*/

@@ -1955,6 +1955,8 @@ class Character : public Creature, public visitable
          * Multi-use items are ONLY supported when all use_methods are iuse_actor!
          */
         virtual bool invoke_item( item *, const tripoint_bub_ms &pt, int pre_obtain_moves = -1 );
+        /** Asks which use of the item (if it has several), then uses it. */
+        bool invoke_item_choose( item *used, const tripoint_bub_ms &pt, int pre_obtain_moves = -1 );
         /** As above, but with a pre-selected method. Debugmsg if this item doesn't have this method. */
         virtual bool invoke_item( item *, const std::string &, const tripoint_bub_ms &pt,
                                   int pre_obtain_moves = -1 );

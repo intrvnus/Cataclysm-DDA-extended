@@ -707,6 +707,13 @@ class game
                                         bool is_moving_zone = false, const tripoint_bub_ms &end_point = tripoint_bub_ms::zero,
                                         bool change_lv = true );
         look_around_result look_around( look_around_params );
+    private:
+        /** The look around screen itself (look_around() also records / replays it for
+         * multiplayer). */
+        look_around_result look_around_local( bool show_window, tripoint_bub_ms &center,
+                                              const tripoint_bub_ms &start_point, bool has_first_point, bool select_zone, bool peeking,
+                                              bool is_moving_zone, const tripoint_bub_ms &end_point, bool change_lv );
+    public:
 
         // Shared method to print "look around" info
         void pre_print_all_tile_info( const tripoint_bub_ms &lp, const catacurses::window &w_info,

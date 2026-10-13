@@ -68,6 +68,7 @@
 #include "overmapbuffer.h"
 #include "pathfinding.h"
 #include "player_activity.h"
+#include "remote_ui.h"
 #include "ret_val.h"
 #include "rng.h"
 #include "shop_cons_rate.h"
@@ -3391,8 +3392,12 @@ void npc::process_turn()
     // TODO: Make NPCs leave the player if there's a path out of map and player is sleeping/unseen/etc.
 }
 
-bool npc::invoke_item( item *used, const tripoint_bub_ms &pt, int )
+bool npc::invoke_item( item *used, const tripoint_bub_ms &pt, int pre_obtain_moves )
 {
+    if( remote_ui::acts_as_player( *this ) ) {
+        // a multiplayer player's body: chooses like the player
+        return invoke_item_choose( used, pt, pre_obtain_moves );
+    }
     const auto &use_methods = used->type->use_methods;
 
     if( use_methods.empty() ) {

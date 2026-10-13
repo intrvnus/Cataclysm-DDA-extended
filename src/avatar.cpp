@@ -1392,6 +1392,13 @@ item::reload_option avatar::select_ammo( const item_location &base, bool prompt,
 
 bool avatar::invoke_item( item *used, const tripoint_bub_ms &pt, int pre_obtain_moves )
 {
+    return invoke_item_choose( used, pt, pre_obtain_moves );
+}
+
+// Asks which use of the item (if it has several) and uses it.  Also for the body of a
+// multiplayer player while the host does the player's action (see remote_ui.h).
+bool Character::invoke_item_choose( item *used, const tripoint_bub_ms &pt, int pre_obtain_moves )
+{
     const std::map<std::string, use_function> &use_methods = used->type->use_methods;
     const int num_methods = use_methods.size();
 
@@ -1399,7 +1406,8 @@ bool avatar::invoke_item( item *used, const tripoint_bub_ms &pt, int pre_obtain_
     if( use_methods.empty() && !has_relic ) {
         return false;
     } else if( num_methods == 1 && !has_relic ) {
-        return invoke_item( used, use_methods.begin()->first, pt, pre_obtain_moves );
+        return Character::invoke_item( used, use_methods.begin()->first, pt,
+                                        pre_obtain_moves == -1 ? get_moves() : pre_obtain_moves );
     } else if( num_methods == 0 && has_relic ) {
         return used->use_relic( *this, pt );
     }
@@ -1437,7 +1445,8 @@ bool avatar::invoke_item( item *used, const tripoint_bub_ms &pt, int pre_obtain_
 
     const std::string &method = std::next( use_methods.begin(), choice )->first;
 
-    return invoke_item( used, method, pt, pre_obtain_moves );
+    return Character::invoke_item( used, method, pt,
+                                   pre_obtain_moves == -1 ? get_moves() : pre_obtain_moves );
 }
 
 bool avatar::invoke_item( item *used )

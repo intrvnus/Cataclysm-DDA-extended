@@ -20,6 +20,7 @@
 
 #include "activity_actor_definitions.h"
 #include "alerts.h"
+#include "avatar_action.h"
 #include "avatar.h"
 #include "calendar.h"
 #include "cata_path.h"
@@ -59,6 +60,7 @@
 #include "player_activity.h"
 #include "point.h"
 #include "recipe.h"
+#include "remote_ui.h"
 #include "recipe_dictionary.h"
 #include "requirements.h"
 #include "translations.h"
@@ -372,6 +374,17 @@ void send_submaps( remote_player &rp, const std::vector<tripoint_abs_sm> &list )
     }
 }
 
+// Sends the player's character and surroundings again, even if the host's copy did not change
+// (the client may have changed its own copy).
+void resync_player( remote_player &rp, const npc &guy )
+{
+    for( const tripoint_abs_sm &p : submaps_around( guy.pos_abs(), 1 ) ) {
+        rp.sent_submaps.erase( p );
+    }
+    rp.character_sent_at = 0;
+    rp.sent_character = 0;
+}
+
 // ---- world state ----
 
 void send_state( remote_player &rp, const npc &guy )
@@ -575,6 +588,36 @@ item_location client_item( const npc &guy, int client_id, std::string loc_json )
     return loc;
 }
 
+// A6: an action a client did with menus on its copy of the character (see remote_ui.h).  The
+// host does it again on the body with the answers the client gave.
+void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
+{
+    const std::string what = msg.get_string( "a", "" );
+    const int client_id = msg.get_int( "cid", -1 );
+    std::vector<std::string> texts;
+    bool failed = false;
+    {
+        remote_ui::replay_scope replay( remote_ui::from_json( msg.get_string( "ans", "[]" ) ), guy,
+                                        client_id );
+        if( what == "apply" ) {
+            item_location loc;
+            avatar_action::use_item( guy, loc );
+        } else {
+            send_text( rp, _( "That is not available in multiplayer yet." ) );
+        }
+        texts = replay.texts();
+        failed = replay.failed();
+    }
+    for( const std::string &text : texts ) {
+        send_text( rp, text );
+    }
+    if( failed ) {
+        send_text( rp, _( "Things changed while you were doing that: you stop." ) );
+    }
+    // the client did the action on its copy too: show it what really happened
+    resync_player( rp, guy );
+}
+
 // Crafting for a player (A6).  The checks that would otherwise open a window on the host's
 // screen are made here first, and the player hears why it does not work.
 void start_craft( remote_player &rp, npc &guy, const JsonObject &msg )
@@ -619,35 +662,6 @@ void start_craft( remote_player &rp, npc &guy, const JsonObject &msg )
     }
     rp.character_sent_at = 0;
     rp.sent_character = 0;
-}
-
-// Using an item for a player (A6).  Only the kinds of use that never ask anything (switching
-// a light on, opening a can ...) for now: the others would open their windows on the host.
-void apply_item( remote_player &rp, npc &guy, item_location &loc, const std::string &method )
-{
-    static const std::set<std::string> safe_kinds = { "transform", "delayed_transform" };
-    const std::string name = loc->tname();
-    const use_function *use = loc->get_use( method );
-    if( use == nullptr ) {
-        send_text( rp, string_format( _( "You can't use your %s like that." ), name ) );
-        return;
-    }
-    if( safe_kinds.count( use->get_type() ) == 0 ) {
-        send_text( rp, string_format( _( "Using your %s this way is not available in multiplayer yet." ),
-                                      name ) );
-        return;
-    }
-    const ret_val<void> can = use->can_call( guy, *loc, guy.pos_bub() );
-    if( !can.success() ) {
-        send_text( rp, can.str().empty() ? string_format( _( "You can't use your %s now." ), name ) :
-                   can.str() );
-        return;
-    }
-    if( guy.invoke_item( loc.get_item(), method ) ) {
-        send_text( rp, string_format( _( "You use your %s." ), name ) );
-    } else {
-        send_text( rp, string_format( _( "You can't use your %s now." ), name ) );
-    }
 }
 
 void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
@@ -703,11 +717,6 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
         } else if( what == "consume" ) {
             done( guy.consume( loc ) != trinary::NONE, _( "You consume the %s." ),
                   _( "You can't consume the %s." ) );
-            return;
-        } else if( what == "apply" ) {
-            apply_item( rp, guy, loc, msg.get_string( "m", "" ) );
-            rp.character_sent_at = 0;
-            rp.sent_character = 0;
             return;
         } else if( what == "read" ) {
             // B5: reading as a timed action (progress in world time, cancel with any key)
@@ -956,6 +965,11 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->start_character = msg.get_string( "char", "" );
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
+    } else if( type == "ui" && rp->npc_id.is_valid() ) {
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr && !guy->is_dead() && !rp->downed ) {
+            run_ui_action( *rp, *guy, msg );
+        }
     } else if( type == "use" && rp->npc_id.is_valid() ) {
         // A6: an item action chosen in a menu on the client
         npc *guy = g->find_npc( rp->npc_id );

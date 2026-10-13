@@ -11,6 +11,7 @@
 #include "imgui/imgui.h"
 #include "input_context.h"
 #include "output.h"
+#include "remote_ui.h"
 #include "string_formatter.h"
 #include "ui_manager.h"
 
@@ -398,12 +399,20 @@ std::shared_ptr<query_popup_impl> query_popup::create_or_get_impl()
 }
 query_popup::result query_popup::query()
 {
+    // Multiplayer: the host does a client's action with the client's answers
+    if( remote_ui::replaying() ) {
+        result res;
+        res.wait_input = false;
+        res.action = remote_ui::answer( "q" ).value_or( "QUIT" );
+        return res;
+    }
     std::shared_ptr<query_popup_impl> ui = create_or_get_impl();
 
     result res;
     do {
         res = query_once();
     } while( res.wait_input );
+    remote_ui::record( "q", res.action );
     return res;
 }
 

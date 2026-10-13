@@ -6,6 +6,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -42,6 +43,7 @@
 #include "path_info.h"
 #include "point.h"
 #include "popup.h"
+#include "remote_ui.h"
 #include "ret_val.h"
 #include "string_formatter.h"
 #include "talker.h"
@@ -1098,7 +1100,39 @@ action_id handle_main_menu()
     }
 }
 
+static std::optional<tripoint_rel_ms> choose_direction_impl( const std::string &message,
+        bool allow_vertical, bool allow_mouse, int timeout,
+        const std::function<std::pair<bool, std::optional<tripoint_rel_ms>>(
+            const input_context &ctxt, const std::string &action )> &action_cb );
+
 std::optional<tripoint_rel_ms> choose_direction( const std::string &message,
+        const bool allow_vertical, const bool allow_mouse, const int timeout,
+        const std::function<std::pair<bool, std::optional<tripoint_rel_ms>>(
+            const input_context &ctxt, const std::string &action )> &action_cb )
+{
+    // Multiplayer: the host does a client's action with the client's answers
+    if( remote_ui::replaying() ) {
+        const std::optional<std::string> given = remote_ui::answer( "d" );
+        if( !given || *given == "-" ) {
+            return std::nullopt;
+        }
+        std::istringstream is( *given );
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        is >> x >> y >> z;
+        return tripoint_rel_ms( x, y, z );
+    }
+    if( remote_ui::recording() ) {
+        const std::optional<tripoint_rel_ms> dir = choose_direction_impl( message, allow_vertical,
+                allow_mouse, timeout, action_cb );
+        remote_ui::record( "d", dir ? string_format( "%d %d %d", dir->x(), dir->y(), dir->z() ) : "-" );
+        return dir;
+    }
+    return choose_direction_impl( message, allow_vertical, allow_mouse, timeout, action_cb );
+}
+
+static std::optional<tripoint_rel_ms> choose_direction_impl( const std::string &message,
         const bool allow_vertical, const bool allow_mouse, const int timeout,
         const std::function<std::pair<bool, std::optional<tripoint_rel_ms>>(
             const input_context &ctxt, const std::string &action )> &action_cb )
@@ -1172,7 +1206,10 @@ std::optional<tripoint_rel_ms> choose_direction( const std::string &message,
 std::optional<tripoint_bub_ms> choose_adjacent( const std::string &message,
         const bool allow_vertical )
 {
-    return choose_adjacent( get_player_character().pos_bub(), message, allow_vertical );
+    // while the host does a client's action, "next to me" means next to that player
+    const Character *who = remote_ui::actor();
+    return choose_adjacent( ( who != nullptr ? *who : get_player_character() ).pos_bub(), message,
+                            allow_vertical );
 }
 
 std::optional<tripoint_bub_ms> choose_adjacent( const tripoint_bub_ms &pos,
@@ -1228,7 +1265,9 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const std::
         const std::string &failure_message, const std::function<bool( const tripoint_bub_ms & )> &allowed,
         const bool allow_vertical, const bool allow_autoselect )
 {
-    return choose_adjacent_highlight( here, get_avatar().pos_bub( here ), message, failure_message,
+    const Character *who = remote_ui::actor();
+    return choose_adjacent_highlight( here, ( who != nullptr ? *who : get_avatar() ).pos_bub( here ),
+                                      message, failure_message,
                                       allowed,
                                       allow_vertical, allow_autoselect );
 }

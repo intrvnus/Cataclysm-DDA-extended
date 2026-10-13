@@ -107,6 +107,7 @@
 #include "popup.h" // For play_game
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "ret_val.h"
 #include "rng.h"
@@ -733,7 +734,7 @@ std::optional<int> iuse::fungicide( Character *p, item *, const tripoint_bub_ms 
     const bool has_fungus = p->has_effect( effect_fungus );
     const bool has_spores = p->has_effect( effect_spores );
 
-    if( p->is_npc() && !has_fungus && !has_spores ) {
+    if( !remote_ui::acts_as_player( *p ) && !has_fungus && !has_spores ) {
         return std::nullopt;
     }
 
@@ -975,7 +976,7 @@ std::optional<int> iuse::poison( Character *p, item *it, const tripoint_bub_ms &
     // NPCs have a magical sense of what is inedible
     // Players can abuse the crafting menu instead...
     if( !it->has_flag( flag_HIDDEN_POISON ) &&
-        ( p->is_npc() ||
+        ( !remote_ui::acts_as_player( *p ) ||
           !p->query_yn( _( "Are you sure you want to eat this?  It looks poisonous…" ) ) ) ) {
         return std::nullopt;
     }
@@ -1049,7 +1050,7 @@ std::optional<int> iuse::prozac( Character *p, item *, const tripoint_bub_ms & )
 
 std::optional<int> iuse::datura( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
 
@@ -1153,7 +1154,7 @@ std::optional<int> iuse::blech( Character *p, item *it, const tripoint_bub_ms & 
 
 std::optional<int> iuse::blech_because_unclean( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( !p->is_npc() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         if( test_mode ) {
             p->add_msg_if_player( m_info,
                                   _( "Automatically eating the gross food because a test told us to." ) );
@@ -1378,7 +1379,7 @@ static void marloss_common( Character &p, item &it, const trait_id &current_colo
         // Mycus Rejection.  Goo already present fights off the fungus.
         p.add_msg_if_player( m_bad,
                              _( "You feel a familiar warmth, but suddenly it surges into an excruciating burn as you convulse, vomiting, and black out…" ) );
-        if( p.is_avatar() ) {
+        if( remote_ui::acts_as_player( p ) ) {
             get_memorial().add(
                 pgettext( "memorial_male", "Suffered Marloss Rejection." ),
                 pgettext( "memorial_female", "Suffered Marloss Rejection." ) );
@@ -1429,7 +1430,7 @@ static void marloss_common( Character &p, item &it, const trait_id &current_colo
 
 static bool marloss_prevented( const Character &p )
 {
-    if( p.is_npc() ) {
+    if( !remote_ui::acts_as_player( p ) ) {
         return true;
     }
     if( p.has_trait( trait_MARLOSS_AVOID ) ) {
@@ -1490,7 +1491,7 @@ std::optional<int> iuse::marloss_gel( Character *p, item *it, const tripoint_bub
 
 std::optional<int> iuse::mycus( Character *p, item *, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return 1;
     }
     // Welcome our guide.  Welcome.  To. The Mycus.
@@ -1676,7 +1677,7 @@ std::optional<int> iuse::petfood( Character *p, item *it, const tripoint_bub_ms 
 
 std::optional<int> iuse::radio_mod( Character *p, item *, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Now THAT would be kinda cruel
         return std::nullopt;
     }
@@ -1687,7 +1688,7 @@ std::optional<int> iuse::radio_mod( Character *p, item *, const tripoint_bub_ms 
 
     // note: if !p->is_npc() then p is avatar
     item_location loc = game_menus::inv::titled_filter_menu(
-                            filter, *p->as_avatar(), _( "Modify what?" ) );
+                            filter, *p, _( "Modify what?" ) );
 
     if( !loc ) {
         p->add_msg_if_player( _( "You don't have that item!" ) );
@@ -1794,7 +1795,7 @@ static bool good_fishing_spot( const tripoint_bub_ms &pos, Character *p )
 
 std::optional<int> iuse::fishing_rod( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long actions - NPCs don't like those yet.
         return std::nullopt;
     }
@@ -2193,7 +2194,7 @@ class exosuit_interact
                     int nmoves = insert_replace_activate_mod(
                                      suit->get_all_contained_pockets()[cur_pocket], suit );
                     moves = moves > nmoves ? moves : nmoves;
-                    if( !get_player_character().activity.is_null() ) {
+                    if( !remote_ui::acting_player().activity.is_null() ) {
                         done = true;
                     }
                 } else if( navigate_ui_list( action, cur_pocket, 5, pocket_count, true ) ) {
@@ -2210,7 +2211,7 @@ class exosuit_interact
         }
 
         int insert_replace_activate_mod( item_pocket *pkt, item *it ) {
-            Character &c = get_player_character();
+            Character &c = remote_ui::acting_player();
             map &here = get_map();
             const std::set<flag_id> flags = pkt->get_pocket_data()->get_flag_restrictions();
             if( flags.empty() ) {
@@ -2261,7 +2262,7 @@ class exosuit_interact
                     return to_moves<int>( 5_seconds );
                 } else if( ret == 2 ) {
                     if( !!loc_it ) {
-                        avatar_action::use_item( get_avatar(), loc_it );
+                        avatar_action::use_item( remote_ui::acting_player(), loc_it );
                     }
                     return 0;
                 } else if( ret == 3 ) {
@@ -2379,7 +2380,7 @@ std::optional<int> iuse::mace( Character *p, item *it, const tripoint_bub_ms & )
 
 std::optional<int> iuse::manage_exosuit( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( !p->is_avatar() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
     if( it->get_all_contained_pockets().empty() ) {
@@ -2819,7 +2820,7 @@ std::optional<int> iuse::ma_manual( Character *p, item *it, const tripoint_bub_m
         return std::nullopt;
     }
 
-    p->martial_arts_data->learn_style( style_to_learn, p->is_avatar() );
+    p->martial_arts_data->learn_style( style_to_learn, remote_ui::acts_as_player( *p ) );
 
     return 1;
 }
@@ -3077,7 +3078,7 @@ std::optional<int> iuse::siphon( Character *p, item *, const tripoint_bub_ms & )
 
 std::optional<int> iuse::change_eyes( Character *p, item *, const tripoint_bub_ms & )
 {
-    if( p->is_avatar() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         p->customize_appearance( customize_appearance_choice::EYES );
     }
     return std::nullopt;
@@ -3085,7 +3086,7 @@ std::optional<int> iuse::change_eyes( Character *p, item *, const tripoint_bub_m
 
 std::optional<int> iuse::change_skin( Character *p, item *, const tripoint_bub_ms & )
 {
-    if( p->is_avatar() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         p->customize_appearance( customize_appearance_choice::SKIN );
     }
     return std::nullopt;
@@ -3226,7 +3227,7 @@ std::optional<int> iuse::pick_lock( Character *p, item *it, const tripoint_bub_m
 
 std::optional<int> iuse::pickaxe( Character *p, item *it, const tripoint_bub_ms &pos )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long action
         return std::nullopt;
     }
@@ -3324,7 +3325,7 @@ std::optional<int> iuse::geiger_active( Character *, item *, const tripoint_bub_
 
 std::optional<int> iuse::teleport( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // That would be evil
         return std::nullopt;
     }
@@ -3528,7 +3529,7 @@ std::optional<int> iuse::c4( Character *p, item *it, const tripoint_bub_ms & )
 {
     int time = 0;
     bool got_value = false;
-    if( p->is_avatar() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         got_value = query_int( time, false, _( "Set the timer to how many seconds (0 to cancel)?" ) );
         if( !got_value || time <= 0 ) {
             p->add_msg_if_player( _( "Never mind." ) );
@@ -3883,6 +3884,13 @@ std::optional<int> iuse::mp3( Character *p, item *it, const tripoint_bub_ms & )
                p->has_active_item( itype_atomic_mp3_on ) ||
                p->has_active_item( itype_atomic_smartphone_music ) ) {
         p->add_msg_if_player( m_info, _( "You are already listening to music!" ) );
+    } else if( !p->is_avatar() && remote_ui::acts_as_player( *p ) ) {
+        // a multiplayer player's body: the album was chosen on the player's own computer
+        it->convert( it->typeId() == itype_mp3 ? itype_mp3_on : it->typeId() == itype_smart_phone ?
+                     itype_smartphone_music : it->typeId() == itype_afs_atomic_smartphone ? itype_afs_atomic_smartphone_music :
+                     it->typeId() == itype_afs_wraitheon_smartphone ? itype_afs_atomic_wraitheon_music :
+                     it->typeId() == itype_atomic_mp3 ? itype_atomic_mp3_on : itype_atomic_smartphone_music, p ).active = true;
+        p->mod_moves( -200 );
     } else if( !mp3_album_ready( *p ) && !( p->is_avatar() && mod_engine::choose_album() &&
                                            mp3_album_ready( *p ) ) ) {
         p->add_msg_if_player( m_info, _( "Without an album the mp3 player has nothing to play." ) );
@@ -4019,8 +4027,8 @@ std::optional<int> iuse::mp3_deactivate( Character *p, item *it, const tripoint_
         it->convert( itype_atomic_smartphone, p ).active = false;
     }
     p->mod_moves( -200 );
-    music::deactivate_music_id( music::music_id::mp3 );
     if( p->is_avatar() ) {
+        music::deactivate_music_id( music::music_id::mp3 );
         mod_engine::mp3_state_changed( false );
     }
 
@@ -4220,7 +4228,7 @@ std::optional<int> iuse::portable_game( Character *p, item *it, const tripoint_b
 {
     const map &here = get_map();
 
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long action
         return std::nullopt;
     }
@@ -4300,7 +4308,7 @@ std::optional<int> iuse::portable_game( Character *p, item *it, const tripoint_b
         size_t num_friends = w_friends ? friends_w_game.size() : 0;
         int winner = rng( 0, num_friends );
         if( winner == 0 ) {
-            winner = get_player_character().getID().get_value();
+            winner = p->getID().get_value();
         } else {
             winner = friends_w_game[winner - 1]->getID().get_value();
         }
@@ -4412,7 +4420,7 @@ std::optional<int> iuse::fitness_check( Character *p, item *it, const tripoint_b
 
 std::optional<int> iuse::hand_crank( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long action
         return std::nullopt;
     }
@@ -4446,7 +4454,7 @@ std::optional<int> iuse::hand_crank( Character *p, item *it, const tripoint_bub_
 
 std::optional<int> iuse::vibe( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long action
         // Also, that would be creepy as fuck, seriously
         return std::nullopt;
@@ -4517,7 +4525,7 @@ std::optional<int> iuse::dog_whistle( Character *p, item *, const tripoint_bub_m
 {
     const map &here = get_map();
 
-    if( !p->is_avatar() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
     if( p->cant_do_underwater() ) {
@@ -4592,7 +4600,7 @@ std::optional<int> iuse::blood_draw( Character *p, item *it, const tripoint_bub_
     map &here = get_map();
     const tripoint_bub_ms pos = p->pos_bub( here );
 
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;    // No NPCs for now!
     }
     if( p->cant_do_mounted() ) {
@@ -4778,7 +4786,7 @@ std::optional<int> iuse::chop_tree( Character *p, item *it, const tripoint_bub_m
         }
         return std::nullopt;
     }
-    if( p->is_avatar() && !g->warn_player_maybe_anger_local_faction( true ) ) {
+    if( remote_ui::acts_as_player( *p ) && !g->warn_player_maybe_anger_local_faction( true ) ) {
         return std::nullopt; // player declined to anger locals
     }
     int moves = chop_moves( p, it );
@@ -4839,7 +4847,7 @@ std::optional<int> iuse::chop_logs( Character *p, item *it, const tripoint_bub_m
 
 std::optional<int> iuse::oxytorch( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         // Long action
         return std::nullopt;
     }
@@ -5238,7 +5246,7 @@ std::optional<int> iuse::unfold_generic( Character *p, item *it, const tripoint_
 
 std::optional<int> iuse::adrenaline_injector( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() && p->get_effect_dur( effect_adrenaline ) >= 30_minutes ) {
+    if( !remote_ui::acts_as_player( *p ) && p->get_effect_dur( effect_adrenaline ) >= 30_minutes ) {
         return std::nullopt;
     }
 
@@ -5365,7 +5373,7 @@ std::optional<int> iuse::gun_repair( Character *p, item *it, const tripoint_bub_
     }
     item_location loc = game_menus::inv::titled_filter_menu( []( const item_location & loc ) {
         return loc->is_firearm() && !loc->has_flag( flag_NO_REPAIR );
-    }, get_avatar(), _( "Select the firearm to repair:" ) );
+    }, *p, _( "Select the firearm to repair:" ) );
     if( !loc ) {
         p->add_msg_if_player( m_info, _( "You don't have that item!" ) );
         return std::nullopt;
@@ -5516,7 +5524,7 @@ std::optional<int> iuse::bell( Character *p, item *it, const tripoint_bub_ms & )
 
 std::optional<int> iuse::seed( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( p->is_npc() ||
+    if( !remote_ui::acts_as_player( *p ) ||
         query_yn( _( "Are you sure you want to eat the %s?  You could plant it in a mound of dirt." ),
                   colorize( it->tname(), it->color_in_inventory() ) ) ) {
         return 1; //This eats the seed object.
@@ -7731,7 +7739,7 @@ std::optional<int> iuse::multicooker( Character *p, item *it, const tripoint_bub
         int counter = 0;
         static const std::set<std::string> multicooked_subcats = { "CSC_FOOD_MEAT", "CSC_FOOD_VEGGI", "CSC_FOOD_PASTA" };
 
-        for( const recipe * const &r : get_avatar().get_learned_recipes().in_category(
+        for( const recipe * const &r : p->get_learned_recipes().in_category(
                  crafting_category_CC_FOOD ) ) {
             if( multicooked_subcats.count( r->subcategory ) > 0 ) {
                 dishes.push_back( r );
@@ -8081,7 +8089,7 @@ std::optional<int> iuse::directional_hologram( Character *p, item *it, const tri
     if( !posp ) {
         return std::nullopt;
     }
-    const tripoint_rel_ms delta = *posp - get_player_character().pos_bub();
+    const tripoint_rel_ms delta = *posp - p->pos_bub();
 
     monster *const hologram = g->place_critter_at( mon_hologram, *posp );
     if( !hologram ) {
@@ -8932,7 +8940,7 @@ std::optional<int> iuse::play_game( Character *p, item *it, const tripoint_bub_m
 {
     const map &here = get_map();
 
-    if( p->is_avatar() ) {
+    if( remote_ui::acts_as_player( *p ) ) {
         std::vector<npc *> followers = g->get_npcs_if( [p, &here]( const npc & n ) {
             return n.is_ally( *p ) && p->sees( here, n ) && n.can_hear( p->pos_bub(), p->get_shout_volume() );
         } );
@@ -9067,7 +9075,7 @@ std::optional<int> iuse::measure_resonance( Character *p, item *it, const tripoi
 
 std::optional<int> iuse::change_outfit( Character *p, item *it, const tripoint_bub_ms & )
 {
-    if( !p->is_avatar() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         debugmsg( "NPC %s tried to swap outfit", p->get_name() );
         return std::nullopt;
     }
@@ -9090,7 +9098,7 @@ std::optional<int> iuse::ebooksave( Character *p, item *it, const tripoint_bub_m
         return std::nullopt;
     }
 
-    if( p->is_npc() ) {
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
 

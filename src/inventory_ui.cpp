@@ -45,6 +45,7 @@
 #include "messages.h"
 #include "options.h"
 #include "output.h"
+#include "remote_ui.h"
 #include "point.h"
 #include "ret_val.h"
 #include "sdltiles.h"
@@ -3478,6 +3479,17 @@ std::string inventory_selector::action_bound_to_key( char key ) const
 
 item_location inventory_pick_selector::execute()
 {
+    // Multiplayer: the host does a client's action with the client's answers
+    if( remote_ui::replaying() ) {
+        return remote_ui::location_from_string( remote_ui::answer( "i" ).value_or( "" ) );
+    }
+    item_location loc = execute_local();
+    remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+    return loc;
+}
+
+item_location inventory_pick_selector::execute_local()
+{
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     debug_print_timer( tp_start );
     item_location startDragItem;
@@ -3617,6 +3629,17 @@ void ammo_inventory_selector::mod_chosen_count( inventory_entry &entry, int valu
 }
 
 drop_location ammo_inventory_selector::execute()
+{
+    if( remote_ui::replaying() ) {
+        const drop_locations got = remote_ui::locations_from_string( remote_ui::answer( "a" ).value_or( "" ) );
+        return got.empty() ? drop_location() : got.front();
+    }
+    drop_location loc = execute_local();
+    remote_ui::record( "a", remote_ui::locations_to_string( loc.first ? drop_locations{ loc } : drop_locations() ) );
+    return loc;
+}
+
+drop_location ammo_inventory_selector::execute_local()
 {
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     debug_print_timer( tp_start );
@@ -3906,6 +3929,16 @@ void inventory_multiselector::toggle_entries( int &count, const toggle_mode mode
 
 drop_locations inventory_multiselector::execute( bool allow_empty )
 {
+    if( remote_ui::replaying() ) {
+        return remote_ui::locations_from_string( remote_ui::answer( "m" ).value_or( "" ) );
+    }
+    drop_locations locs = execute_local( allow_empty );
+    remote_ui::record( "m", remote_ui::locations_to_string( locs ) );
+    return locs;
+}
+
+drop_locations inventory_multiselector::execute_local( bool allow_empty )
+{
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     debug_print_timer( tp_start );
     while( true ) {
@@ -4193,6 +4226,16 @@ std::string haul_selector_preset::get_denial( const item_location &item ) const
 
 drop_locations inventory_drop_selector::execute()
 {
+    if( remote_ui::replaying() ) {
+        return remote_ui::locations_from_string( remote_ui::answer( "m" ).value_or( "" ) );
+    }
+    drop_locations locs = execute_local();
+    remote_ui::record( "m", remote_ui::locations_to_string( locs ) );
+    return locs;
+}
+
+drop_locations inventory_drop_selector::execute_local()
+{
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     debug_print_timer( tp_start );
     while( true ) {
@@ -4391,6 +4434,16 @@ void pickup_selector::apply_selection( std::vector<drop_location> selection )
 }
 
 drop_locations pickup_selector::execute()
+{
+    if( remote_ui::replaying() ) {
+        return remote_ui::locations_from_string( remote_ui::answer( "m" ).value_or( "" ) );
+    }
+    drop_locations locs = execute_local();
+    remote_ui::record( "m", remote_ui::locations_to_string( locs ) );
+    return locs;
+}
+
+drop_locations pickup_selector::execute_local()
 {
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     debug_print_timer( tp_start );
@@ -4665,6 +4718,20 @@ std::string unload_selector::hint_string()
 }
 
 std::pair<item_location, bool> unload_selector::execute()
+{
+    if( remote_ui::replaying() ) {
+        const std::string got = remote_ui::answer( "w" ).value_or( "" );
+        if( got.size() < 2 ) {
+            return { item_location(), false };
+        }
+        return { remote_ui::location_from_string( got.substr( 1 ) ), got[0] == '1' };
+    }
+    std::pair<item_location, bool> res = execute_local();
+    remote_ui::record( "w", ( res.second ? "1" : "0" ) + remote_ui::location_to_string( res.first ) );
+    return res;
+}
+
+std::pair<item_location, bool> unload_selector::execute_local()
 {
     shared_ptr_fast<ui_adaptor> ui = create_or_get_ui_adaptor();
     item_location startDragItem;
