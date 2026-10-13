@@ -736,6 +736,16 @@ void run_npc_menu()
             return;
         }
     }
+    if( menu.ret == game::npc_opt_use_item ) {
+        // the item is chosen here on the copy of that NPC, the host does the healing
+        if( npc *other = g->find_npc( character_id( m.id ) ) ) {
+            send_ui( "npc_use", [other]() {
+                remote_ui::record( "n", std::to_string( other->getID().get_value() ) );
+                g->npc_menu_choice( get_avatar(), *other, game::npc_opt_use_item );
+            } );
+            return;
+        }
+    }
     impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "npc_do" );
         jo.member( "id", m.id );

@@ -1090,6 +1090,13 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             if( !group.empty() ) {
                 place_construction( { construction_group_str_id( group ) } );
             }
+        } else if( what == "npc_use" ) {
+            // healing or splinting somebody: the client chose the item on its copy
+            const int id = std::atoi( remote_ui::answer( "n" ).value_or( "-1" ).c_str() );
+            npc *other = g->find_npc( character_id( id ) );
+            if( other != nullptr && !other->is_dead() && rl_dist( guy.pos_abs(), other->pos_abs() ) <= 2 ) {
+                g->npc_menu_choice( guy, *other, game::npc_opt_use_item );
+            }
         } else if( what == "haul" ) {
             haul_menu();
         } else if( what == "workout" ) {
