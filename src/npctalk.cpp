@@ -9313,10 +9313,11 @@ struct remote_conversation::impl {
 remote_conversation::remote_conversation( npc &you, npc &other )
     : p( std::make_unique<impl>( you, other ) )
 {
-    if( !other.will_talk_to_u( you, false ) ) {
+    std::unique_ptr<talker> beta = get_talker_for( other );
+    if( !beta->will_talk_to_u( you, false ) ) {
         return;
     }
-    p->d = std::make_unique<dialogue>( get_talker_for( you ), get_talker_for( other ),
+    p->d = std::make_unique<dialogue>( get_talker_for( you ), std::move( beta ),
                                        std::unordered_map<std::string, std::function<bool( const_dialogue const & )>> {} );
     dialogue &d = *p->d;
     d.actor( true )->check_missions();
