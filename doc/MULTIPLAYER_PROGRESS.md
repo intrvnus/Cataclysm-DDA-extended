@@ -18,12 +18,18 @@ Host + clients over ENet. The host simulates the world. Each client has its own 
 - Player cannot be seen, targeted or hurt while talking (for portal storms etc.): code only, no hazard tested.
 - Mend, fluid fire key, push/disarm/steal outcomes.
 
+## Already in the code from earlier sessions (found by reading it; not re-tested by me)
+- A1 world clock: `REALTIME_DAY_MINUTES` scales calendar time against action time (`do_turn.cpp`).
+- A2 dedicated server: `--dedicated` runs the host without a player; the host avatar becomes an invisible, invulnerable ghost that follows the group (also a first answer to C2: the bubble follows the players' centre, but players far apart are still not simulated).
+- A3: every player leaves scent; monsters see player bodies as NPC targets. Many AI places still look only at the host avatar (about 30 in `monster.cpp`/`monmove.cpp`): monsters' anger, aggro and "see the player" checks are not converted.
+- A5/B1: non-blocking mode (`alerts`): warning sounds, coloured messages and arrows instead of stopping.
+- B3 crafting/work stations (`stations.cpp`), B5 reading as a timed action and focus minigame, B6 sleep skip when everybody sleeps, B7 timed actions cancel on movement, B4 sprint by holding a key, B9 turret/monster wind-up alerts, C1 downed players that others can help up.
+
 ## Not done
-- **Separate reality bubbles (C2):** the engine simulates one area around the host. Needs a design decision: tether distance with warning, or a dedicated server.
-- Foundations: 60-minute day clock (A1), world keeps running behind host menus / dedicated server (A2), AI for several players (A3), no blocking popups (A5).
-- Gameplay: safe-mode warnings, stamina, crafting stations, movement modes, reading/training, sleep skip, short timed actions, turret warnings, weariness (B1-B10).
-- Systems: death and respawn, vehicles, shared faction/ownership, basecamps and zones, chat/player list, network efficiency.
-- Menus still missing for clients: vehicles, spells, construction, zones/loot/haul/grab, overmap, missions/factions/diary, classic (non-fluid) shooting, "use item on" and "sort armor" for NPCs, follower orders, examining creatures/vehicles/consoles.
+- **Separate reality bubbles (C2):** only the dedicated ghost following the group's centre; players far apart still need a design decision.
+- Gameplay still open: stamina rework (B2) and weariness (B10) not checked; crouch/prone key layout not checked; C7-C9 tuning.
+- Systems: vehicles (C3, with grab), shared faction/ownership and the faction menu (C4/C5), basecamps (C6), chat/player list (C15), network efficiency (C17).
+- Menus still missing for clients: spells (not needed), classic (non-fluid) shooting, examining creatures/vehicles/consoles, factions menu, follower orders, NPC "sort armor".
 - Wait is refused on purpose (the world does not stop).
 
 ## Next

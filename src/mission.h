@@ -20,6 +20,7 @@
 #include "translation.h"
 #include "type_id.h"
 
+class Character;
 class Creature;
 class JsonArray;
 class JsonObject;
