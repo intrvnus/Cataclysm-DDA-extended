@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "activity_tracker.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "bodypart.h"
 #include "calendar.h"
@@ -258,6 +259,17 @@ void Character::update_body( const time_point &from, const time_point &to )
         float sleepiness_mod = enchantment_cache->modify_value( enchant_vals::mod::SLEEPINESS, 1 );
         float sleepiness_regen_mod = enchantment_cache->modify_value( enchant_vals::mod::SLEEPINESS_REGEN,
                                      1 );
+        // Realtime / multiplayer (B10): resting somewhere comfortable or at a fire clears
+        // weariness three times as fast, so a short break helps without sleeping.
+        if( alerts::nonblocking() && !in_sleep_state() &&
+            activity_history.average_activity() < LIGHT_EXERCISE ) {
+            map &here = get_map();
+            const bool comfy = get_comfort_at( pos_bub( here ) ).comfort > 0;
+            if( comfy || here.has_nearby_fire( pos_bub( here ), 3 ) ) {
+                sleepiness_mod /= 3.0f;
+                sleepiness_regen_mod *= 3.0f;
+            }
+        }
         activity_history.try_reduce_weariness( base_bmr(), sleepiness_mod, sleepiness_regen_mod );
 
         check_needs_extremes();

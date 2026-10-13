@@ -2864,6 +2864,11 @@ void options_manager::add_options_world_default()
 
     add_empty_line();
 
+    add( "REALTIME_DAY_MINUTES", "world_default", to_translation( "Realtime day length" ),
+         to_translation( "Multiplayer and fluid (realtime) play: how many real minutes a whole game day lasts.  Hunger, thirst, healing, rot, plant growth and weather follow this clock; combat and movement keep their speed.  Seasons keep their number of days.  0 = a game day lasts 24 real hours.  Has no effect in turn-based single player." ),
+         0, 1440, 60
+       );
+
     add( "CHARACTER_POINT_POOLS", "world_default", to_translation( "Character point pools" ),
          to_translation( "Allowed point pools for character generation." ),
     { { "any", to_translation( "Any" ) }, { "multi_pool", to_translation( "Legacy Multipool" ) }, { "story_teller", to_translation( "Survivor" ) } },

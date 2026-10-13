@@ -14882,7 +14882,7 @@ bool item::process_tool( Character *carrier, const tripoint_bub_ms &pos )
         // Non-electrical charge consumption.
         int charges_to_use = 0;
         if( type->tool->turns_per_charge > 0 &&
-            to_turn<int>( calendar::turn ) % type->tool->turns_per_charge == 0 ) {
+            calendar::once_every( time_duration::from_turns( type->tool->turns_per_charge ) ) ) {
             charges_to_use = std::max( ammo_required(), 1 );
         }
 

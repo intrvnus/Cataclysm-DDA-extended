@@ -503,7 +503,17 @@ bool do_turn()
         }
     } else {
         g->gamemode->per_turn();
-        calendar::turn += 1_turns;
+        // Short days in realtime/multiplayer play (doc/MULTIPLAYER_ROADMAP.md A1).
+        double world_scale = 1.0;
+        const int day_minutes = get_option<int>( "REALTIME_DAY_MINUTES" );
+        if( alerts::nonblocking() && day_minutes > 0 ) {
+            // real seconds one turn takes
+            const double turn_seconds = fluid::enabled() ? fluid::turn_ms() / 1000.0 :
+                                        net::turn_duration( get_option<float>( "TURN_DURATION" ) );
+            world_scale = 86400.0 / ( day_minutes * 60.0 ) * std::max( 0.05, turn_seconds );
+        }
+        calendar::set_world_time_scale( world_scale );
+        calendar::advance_turn();
     }
 
     play_music( music::get_music_id_string() );

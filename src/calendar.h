@@ -84,6 +84,22 @@ namespace calendar
 bool once_every( const time_duration &event_frequency );
 
 /**
+ * World clock for realtime / multiplayer play (short days, see doc/MULTIPLAYER_ROADMAP.md A1).
+ *
+ * A simulation turn stays one action (a step, a swing).  The calendar can move several game
+ * seconds per turn so that a whole day passes in e.g. 60 real minutes.  Everything that counts
+ * elapsed time (needs, healing, rot, growth, weather) follows the calendar; things that count
+ * turns (cooldowns, short effects, fuses) stay in action time.
+ */
+/** Game seconds the calendar moves per simulation turn (fractional), 1 = classic. */
+void set_world_time_scale( double game_seconds_per_turn );
+double world_time_scale();
+/** Moves calendar::turn by one simulation turn (the world step, with fractional carry). */
+void advance_turn();
+/** How far the last advance_turn() moved the calendar (1 turn in classic play). */
+time_duration last_step();
+
+/**
  * A number that represents the longest possible action.
  *
  * This number should be regarded as a number of turns, and can safely be converted to a

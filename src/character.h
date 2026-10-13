@@ -4138,6 +4138,13 @@ class Character : public Creature, public visitable
         int hunger;
         int thirst;
         int stamina;
+        // Realtime stamina (B2, not saved): when it was last spent / regenerated (real ms),
+        // and "exhausted" (no running until 30% is back).
+        int64_t stamina_spent_ms = 0; // NOLINT(cata-serialize)
+        int64_t stamina_regen_ms = 0; // NOLINT(cata-serialize)
+        bool stamina_exhausted = false; // NOLINT(cata-serialize)
+        /** Realtime stamina regeneration (multiplayer/fluid), see update_stamina(). */
+        void update_stamina_realtime();
 
         int cardio_acc;
         int base_cardio_acc;

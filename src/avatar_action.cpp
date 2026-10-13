@@ -14,6 +14,7 @@
 
 #include "action.h"
 #include "activity_actor_definitions.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "body_part_set.h"
 #include "calendar.h"
@@ -271,8 +272,14 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
 
     // by this point we're either walking, running, crouching, or attacking, so update the activity level to match
     if( !is_riding ) {
-        you.set_activity_level( you.enchantment_cache->modify_value(
-                                    enchant_vals::mod::MOVEMENT_EXERTION_MODIFIER, you.current_movement_mode()->exertion_level() ) );
+        float exertion = you.enchantment_cache->modify_value(
+                             enchant_vals::mod::MOVEMENT_EXERTION_MODIFIER, you.current_movement_mode()->exertion_level() );
+        // Realtime / multiplayer (B10): walking around is light work; only running, fighting
+        // and heavy jobs make you weary.
+        if( alerts::nonblocking() && !you.is_running() ) {
+            exertion = std::min( exertion, LIGHT_EXERCISE );
+        }
+        you.set_activity_level( exertion );
     }
 
     // If the player is *attempting to* move on the X axis, update facing direction of their sprite to match.

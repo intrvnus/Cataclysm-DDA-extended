@@ -1040,11 +1040,12 @@ static bool effect_is_blocked( const efftype_id &e, const effects_map &eff_map )
 }
 
 void effect::decay( std::vector<efftype_id> &rem_ids, std::vector<bodypart_id> &rem_bps,
-                    const time_point &time, const bool player, const effects_map &eff_map )
+                    const time_point &, const bool player, const effects_map &eff_map )
 {
     // Decay intensity if supposed to do so, removing effects at zero intensity
+    // (once_every: with short days the calendar can move several seconds per turn)
     if( intensity > 0 && eff_type->int_decay_tick != 0 &&
-        to_turn<int>( time ) % eff_type->int_decay_tick == 0 &&
+        calendar::once_every( time_duration::from_turns( eff_type->int_decay_tick ) ) &&
         get_max_duration() > get_duration() ) {
         if( eff_type->int_decay_step <= 0 || !effect_is_blocked( eff_type->id, eff_map ) ) {
             set_intensity( intensity + eff_type->int_decay_step, player );
@@ -1061,7 +1062,15 @@ void effect::decay( std::vector<efftype_id> &rem_ids, std::vector<bodypart_id> &
         rem_ids.push_back( get_id() );
         rem_bps.push_back( bp.id() );
     } else if( !is_permanent() ) {
-        mod_duration( -1_turns, player );
+        // Short days (realtime/multiplayer): long effects (drunk, sick, drugs) run out in world
+        // time like everything else; short ones (stun, fire, the last minute of anything) in
+        // action time, so combat feels the same.
+        const time_duration step = calendar::last_step();
+        if( step > 1_turns && duration > 1_minutes ) {
+            mod_duration( -std::min( step, duration - 1_minutes ), player );
+        } else {
+            mod_duration( -1_turns, player );
+        }
     }
 }
 

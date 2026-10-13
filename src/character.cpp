@@ -1,6 +1,7 @@
 #include "character.h"
 
 #include <algorithm>
+#include <chrono>
 #include <array>
 #include <climits>
 #include <cmath>
@@ -19,6 +20,7 @@
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
 #include "addiction.h"
+#include "alerts.h"
 #include "anatomy.h"
 #include "avatar.h"
 #include "avatar_action.h"
@@ -2262,7 +2264,8 @@ bool Character::is_limb_broken( const bodypart_id &limb ) const
 
 bool Character::can_run() const
 {
-    return get_stamina() > 0 && !has_effect( effect_winded ) && enough_working_legs();
+    return get_stamina() > 0 && !has_effect( effect_winded ) && enough_working_legs() &&
+           !stamina_exhausted;
 }
 
 move_mode_id Character::current_movement_mode() const
@@ -6942,6 +6945,13 @@ void Character::mod_stamina( int mod )
     if( is_npc() || has_trait( trait_DEBUG_STAMINA ) ) {
         return;
     }
+    if( mod < 0 ) {
+        stamina_spent_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                               std::chrono::steady_clock::now().time_since_epoch() ).count();
+        if( stamina + mod <= 0 && alerts::nonblocking() ) {
+            stamina_exhausted = true;
+        }
+    }
 
     float quarter_thresh = 0.25 * get_stamina_max();
     float half_thresh = 0.5 * get_stamina_max();
@@ -7021,6 +7031,10 @@ void Character::burn_move_stamina( int moves )
 
 void Character::update_stamina( int turns )
 {
+    if( alerts::nonblocking() ) {
+        update_stamina_realtime();
+        return;
+    }
     static const std::string player_base_stamina_regen_rate( "PLAYER_BASE_STAMINA_REGEN_RATE" );
     const float base_regen_rate = get_option<float>( player_base_stamina_regen_rate );
     // Your stamina regen rate works as a function of how fit you are compared to your body size.
@@ -7082,6 +7096,46 @@ void Character::update_stamina( int turns )
 
     // Cap at max
     set_stamina( std::min( std::max( get_stamina(), 0 ), max_stam ) );
+}
+
+void Character::update_stamina_realtime()
+{
+    // Realtime / multiplayer (doc/MULTIPLAYER_ROADMAP.md B2): stamina comes back in real
+    // seconds, independent of how fast the world clock runs.  After spending some there is a
+    // short pause, then a full bar takes about 25 s standing (faster crouched or lying down).
+    // Cardio, mutations, stims and breathing still scale it like in the classic formula.
+    constexpr int64_t regen_delay_ms = 2000;
+    constexpr double full_regen_seconds = 25.0;
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch() ).count();
+    const int64_t since_last = stamina_regen_ms == 0 ? 0 : std::min<int64_t>( now - stamina_regen_ms,
+                               2000 );
+    stamina_regen_ms = now;
+    const int max_stam = get_stamina_max();
+    if( now - stamina_spent_ms < regen_delay_ms || since_last <= 0 ) {
+        return;
+    }
+    // 1.0 for an average character, more for a fit one
+    const float fitness = get_cardiofit() / static_cast<float>( std::max( 1, get_cardio_acc_base() ) );
+    const float mod_regen = enchantment_cache->modify_value( enchant_vals::mod::STAMINA_REGEN_MOD, 0 );
+    float multiplier = std::max( 0.1f, mod_regen + ( has_effect( effect_winded ) ? 0.1f : 1.0f ) );
+    multiplier *= get_modifier( character_modifier_stamina_recovery_breathing_mod );
+    multiplier *= std::clamp( fitness, 0.5f, 2.0f );
+    if( is_prone() ) {
+        multiplier *= 1.4f;
+    } else if( is_crouching() ) {
+        multiplier *= 1.2f;
+    }
+    const int current_stim = get_stim();
+    if( current_stim != 0 ) {
+        multiplier *= std::clamp( 1.0f + current_stim / 100.0f, 0.5f, 1.5f );
+    }
+    const double per_second = max_stam / full_regen_seconds * multiplier;
+    mod_stamina( static_cast<int>( std::ceil( per_second * since_last / 1000.0 ) ) );
+    set_stamina( std::clamp( get_stamina(), 0, max_stam ) );
+    if( stamina_exhausted && get_stamina() >= max_stam * 0.3 ) {
+        stamina_exhausted = false;
+    }
 }
 
 int Character::get_cardiofit() const

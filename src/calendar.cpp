@@ -752,9 +752,51 @@ float calendar::season_from_default_ratio()
     return to_days<float>( season_length() ) / default_season_length;
 }
 
+static double world_scale = 1.0;
+static double world_carry = 0.0;
+static time_duration world_last_step = 1_turns;
+
+void calendar::set_world_time_scale( double game_seconds_per_turn )
+{
+    world_scale = std::max( 1.0, game_seconds_per_turn );
+}
+
+double calendar::world_time_scale()
+{
+    return world_scale;
+}
+
+void calendar::advance_turn()
+{
+    world_carry += world_scale;
+    const int whole = std::max( 1, static_cast<int>( world_carry ) );
+    world_carry = std::max( 0.0, world_carry - whole );
+    world_last_step = time_duration::from_turns( whole );
+    calendar::turn += world_last_step;
+}
+
+time_duration calendar::last_step()
+{
+    return world_last_step;
+}
+
 bool calendar::once_every( const time_duration &event_frequency )
 {
-    return ( calendar::turn - calendar::turn_zero ) % event_frequency == 0_turns;
+    // True when a multiple of the frequency was reached during the last step.  With the classic
+    // one-turn step this is the same as "now is a multiple of the frequency".
+    const int64_t freq = to_turns<int64_t>( event_frequency );
+    if( freq <= 1 ) {
+        return true;
+    }
+    const int64_t now = to_turns<int64_t>( calendar::turn - calendar::turn_zero );
+    const int64_t step = std::max<int64_t>( 1, to_turns<int64_t>( world_last_step ) );
+    if( step == 1 ) {
+        return now % freq == 0;
+    }
+    const auto floor_div = []( int64_t a, int64_t b ) {
+        return a >= 0 ? a / b : -( ( -a + b - 1 ) / b );
+    };
+    return floor_div( now, freq ) != floor_div( now - step, freq );
 }
 
 std::string calendar::name_season( season_type s )
