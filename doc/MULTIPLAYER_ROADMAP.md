@@ -88,16 +88,18 @@ when a batch is worth playing.
   their menus on the client and the host starts the captured activity: unload (`U`),
   disassemble (`(`), butcher, mend, insert (`v`), reload (`r`). Views that need nothing
   from the host run locally: messages (`P`), morale, help.
-* **Written, not yet tested in game (this batch):** smash (`s`, also keeps smashing as a
-  host activity), mend (through the capture path), the inventory screen (`i`: its item menu
-  sends wield/wear/eat/read/drop/apply/unload/reload/mend/disassemble/insert/favorite/
-  change-side to the host), throwing in fluid mode (the throw key throws the wielded item at
-  the mouse cursor; the classic fire key counts as the left mouse button), and talking to NPCs
-  (`C`): the host runs the conversation turn by turn, the client shows the normal dialogue
-  window, a trading window opens on the client and the agreed trade is carried out by the
-  host. While a player talks they cannot be seen, targeted or hurt (portal storms etc.).
-  Classic (non-fluid) shooting and throwing are not available to clients: they need the
-  mouse-aimed fluid mode.
+* **Done and tested in game (Xvfb host + client):** smash (`s`), the inventory screen (`i`:
+  its item menu sends wield/wear/eat/read/drop/apply/unload/reload/mend/disassemble/insert/
+  favorite/change-side to the host; wield was tried), throwing in fluid mode (the throw key
+  throws the wielded item at the mouse cursor; the classic fire key counts as the left mouse
+  button), talking to NPCs (`C`) and trading: the host runs the conversation turn by turn, the
+  client shows the normal dialogue window, the trading window opens on the client and the host
+  carries out the agreed trade (a knife for a volleyball was tried). While a player talks they
+  cannot be seen, targeted or hurt (portal storms etc.): this part is only code-checked, no
+  hazard was tried. Mend only goes through the same capture path as disassemble (no mendable
+  item was available). Classic (non-fluid) shooting and throwing are not available to clients:
+  they need the mouse-aimed fluid mode. Test helper: with `CATA_MP_TEST_NPC` set the host
+  spawns an NPC beside every player who joins.
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
   talking to NPCs and trading (C4), the inventory screen (`i`, its item menu has
   immediate effects), throw/fire/smash and the other remaining basic menus.
