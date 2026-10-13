@@ -951,12 +951,14 @@ class game
         void pickup();
         // Pick up items from all nearby tiles
         void pickup_all();
-    private:
-
+    public:
         void unload_container(); // Unload a container w/ direction  'd'
+    private:
         void drop_in_direction( const tripoint_bub_ms &pnt ); // Drop w/ direction  'D'
 
+    public:
         void butcher(); // Butcher a corpse  'B'
+    private:
 
         void reload( item_location &loc, bool prompt = false, bool empty = true );
     public:

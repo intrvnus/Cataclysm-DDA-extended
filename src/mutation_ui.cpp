@@ -14,6 +14,8 @@
 #include "inventory.h"
 #include "magic.h"
 #include "mutation.h"
+#include "remote_ui.h"
+#include <sstream>
 #include "output.h"
 #include "popup.h"
 #include "string_formatter.h"
@@ -95,6 +97,34 @@ static void show_mutations_titlebar( const catacurses::window &window,
     // NOLINTNEXTLINE(cata-use-named-point-constants)
     fold_and_print( window, point( 1, 0 ), getmaxx( window ) - 1, c_white, desc );
     wnoutrefresh( window );
+}
+
+// Multiplayer host: does what a client did in its mutations menu (see remote_ui.h).
+void Character::replay_mutations_menu()
+{
+    std::istringstream is( remote_ui::answer( "mut" ).value_or( "" ) );
+    std::string kind;
+    std::string name;
+    is >> kind >> name;
+    const trait_id mut_id( name );
+    if( !mut_id.is_valid() || !has_trait( mut_id ) || !mut_id->activated ) {
+        return;
+    }
+    const mutation_branch &mut_data = mut_id.obj();
+    if( kind == "stop" && cached_mutations[mut_id].powered ) {
+        add_msg_if_player( m_neutral, _( "You stop using your %s." ), mutation_name( mut_data.id ) );
+        deactivate_mutation( mut_id );
+    } else if( kind == "start" && !cached_mutations[mut_id].powered &&
+               ( !mut_data.hunger || get_kcal_percent() >= 0.8f ) &&
+               ( !mut_data.thirst || get_thirst() <= 400 ) &&
+               ( !mut_data.sleepiness || get_sleepiness() <= 400 ) &&
+               ( !mut_data.mana || magic->available_mana() >= mut_data.cost ) ) {
+        add_msg_if_player( m_neutral,
+                           string_format( mut_data.activation_msg, mutation_name( mut_data.id ) ) );
+        activate_mutation( mut_id );
+    } else {
+        remote_ui::tell( _( "You can't do that right now." ) );
+    }
 }
 
 void avatar::power_mutations()
@@ -441,6 +471,7 @@ void avatar::power_mutations()
                                 add_msg_if_player( m_neutral, _( "You stop using your %s." ), mutation_name( mut_data.id ) );
                                 // Reset menu in advance
                                 ui.reset();
+                                remote_ui::record( "mut", "stop " + mut_id.str() );
                                 deactivate_mutation( mut_id );
                                 // Action done, leave screen
                                 exit = true;
@@ -452,6 +483,7 @@ void avatar::power_mutations()
                                                    string_format( mut_data.activation_msg, mutation_name( mut_data.id ) ) );
                                 // Reset menu in advance
                                 ui.reset();
+                                remote_ui::record( "mut", "start " + mut_id.str() );
                                 activate_mutation( mut_id );
                                 // Action done, leave screen
                                 exit = true;
@@ -616,6 +648,7 @@ void avatar::power_mutations()
                                     add_msg_if_player( m_neutral, _( "You stop using your %s." ), mutation_name( mut_data.id ) );
                                     // Reset menu in advance
                                     ui.reset();
+                                    remote_ui::record( "mut", "stop " + mut_id.str() );
                                     deactivate_mutation( mut_id );
                                     // Action done, leave screen
                                     exit = true;
@@ -627,6 +660,7 @@ void avatar::power_mutations()
                                                        string_format( mut_data.activation_msg, mutation_name( mut_data.id ) ) );
                                     // Reset menu in advance
                                     ui.reset();
+                                    remote_ui::record( "mut", "start " + mut_id.str() );
                                     activate_mutation( mut_id );
                                     // Action done, leave screen
                                     exit = true;

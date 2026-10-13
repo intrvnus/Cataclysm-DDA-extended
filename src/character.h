@@ -1445,6 +1445,8 @@ class Character : public Creature, public visitable
         bool use_bionic_in_menu( bionic &bio, const std::function<void()> &close_menu_ui );
         /** Multiplayer host: does what a client did in its bionics menu (see remote_ui.h). */
         void replay_bionics_menu();
+        /** Multiplayer host: does what a client did in its mutations menu. */
+        void replay_mutations_menu();
         /**
         * Check whether player has a bionic power armor interface.
         * @return true if player has an active bionic capable of powering armor, false otherwise.

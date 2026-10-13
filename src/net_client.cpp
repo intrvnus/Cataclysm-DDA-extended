@@ -17,6 +17,7 @@
 #include "action.h"
 #include "alerts.h"
 #include "advanced_inv.h"
+#include "help.h"
 #include "avatar.h"
 #include "avatar_action.h"
 #include "bodypart.h"
@@ -526,6 +527,67 @@ bool handle_input()
                 // the host picks the item from the answers, like from the menu
                 remote_ui::record( "i", remote_ui::location_to_string( loc ) );
                 avatar_action::use_item( get_avatar(), loc );
+            } );
+            break;
+        // actions that only start an activity: the menus run here, the host starts it
+        case ACTION_BUTCHER:
+            send_ui( "capture", [] {
+                g->butcher();
+            }, true );
+            break;
+        case ACTION_DISASSEMBLE:
+            send_ui( "capture", [] {
+                get_avatar().disassemble();
+            }, true );
+            break;
+        case ACTION_MEND:
+            send_ui( "capture", [] {
+                avatar_action::mend( get_avatar(), item_location() );
+            }, true );
+            break;
+        case ACTION_UNLOAD:
+            send_ui( "capture", [] {
+                avatar_action::unload( get_avatar() );
+            }, true );
+            break;
+        case ACTION_UNLOAD_CONTAINER:
+            send_ui( "capture", [] {
+                g->unload_container();
+            }, true );
+            break;
+        case ACTION_INSERT_ITEM:
+            send_ui( "capture", [] {
+                g->insert_item();
+            }, true );
+            break;
+        case ACTION_RELOAD_ITEM:
+            send_ui( "capture", [] {
+                g->reload_item();
+            }, true );
+            break;
+        case ACTION_RELOAD_WIELDED:
+            send_ui( "capture", [] {
+                g->reload_wielded();
+            }, true );
+            break;
+        case ACTION_RELOAD_WEAPON:
+            send_ui( "capture", [] {
+                g->reload_weapon();
+            }, true );
+            break;
+        // views that only show things
+        case ACTION_MESSAGES:
+            Messages::display_messages();
+            break;
+        case ACTION_MORALE:
+            get_avatar().disp_morale();
+            break;
+        case ACTION_HELP:
+            get_help().display_help();
+            break;
+        case ACTION_MUTATIONS:
+            send_ui( "mutations", [] {
+                get_avatar().power_mutations();
             } );
             break;
         case ACTION_BIONICS:

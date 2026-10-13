@@ -594,10 +594,15 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
 {
     const std::string what = msg.get_string( "a", "" );
     const int client_id = msg.get_int( "cid", -1 );
-    if( what == "aim" ) {
-        // advanced inventory: the client chose item moves on its copy, here they start
+    if( what == "aim" || what == "capture" ) {
+        // advanced inventory, butchering, reloading ...: the client chose on its copy what to
+        // do, here the activity it started starts on the body
         static const std::set<std::string> allowed = { "ACT_PICKUP", "ACT_DROP", "ACT_MOVE_ITEMS",
-                                                       "ACT_INSERT_ITEM", "ACT_WEAR", "ACT_WIELD", "ACT_STASH"
+                                                       "ACT_INSERT_ITEM", "ACT_WEAR", "ACT_WIELD", "ACT_STASH",
+                                                       "ACT_RELOAD", "ACT_UNLOAD", "ACT_DISASSEMBLE",
+                                                       "ACT_BUTCHER", "ACT_BUTCHER_FULL", "ACT_FIELD_DRESS",
+                                                       "ACT_SKIN", "ACT_QUARTER", "ACT_DISMEMBER", "ACT_DISSECT",
+                                                       "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH"
                                                      };
         for( JsonValue entry : msg.get_array( "acts" ) ) {
             try {
@@ -617,7 +622,7 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 send_text( rp, _( "Things changed while you were doing that: you stop." ) );
             }
         }
-        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: advanced inventory of " << rp.name << ": " <<
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << what << " of " << rp.name << ": " <<
                                    ( guy.activity ? guy.activity.id().str() : std::string( "no activity" ) );
         resync_player( rp, guy );
         return;
@@ -630,6 +635,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
         if( what == "apply" ) {
             item_location loc;
             avatar_action::use_item( guy, loc );
+        } else if( what == "mutations" ) {
+            guy.replay_mutations_menu();
         } else if( what == "bionics" ) {
             guy.replay_bionics_menu();
         } else if( what == "examine" || what == "examine_pickup" ) {
