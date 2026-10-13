@@ -3302,7 +3302,8 @@ bool game::handle_action()
         const input_event &&evt = ctxt.get_raw_input();
         if( !evt.sequence.empty() ) {
             const int ch = evt.get_first_input();
-            if( !get_option<bool>( "NO_UNKNOWN_COMMAND_MSG" ) ) {
+            if( !get_option<bool>( "NO_UNKNOWN_COMMAND_MSG" ) &&
+                !( fluid::enabled() && fluid::device_key( ch ) ) ) {
                 std::string msg = string_format( _( "Unknown command: \"%s\" (%ld)" ), evt.long_description(), ch );
                 if( const std::optional<std::string> hint =
                         press_x_if_bound( ACTION_KEYBINDINGS ) ) {

@@ -296,6 +296,29 @@ void classic_action_end()
     d.suppressed |= after & ~d.before_action;
 }
 
+bool device_key( int key )
+{
+    if( key == ' ' ) {
+        key = SDLK_SPACE;
+    } else if( key >= 'A' && key <= 'Z' ) {
+        // the same key held with Shift (sprinting)
+        key = key - 'A' + 'a';
+    } else if( key <= ' ' || key >= 127 ) {
+        return false;
+    }
+    const SDL_Scancode sc = SDL_GetScancodeFromKey( key );
+    if( sc == SDL_SCANCODE_UNKNOWN ) {
+        return false;
+    }
+    device_state &d = dev();
+    refresh_bindings( d, now_ms() );
+    const auto has = [sc]( const std::vector<int> &list ) {
+        return std::find( list.begin(), list.end(), static_cast<int>( sc ) ) != list.end();
+    };
+    return has( d.cancel_keys ) || has( d.primary_keys ) || has( d.secondary_keys ) ||
+           std::any_of( d.move_keys.begin(), d.move_keys.end(), has );
+}
+
 bool poll_device( input_frame &out )
 {
     device_state &d = dev();
@@ -341,6 +364,11 @@ void classic_action_begin()
 
 void classic_action_end()
 {
+}
+
+bool device_key( int )
+{
+    return false;
 }
 
 bool poll_device( input_frame & )

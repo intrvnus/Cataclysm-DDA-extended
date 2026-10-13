@@ -46,7 +46,8 @@ bool supported( const Character &who )
 void tick( Character &who )
 {
     const int id = who.getID().get_value();
-    if( !alerts::nonblocking() || !supported( who ) ) {
+    // single player runs long actions as fast as the machine allows: nothing to speed up
+    if( !net::active() || !supported( who ) ) {
         states().erase( id );
         return;
     }

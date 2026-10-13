@@ -335,6 +335,9 @@ void note_classic_action( int action );
  * movement afterwards, until it was released. */
 void classic_action_begin();
 void classic_action_end();
+/** True if fluid mode reads @p key as held state (movement, also with Shift for sprinting,
+ * or the cancel / attack keys): pressing it is not an unknown command. */
+bool device_key( int key );
 
 // ---------------------------------------------------------------------------------------
 // the layout switch (see doc)

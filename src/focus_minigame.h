@@ -8,6 +8,7 @@ class Character;
  * Focus minigame for long timed actions in realtime / multiplayer play
  * (doc/MULTIPLAYER_ROADMAP.md B3, B5): reading, martial arts books, crafting.
  *
+ * Multiplayer only: single player runs long actions at machine speed anyway.
  * Every few seconds the player gets a "Focus!" prompt (sound + message).  Pressing SPACE in
  * time makes the action go twice as fast for a few seconds.  Missing it costs nothing, so
  * the action still finishes on its own; playing along makes it finish sooner.
