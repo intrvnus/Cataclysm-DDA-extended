@@ -647,12 +647,12 @@ bool mission::is_complete( const character_id &_npc_id ) const
                 }
                 beta = get_talker_for( *n );
                 for( mission *&mission : n->chatbin.missions_assigned ) {
-                    if( mission->get_assigned_player_id() == player_character.getID() ) {
+                    if( mission->get_assigned_player_id() == owner_of( player_character ) ) {
                         miss.emplace_back( mission );
                     }
                 }
             } else {
-                for( mission *&mission : player_character.get_active_missions() ) {
+                for( mission *&mission : get_avatar().get_active_missions() ) {
                     if( mission->type->id == type->id ) {
                         miss.emplace_back( mission );
                     }
