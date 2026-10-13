@@ -117,8 +117,10 @@ when a batch is worth playing.
   simulated at once, which this engine does not support; it needs its own design (options:
   a tether distance with a warning, or a dedicated server that follows the player group).
 * **Open:** examine creatures/vehicles/consoles (say "not available in multiplayer yet"),
-  talking to NPCs and trading (C4), the inventory screen (`i`, its item menu has
-  immediate effects), throw/fire/smash and the other remaining basic menus.
+  vehicles (C3), spells, construction, zones/loot/haul/grab, overmap map, missions/factions/
+  diary, classic (non-fluid) shooting/throwing, "use item on" and "sort armor" for NPCs,
+  dialogue side-column commands, follower orders menu. Not yet tried in game: mend, a real
+  hazard during dialogue, the fluid fire key, push/disarm/steal outcomes.
 
 ---
 
