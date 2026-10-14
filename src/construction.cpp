@@ -1293,6 +1293,10 @@ void place_construction( std::vector<construction_group_str_id> const &groups )
     }
     const tripoint_bub_ms &pnt = *pnt_;
 
+    if( remote_ui::replaying() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: construction chosen " << pnt.raw() << " from " << loc.raw() <<
+                                   ( valid.empty() ? std::string() : " valid at " + valid.begin()->first.raw().to_string() );
+    }
     if( valid.find( pnt ) == valid.end() ) {
         cons.front()->explain_failure( pnt );
         return;
@@ -1326,6 +1330,9 @@ void place_construction( std::vector<construction_group_str_id> const &groups )
             std::list<item> tmp = player_character.consume_items( it, 1, is_crafting_component,
                                   return_false<itype_id>, true );
             if( tmp.empty() ) {
+                if( remote_ui::replaying() ) {
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: construction components missing";
+                }
                 return;
             }
             used.splice( used.end(), tmp );
