@@ -119,6 +119,8 @@ struct remote_player {
     // test helper (CATA_MP_TEST_DOWN): where we are in the down/revive/bleed-out cycle
     int test_stage = 0;
     fluid::ms_t test_at = 0;
+    int build_stage = 0;
+    fluid::ms_t build_at = 0;
     fluid::ms_t bleed_out_at = 0;
     int revive_progress = 0;
     fluid::ms_t last_revive_step = 0;
@@ -624,6 +626,43 @@ void test_furniture( npc &guy, bool place )
         }
     }
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table not found near the body";
+}
+
+// Test helper: the player builds a battery appliance beside them (checks that the host does a
+// construction for a player's body: components used up, building activity, the result).
+void test_build( remote_player &rp, npc &guy )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_BUILD" ) != nullptr;
+    if( !on ) {
+        return;
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    map &here = get_map();
+    const tripoint_bub_ms target = guy.pos_bub( here ) + tripoint_rel_ms::east;
+    if( rp.build_stage == 0 ) {
+        rp.build_at = now + 25000;
+        rp.build_stage = 1;
+    } else if( rp.build_stage == 1 && now >= rp.build_at ) {
+        guy.i_add( item( itype_id( "storage_battery" ) ) );
+        std::vector<remote_ui::entry> answers = { { "d", "1 0 0" } };
+        {
+            remote_ui::replay_scope scope( answers, guy, guy.getID().get_value() );
+            place_construction( { construction_group_str_id( "place_battery" ) } );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: replay failed=" << scope.failed();
+        }
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: activity " <<
+                                   ( guy.activity ? guy.activity.id().str() : std::string( "none" ) ) <<
+                                   " partial " << ( here.partial_con_at( target ) != nullptr ) <<
+                                   " has battery item " << guy.has_amount( itype_id( "storage_battery" ), 1 );
+        rp.build_stage = 2;
+        rp.build_at = now;
+    } else if( rp.build_stage == 2 && now >= rp.build_at + 5000 ) {
+        rp.build_at = now;
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: activity " <<
+                                   ( guy.activity ? guy.activity.id().str() : std::string( "none" ) ) <<
+                                   " partial " << ( here.partial_con_at( target ) != nullptr ) <<
+                                   " vehicle there " << static_cast<bool>( here.veh_at( target ) );
+    }
 }
 
 void report_test_armor( const npc &near )
@@ -2409,6 +2448,7 @@ void host_end_of_turn()
             report_test_zombie( *guy );
             report_test_vehicle( *guy );
             report_test_armor( *guy );
+            test_build( rp, *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }
