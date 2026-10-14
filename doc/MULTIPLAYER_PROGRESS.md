@@ -16,7 +16,7 @@ Host + clients over ENet (messages compressed). The host simulates the world. Ea
 - Vanilla unit tests that touch my changes pass (vehicle, monster, NPC, construction, item actions, missions, factions); in a full-suite run 5 assertions failed in a monster-spawning test helper (they pass when those test files run alone: probably leftover state between tests); one melee test case crashes inside the test's own helper (not my code).
 
 ## Compiled but not yet run in the game
-Factions read-only view, pets/mounts/friendly monsters, computers/consoles, disarm/steal/use-item (the confirmation prompts reach the host), sort armor for friends, repeat last craft, construction placement, workout, map memory loading on the next visit.
+Factions read-only view, pets/mounts/friendly monsters, computers/consoles, disarm/steal/use-item (the confirmation prompts reach the host), sort armor for friends, repeat last craft, workout (construction placement: host-side replay checked), map memory loading on the next visit.
 
 ## Already in the code from earlier sessions
 World clock (`REALTIME_DAY_MINUTES`), dedicated server, scent for every player, warnings instead of stopping (alerts), crafting stations, reading as a timed action + focus minigame, sleep skip when everybody sleeps, timed actions cancel on movement, sprint, turret/monster warnings.

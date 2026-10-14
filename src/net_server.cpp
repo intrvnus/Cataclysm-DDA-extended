@@ -644,7 +644,7 @@ void test_build( remote_player &rp, npc &guy )
         rp.build_stage = 1;
     } else if( rp.build_stage == 1 && now >= rp.build_at ) {
         guy.i_add( item( itype_id( "storage_battery" ) ) );
-        std::vector<remote_ui::entry> answers = { { "d", "1 0 0" } };
+        std::vector<remote_ui::entry> answers = { { "d", "-1 -1 0" } };
         {
             remote_ui::replay_scope scope( answers, guy, guy.getID().get_value() );
             place_construction( { construction_group_str_id( "place_battery" ) } );
