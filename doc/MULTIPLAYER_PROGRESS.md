@@ -23,7 +23,7 @@ World clock (`REALTIME_DAY_MINUTES`), dedicated server, scent for every player, 
 
 ## Not done
 - Separate reality bubbles (C2): players far apart are not simulated (the dedicated server follows the group's middle).
-- Spells (not needed), dialogue side commands (look at / size up / yell), classic (non-fluid) shooting for clients.
+- Spells (not needed). Classic (non-fluid) shooting and throwing for clients are deliberately not planned: multiplayer uses fluid shooting and throwing only.
 - Faction rework (C4), basecamps (C6), stamina/weariness (B2/B10) and other balance work.
 - Sending only changed map parts (more network savings).
 - Windows build: none until the whole batch is done.
