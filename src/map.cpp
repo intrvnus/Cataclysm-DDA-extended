@@ -19,6 +19,7 @@
 #include "avatar.h"
 #include "basecamp.h"
 #include "bodypart.h"
+#include "bubbles.h"
 #include "cached_options.h"
 #include "calendar.h"
 #include "cata_assert.h"
@@ -686,6 +687,10 @@ void map::vehmove()
         }
         level_cache &cache = *cache_lazy;
         for( vehicle *veh : cache.vehicle_list ) {
+            // where bubbles overlap, only the owning bubble moves the vehicle
+            if( !bubbles::owns_submap( *this, veh->sm_pos ) ) {
+                continue;
+            }
             if( veh->is_following ) {
                 veh->drive_to_local_target( this, player_pos, true );
             } else if( veh->is_patrolling ) {
@@ -727,6 +732,9 @@ void map::vehmove()
             continue;
         }
         for( vehicle *veh : cache->vehicle_list ) {
+            if( !bubbles::owns_submap( *this, veh->sm_pos ) ) {
+                continue;
+            }
             vehs[veh] = true; // force on map vehicles to true
             veh->get_connected_vehicles( *this, connected_vehs );
         }
@@ -774,6 +782,11 @@ bool map::vehproceed( VehicleList &vehicle_list )
     cur_veh->v = cur_veh->v->act_on_map( *this );
     if( cur_veh->v == nullptr ) {
         vehicle_list = get_vehicles();
+        // get_vehicles lists every vehicle on this map; keep the ones this bubble owns
+        vehicle_list.erase( std::remove_if( vehicle_list.begin(), vehicle_list.end(),
+        [this]( const wrapped_vehicle & w ) {
+            return !bubbles::owns_submap( *this, w.v->sm_pos );
+        } ), vehicle_list.end() );
     }
 
     return true;
@@ -5270,6 +5283,21 @@ item &map::add_item( const tripoint_bub_ms &p, item new_item )
     return add_item( p, std::move( new_item ), copies );
 }
 
+// The submap is shared by every bubble that contains it, but only the owning bubble processes
+// its active items: tell every other bubble that has it loaded that it has active items.
+static void activate_in_other_bubbles( map &self, const tripoint_abs_sm &loc )
+{
+    map &bubble_map = reality_bubble();
+    if( &self != &bubble_map && bubble_map.inbounds( loc ) ) {
+        bubble_map.make_active( loc );
+    }
+    for( map *extra : bubbles::extras() ) {
+        if( extra != &self && extra->inbounds( loc ) ) {
+            extra->make_active( loc );
+        }
+    }
+}
+
 item &map::add_item( const tripoint_bub_ms &p, item new_item, int copies )
 {
     if( item_is_blacklisted( new_item.typeId() ) ) {
@@ -5346,11 +5374,7 @@ item &map::add_item( const tripoint_bub_ms &p, item new_item, int copies )
         tripoint_abs_sm const loc( abs_sub.x() + p.x() / SEEX, abs_sub.y() + p.y() / SEEY, p.z() );
         submaps_with_active_items_dirty.insert( loc );
 
-        map &bubble_map = reality_bubble();
-
-        if( this != &bubble_map && bubble_map.inbounds( loc ) ) {
-            bubble_map.make_active( loc );
-        }
+        activate_in_other_bubbles( *this, loc );
     }
 
     return *new_pos;
@@ -5390,11 +5414,7 @@ void map::make_active( item_location &loc )
                                      abs_sub.y() + loc.pos_bub( *this ).y() / SEEY, loc.pos_abs().z() );
         submaps_with_active_items_dirty.insert( smloc );
 
-        map &bubble_map = reality_bubble();
-
-        if( this != &bubble_map && bubble_map.inbounds( smloc ) ) {
-            bubble_map.make_active( smloc );
-        }
+        activate_in_other_bubbles( *this, smloc );
     }
 }
 
@@ -5608,6 +5628,10 @@ void map::process_items()
             submaps_with_vehicles.emplace( pos.x() / SEEX, pos.y() / SEEY, pos.z() );
         }
         for( const tripoint &pos : submaps_with_vehicles ) {
+            // where bubbles overlap, only the owning bubble processes the submap
+            if( !bubbles::owns_submap( *this, abs_sub.xy() + tripoint_rel_sm( pos ) ) ) {
+                continue;
+            }
             submap *const current_submap = get_submap_at_grid( tripoint_rel_sm( pos ) );
             if( current_submap == nullptr ) {
                 debugmsg( "Tried to process items at (%d,%d,%d) but the submap is not loaded", pos.x, pos.y,
@@ -5623,6 +5647,11 @@ void map::process_items()
         tripoint_abs_sm const abs_pos = *iter;
         if( !inbounds( project_to<coords::ms>( abs_pos ) ) ) {
             iter = submaps_with_active_items.erase( iter );
+            continue;
+        }
+        if( !bubbles::owns_submap( *this, abs_pos ) ) {
+            // another bubble processes it; keep it listed for when this map owns it
+            ++iter;
             continue;
         }
         const tripoint_rel_sm local_pos = abs_pos - abs_sub.xy();
@@ -6615,6 +6644,21 @@ void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type
 
     get_cache( p.z() ).field_cache.set(
         static_cast<size_t>( p.x() / SEEX ) + ( ( p.y() / SEEX ) * MAPSIZE ) );
+    if( !bubbles::extras().empty() ) {
+        // Only the owning bubble processes the fields of a submap: flag it in every bubble
+        // that has the submap loaded.
+        const tripoint_abs_sm sm_abs = project_to<coords::sm>( get_abs( p ) );
+        const auto flag_in = [&]( map & other ) {
+            if( &other != this && other.inbounds( sm_abs ) ) {
+                const tripoint_rel_sm rel = sm_abs - other.abs_sub;
+                other.get_cache( p.z() ).field_cache.set( rel.x() + rel.y() * MAPSIZE );
+            }
+        };
+        flag_in( reality_bubble() );
+        for( map *extra : bubbles::extras() ) {
+            flag_in( *extra );
+        }
+    }
 
     // Dirty the transparency cache now that field processing doesn't always do it
     if( fd_type.dirty_transparency_cache || !fd_type.is_transparent() ) {
@@ -8952,6 +8996,16 @@ void map::spawn_monsters_submap_group( const tripoint_rel_sm &gp, mongroup &grou
 void map::spawn_monsters_submap( const tripoint_rel_sm &gp, bool ignore_sight, bool spawn_nonlocal )
 {
     const tripoint_abs_sm submap_pos( gp + abs_sub.xy() );
+    if( !bubbles::extras().empty() ) {
+        // The spawns of a submap are consumed by whoever spawns them first, so only the owning
+        // bubble may do it.  Temporary maps (teleport, explosions...) are not bubbles and
+        // keep spawning what they load.
+        const std::vector<map *> bubble_maps = bubbles::all();
+        if( std::find( bubble_maps.begin(), bubble_maps.end(), this ) != bubble_maps.end() &&
+            !bubbles::owns_submap( *this, submap_pos ) ) {
+            return;
+        }
+    }
     // Load unloaded monsters
     overmap_buffer.spawn_monster( submap_pos, spawn_nonlocal );
     // Only spawn new monsters after existing monsters are loaded.
@@ -9524,12 +9578,11 @@ void map::build_floor_caches()
     }
 }
 
-static void vehicle_caching_internal( level_cache &zch, const vpart_reference &vp, vehicle *v )
+static void vehicle_caching_internal( const map &here, level_cache &zch,
+                                      const vpart_reference &vp, vehicle *v )
 {
-    // TODO: Check if this is actually reasonable. Probably need to feed the map in.
-    // The guess is that the reality bubble should be affected, but that needs to be checked as well.
-    map &here =
-        reality_bubble();
+    // "here" is the map whose caches are written (an extra bubble has other bubble coordinates
+    // than the reality bubble)
     auto &outside_cache = zch.outside_cache;
     auto &transparency_cache = zch.transparency_cache;
     auto &floor_cache = zch.floor_cache;
@@ -9557,13 +9610,9 @@ static void vehicle_caching_internal( level_cache &zch, const vpart_reference &v
     }
 }
 
-static void vehicle_caching_internal_above( level_cache &zch_above, const vpart_reference &vp,
-        vehicle *v )
+static void vehicle_caching_internal_above( const map &here, level_cache &zch_above,
+        const vpart_reference &vp, vehicle *v )
 {
-    // TODO: Check if this is actually reasonable. Probably need to feed the map in.
-    // The guess is that the reality bubble should be affected, but that needs to be checked as well.
-    map &here =
-        reality_bubble();
     if( vp.has_feature( VPFLAG_ROOF ) || vp.has_feature( VPFLAG_OPAQUE ) ) {
         const tripoint_bub_ms part_pos = v->bub_part_pos( here, vp.part() );
         zch_above.floor_cache[part_pos.x()][part_pos.y()] = true;
@@ -9582,9 +9631,9 @@ void map::do_vehicle_caching( int z )
             if( !inbounds( part_pos.xy() ) ) {
                 continue;
             }
-            vehicle_caching_internal( get_cache( part_pos.z() ), vp, v );
+            vehicle_caching_internal( *this, get_cache( part_pos.z() ), vp, v );
             if( part_pos.z() < OVERMAP_HEIGHT ) {
-                vehicle_caching_internal_above( get_cache( part_pos.z() + 1 ), vp, v );
+                vehicle_caching_internal_above( *this, get_cache( part_pos.z() + 1 ), vp, v );
             }
         }
     }
