@@ -64,6 +64,7 @@
 #include "monster.h"
 #include "mp_test_corner.h"
 #include "mp_test_monster.h"
+#include "mp_test_menus.h"
 #include "mtype.h"
 #include "mutation.h"
 #include "net_protocol.h"
@@ -84,6 +85,7 @@
 #include "type_id.h"
 
 static const efftype_id effect_downed( "downed" );
+static const efftype_id effect_pet( "pet" );
 static const faction_id faction_your_followers( "your_followers" );
 
 namespace net
@@ -1265,6 +1267,13 @@ void send_state( remote_player &rp, const npc &guy )
             jo.start_object();
             jo.member( "id", critter.type->id.str() );
             jo.member( "hp", critter.get_hp() );
+            // tame and friendly monsters: the client opens their menus (pets: key e) on its copy
+            if( critter.friendly != 0 ) {
+                jo.member( "fr", critter.friendly );
+            }
+            if( critter.has_effect( effect_pet ) ) {
+                jo.member( "pet", true );
+            }
             jo.member( "pos" );
             write_pos( jo, critter.pos_abs() );
             jo.end_object();
@@ -2050,6 +2059,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         if( shown == 0 ) {
             text += _( "You have not met any factions yet." ) + std::string( "\n" );
         }
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: factions sent to " << rp->name << ": " << shown <<
+                                   " factions, text length " << text.size();
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "factions" );
             jo.member( "text", text );
@@ -2071,6 +2082,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         text += string_format( _( "\nCompleted: %d   Failed: %d" ),
                                static_cast<int>( get_avatar().get_completed_missions().size() ),
                                static_cast<int>( get_avatar().get_failed_missions().size() ) );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: missions sent to " << rp->name << ": text length " <<
+                                   text.size();
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "missions" );
             jo.member( "text", text );
@@ -2081,6 +2094,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         JsonOut zjo( os );
         zone_manager::get_manager().serialize( zjo );
         const std::string zones_json = os.str();
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: zones sent " << zone_manager::get_manager().size() <<
+                                   " to " << rp->name << " (" << zones_json.size() << " bytes)";
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "zones" );
             jo.member( "zones", zones_json );
@@ -2090,6 +2105,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             JsonValue jv = json_loader::from_string( msg.get_string( "zones", "[]" ) );
             zone_manager::get_manager().deserialize( jv );
             zone_manager::get_manager().cache_data();
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: zones set by " << rp->name << ": the host now holds " <<
+                                       zone_manager::get_manager().size() << " zones";
         } catch( const std::exception &err ) {
             DebugLog( D_WARNING, D_MAIN ) << "Multiplayer: bad zones from " << rp->name << ": " <<
                                           err.what();
@@ -2676,6 +2693,9 @@ void host_end_of_turn()
             test_bubble( rp, *guy );
             test_corner( *guy );
             test_monster( *guy );
+            mp_test_zone( *guy );
+            mp_test_pet( *guy );
+            mp_test_factions( *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }

@@ -72,6 +72,7 @@
 #include "messages.h"
 #include "mod_engine.h"
 #include "monster.h"
+#include "mp_test_menus.h"
 #include "net_protocol.h"
 #include "net_session.h"
 #include "npc.h"
@@ -305,6 +306,11 @@ void apply_state( const JsonObject &msg )
         }
         if( monster *critter = g->place_critter_at( type, now.get_bub( p ) ) ) {
             critter->set_hp( mon.get_int( "hp", critter->get_hp() ) );
+            critter->friendly = mon.get_int( "fr", 0 );
+            if( mon.get_bool( "pet", false ) ) {
+                static const efftype_id effect_pet( "pet" );
+                critter->add_effect( effect_pet, 1_turns, true );
+            }
         }
     }
     ( void )here;
@@ -1737,6 +1743,7 @@ bool client_do_turn()
     poll();
     mod_engine::tick();
     fluid::client_frame();
+    mp_test_mapmem_client();
     ui_manager::redraw_invalidated();
     // the overmap copy gets the terrain around the player whenever it moves to another tile
     {
