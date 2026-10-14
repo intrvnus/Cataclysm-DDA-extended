@@ -65,6 +65,7 @@
 #include "mp_test_npc.h"
 #include "monster.h"
 #include "mp_test_corner.h"
+#include "mp_test_free.h"
 #include "mp_test_monster.h"
 #include "mp_test_menus.h"
 #include "mtype.h"
@@ -1373,6 +1374,11 @@ bool bump_npc_impl( npc &guy, npc &other )
     fluid::ms_t &last = last_menu[guy.getID().get_value()];
     if( now - last > 1500 ) {
         last = now;
+        static const bool trace = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+        if( trace ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace npc menu id=" << guy.getID().get_value() <<
+                                       " other=" << other.getID().get_value();
+        }
         send_npc_menu( *rp, guy, other );
     }
     return true;
@@ -2994,6 +3000,7 @@ void host_end_of_turn()
             test_build( rp, *guy );
             test_bubble( rp, *guy );
             test_corner( *guy );
+            test_free( *guy );
             test_monster( *guy );
             mp_test_zone( *guy );
             mp_test_pet( *guy );
