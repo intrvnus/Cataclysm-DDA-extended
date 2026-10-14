@@ -20,26 +20,43 @@
 #include "vpart_position.h"
 #include "vpart_range.h"
 
+namespace
+{
+// letting go: the avatar keeps a grab type, a multiplayer body only has the grab point
+void release_grab( Character &who )
+{
+    if( avatar *a = who.as_avatar() ) {
+        a->grab( object_type::NONE );
+    }
+    who.grab_point = tripoint_rel_ms::zero;
+}
+} // namespace
+
 bool game::grabbed_veh_move( const tripoint_rel_ms &dp )
+{
+    return grabbed_veh_move( dp, u );
+}
+
+bool game::grabbed_veh_move( const tripoint_rel_ms &dp, Character &u )
 {
     map &here = get_map();
 
     const optional_vpart_position grabbed_vehicle_vp = here.veh_at( u.pos_bub( here ) + u.grab_point );
     if( !grabbed_vehicle_vp ) {
         add_msg( m_info, _( "No vehicle at grabbed point." ) );
-        u.grab( object_type::NONE );
+        release_grab( u );
         return false;
     }
     vehicle *grabbed_vehicle = &grabbed_vehicle_vp->vehicle();
     if( !grabbed_vehicle ||
-        !grabbed_vehicle->handle_potential_theft( get_avatar() ) ) {
+        !grabbed_vehicle->handle_potential_theft( u ) ) {
         return false;
     }
     const int grabbed_part = grabbed_vehicle_vp->part_index();
     if( monster *mon = grabbed_vehicle->get_harnessed_animal( here ) ) {
         add_msg( m_info, _( "You cannot move this vehicle whilst your %s is harnessed!" ),
                  mon->get_name() );
-        u.grab( object_type::NONE );
+        release_grab( u );
         return false;
     }
     const vehicle *veh_under_player = veh_pointer_or_null( here.veh_at( u.pos_bub( here ) ) );
@@ -253,7 +270,7 @@ bool game::grabbed_veh_move( const tripoint_rel_ms &dp )
             }
             if( actual_diff ) {
                 add_msg( _( "You let go of the %s as it turns." ), grabbed_vehicle->disp_name() );
-                u.grab( object_type::NONE );
+                release_grab( u );
                 u.grab_point = tripoint_rel_ms::zero;
             }
         }
@@ -299,7 +316,7 @@ bool game::grabbed_veh_move( const tripoint_rel_ms &dp )
         grabbed_vehicle->check_falling_or_floating();
         if( grabbed_vehicle->is_falling ) {
             add_msg( _( "You let go of the %1$s as it starts to fall." ), grabbed_vehicle->disp_name() );
-            u.grab( object_type::NONE );
+            release_grab( u );
             u.grab_point = tripoint_rel_ms::zero;
             here.set_seen_cache_dirty( grabbed_vehicle->pos_bub( here ) );
             return true;

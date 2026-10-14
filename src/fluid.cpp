@@ -43,6 +43,8 @@
 #include "ranged.h"
 #include "translations.h"
 #include "ui_manager.h"
+#include "vehicle.h"
+#include "vpart_position.h"
 #include "units.h"
 
 static const efftype_id effect_incorporeal( "incorporeal" );
@@ -768,6 +770,15 @@ bool body_drag_step( npc &guy, const tripoint_abs_ms &dest, bool &blocked )
     map &here = get_map();
     const tripoint_bub_ms pos = guy.pos_bub( here );
     const tripoint_bub_ms fpos = pos + guy.grab_point;
+    if( here.veh_at( fpos ) ) {
+        // dragging a vehicle: the same code the avatar uses
+        const tripoint_bub_ms step_to = here.get_bub( dest );
+        if( g->grabbed_veh_move( tripoint_rel_ms( step_to.x() - pos.x(), step_to.y() - pos.y(), 0 ), guy ) ) {
+            blocked = true;
+            return true;
+        }
+        return false;
+    }
     if( !here.has_furn( fpos ) ) {
         guy.grab_point = tripoint_rel_ms::zero;
         return false;
@@ -924,9 +935,10 @@ bool body_grab( Character &who, const tripoint_rel_ms &dir )
         return had;
     }
     const tripoint_bub_ms there = who.pos_bub( here ) + dir;
-    if( here.veh_at( there ) ) {
-        who.add_msg_if_player( m_info, _( "Dragging vehicles is not available in multiplayer yet." ) );
-        return false;
+    if( const optional_vpart_position vp = here.veh_at( there ) ) {
+        who.grab_point = tripoint_rel_ms( dir.xy(), 0 );
+        who.add_msg_if_player( _( "You grab the %s." ), vp->vehicle().name );
+        return true;
     }
     if( !here.has_furn( there ) ) {
         who.add_msg_if_player( m_info, _( "There's nothing to grab there!" ) );

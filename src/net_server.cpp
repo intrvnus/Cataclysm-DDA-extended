@@ -606,7 +606,12 @@ void test_furniture( npc &guy, bool place )
     if( place ) {
         const tripoint_bub_ms spot = at + tripoint_rel_ms::east;
         if( here.passable( spot ) && !here.veh_at( spot ) &&
-            get_creature_tracker().creature_at( spot ) == nullptr ) {
+            get_creature_tracker().creature_at( spot ) == nullptr &&
+            std::string( std::getenv( "CATA_MP_TEST_FURN" ) ) == "veh" ) {
+            here.add_vehicle( vproto_id( "shopping_cart" ), spot, 0_degrees, 0, 0 );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test cart placed east of the player";
+        } else if( here.passable( spot ) && !here.veh_at( spot ) &&
+                   get_creature_tracker().creature_at( spot ) == nullptr ) {
             here.furn_set( spot, furn_str_id( "f_table" ) );
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table placed east of the player";
         } else {
@@ -618,6 +623,12 @@ void test_furniture( npc &guy, bool place )
         return;
     }
     for( const tripoint_bub_ms &p : here.points_in_radius( at, 6 ) ) {
+        if( const optional_vpart_position vp = here.veh_at( p ) ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table at " << vp->vehicle().pos_abs().to_string() <<
+                                       " body at " << guy.pos_abs().to_string() << " grab " <<
+                                       guy.grab_point.to_string();
+            return;
+        }
         if( here.furn( p ) == furn_str_id( "f_table" ) ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table at " << here.get_abs( p ).to_string() <<
                                        " body at " << guy.pos_abs().to_string() << " grab " <<

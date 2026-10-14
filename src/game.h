@@ -982,6 +982,10 @@ class game
         // Handle pushing during move, returns true if it handled the move
         bool grabbed_move( const tripoint_rel_ms &dp, bool via_ramp );
         bool grabbed_veh_move( const tripoint_rel_ms &dp );
+    public:
+        // The same for any character (the body of a multiplayer player); true if the move is used up
+        bool grabbed_veh_move( const tripoint_rel_ms &dp, Character &who );
+    private:
 
         void control_vehicle(); // Use vehicle controls  '^'
     public:
