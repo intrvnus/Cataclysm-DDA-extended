@@ -42,3 +42,5 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 Update 03:25: full sweep re-run on the newest build (car: velocity 1200 -> 2400 -> 757, 6 drive actions, 0 failed; downed/helped/bleed-out cycle completes; dedicated server 35 heartbeats; 0 errors in all three). Zombie check: spawned 4-5 tiles away out of sight, it walked from 7 to 5 tiles toward the client body over about 2 minutes (sees=0 all the time, so it follows scent/sound, slowly). Still no clean test with line of sight in daylight; the zombie targets the client's body at least as often as the host avatar, which is the point of the nearest-player change.
 
 Update 04:10: vanilla unit tests re-run against the current sources (vehicle, monster, NPC, construction, iuse_actor, mission, faction all exit 0; melee still crashes in the same test helper as before). Reconnect re-checked on the newest build (rejoins saved body, 0 errors).
+
+Update 05:10: two-client test (car with a second player seated) 0 errors; key tour of 18 client keys: no crash, no host error, no "not available" (note: most keys open client-local menus, so the host log shows nothing for them). 
