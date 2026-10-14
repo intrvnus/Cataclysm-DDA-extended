@@ -1,6 +1,7 @@
 # Multiplayer roadmap (to-do list for discussion)
 
 ## STATUS (read this first; updated 2026-10-14 afternoon)
+Handoff for Opus: `MULTIPLAYER_HANDOFF.md`.
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
 | Topic | State |
