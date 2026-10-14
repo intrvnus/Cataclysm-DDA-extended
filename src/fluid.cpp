@@ -97,6 +97,16 @@ bool free_movement()
     return enabled() && get_option<bool>( "FLUID_FREE_MOVEMENT" );
 }
 
+namespace
+{
+bool soft_wall_push = false;
+} // namespace
+
+bool soft_wall_confirmed()
+{
+    return soft_wall_push;
+}
+
 const tuning &tune()
 {
     static const tuning t;
@@ -1534,11 +1544,64 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     if( !body_bump_worthy( who, st, in.move_x, in.move_y ) ) {
         return false;
     }
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free bump id=" << who.getID().get_value() <<
+                                   " t=" << now << " dx=" << in.move_x << " dy=" << in.move_y;
+    }
+    // a dangerous tile ahead (fire, a known trap, a ledge) is a soft wall: the body goes in only
+    // after pushing on for tuning::soft_wall_ms; the push replaces the "Really step into" query
+    map &here = get_map();
+    const tripoint_bub_ms ahead_b = here.get_bub( st.body_tile + tripoint_rel_ms( in.move_x,
+                                    in.move_y, 0 ) );
+    const bool ledge = here.has_flag( ter_furn_flag::TFLAG_NO_FLOOR, ahead_b ) &&
+                       !here.veh_at( ahead_b );
+    const bool soft = here.passable( ahead_b ) && ( ledge || g->is_dangerous_tile( ahead_b ) ) &&
+                      get_creature_tracker().creature_at( ahead_b ) == nullptr;
+    if( soft ) {
+        if( st.soft_since == 0 || now - st.soft_last > 150 || st.soft_dx != in.move_x ||
+            st.soft_dy != in.move_y ) {
+            st.soft_since = now;
+            st.soft_dx = in.move_x;
+            st.soft_dy = in.move_y;
+            if( trace_enabled() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free soft id=" << who.getID().get_value() <<
+                                           " t=" << now << " dx=" << in.move_x << " dy=" << in.move_y << " ledge=" << ledge;
+            }
+        }
+        st.soft_last = now;
+        if( now - st.soft_since < tn.soft_wall_ms ) {
+            return false;
+        }
+        st.soft_since = 0;
+        if( ledge && !who.is_avatar() ) {
+            // the host's avatar gets the native climb-down menu; a player's body climbs down
+            // through examine, whose menus run on the player's own screen
+            who.add_msg_if_player( m_info, _( "There is a ledge here.  Examine it to climb down." ) );
+            st.ready_at = now + 1500;
+            return false;
+        }
+    } else {
+        st.soft_since = 0;
+    }
     // stuck: push into the tile ahead like a tile step
     const double old_x = st.body_x;
     const double old_y = st.body_y;
     const tripoint_abs_ms before = who.pos_abs();
-    start_step( who, st, in.move_x, in.move_y, now, now, out );
+    npc *body = who.is_avatar() ? nullptr : dynamic_cast<npc *>( &who );
+    if( soft && body != nullptr ) {
+        // npc::move_to never walks into danger on purpose: the body steps in like a player
+        const tripoint_bub_ms from_b = body->pos_bub( here );
+        const int cost = body->run_cost( here.combined_movecost( from_b, ahead_b ), false );
+        body->setpos( here, ahead_b );
+        body->burn_move_stamina( cost );
+        here.creature_in_field( *body );
+        here.creature_on_trap( *body );
+        st.ready_at = now + std::max( 40, moves_to_ms( who, cost ) );
+    } else {
+        soft_wall_push = soft;
+        start_step( who, st, in.move_x, in.move_y, now, now, out );
+        soft_wall_push = false;
+    }
     const tripoint_abs_ms after = who.pos_abs();
     if( after != before ) {
         // e.g. squeezed through a diagonal gap or stepped into a harmful tile: the body slides

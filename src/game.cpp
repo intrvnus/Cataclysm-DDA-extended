@@ -10921,6 +10921,8 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
         if( harmful_stuff.size() == 1 && harmful_stuff[0] == "ledge" ) {
             iexamine::ledge( u, tripoint_bub_ms( dest_loc ) );
             return true;
+        } else if( fluid::soft_wall_confirmed() ) {
+            // fluid mode: pushing into the tile for a moment was the confirmation
         } else if( get_option<std::string>( "DANGEROUS_TERRAIN_WARNING_PROMPT" ) == "ALWAYS" &&
                    !prompt_dangerous_tile( dest_loc, &harmful_stuff ) ) {
             return true;

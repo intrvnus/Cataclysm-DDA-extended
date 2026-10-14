@@ -55,6 +55,9 @@ int turn_ms();
 bool smooth_camera();
 /** Players move freely inside the tiles instead of in tile steps (option FLUID_FREE_MOVEMENT). */
 bool free_movement();
+/** True while a soft-wall push (see tuning::soft_wall_ms) runs the native move: the player
+ * already confirmed entering the dangerous tile by pushing, so game::walk_move asks nothing. */
+bool soft_wall_confirmed();
 
 struct tuning {
     // length of one frame of the input wait loops
@@ -126,6 +129,9 @@ struct tuning {
     double max_substep = 0.2;
     // a frame never moves the body for longer than this (ms), e.g. after a hitch
     int max_move_frame_ms = 120;
+    // dangerous tiles (fire, known traps, ledges) are soft walls: the body stops at their edge
+    // and goes in after pushing on for this long (ms), instead of a "Really step into ...?" query
+    int soft_wall_ms = 400;
 };
 const tuning &tune();
 // the own character started a step (the input resolver then drops a latched tap)
@@ -202,6 +208,11 @@ struct actor_state {
     double corr_y = 0.0;
     ms_t corr_t0 = 0;
     int corr_ms = 0;
+    // pushing into a soft wall (dangerous tile): since when, and in which direction
+    ms_t soft_since = 0;
+    ms_t soft_last = 0;
+    int soft_dx = 0;
+    int soft_dy = 0;
 
     // ---- melee
     phase melee = phase::idle;
