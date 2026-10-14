@@ -12,12 +12,20 @@
 #include "map.h"
 #include "net_session.h"
 #include "npc.h"
+#include "scent_map.h"
 
 namespace
 {
 std::vector<std::unique_ptr<map>> &storage()
 {
     static std::vector<std::unique_ptr<map>> s;
+    return s;
+}
+
+// the scent grid of each extra bubble
+std::map<const map *, std::unique_ptr<scent_map>> &scents()
+{
+    static std::map<const map *, std::unique_ptr<scent_map>> s;
     return s;
 }
 
@@ -38,6 +46,7 @@ std::map<int, map *> &by_body()
 
 void forget( map *m )
 {
+    scents().erase( m );
     list().erase( std::remove( list().begin(), list().end(), m ), list().end() );
     auto &v = storage();
     v.erase( std::remove_if( v.begin(), v.end(), [m]( const std::unique_ptr<map> &p ) {
@@ -67,6 +76,8 @@ map &open_for( const tripoint_abs_ms &centre, int body_id )
     }
     storage().push_back( std::move( m ) );
     list().push_back( &ref );
+    scents()[&ref] = std::make_unique<scent_map>( *g );
+    scents()[&ref]->reset();
     by_body()[body_id] = &ref;
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble for body " << body_id << " at " << origin.to_string();
     return ref;
@@ -140,6 +151,8 @@ map &open( const tripoint_abs_sm &origin )
         ref.load( origin, true );
     }
     storage().push_back( std::move( m ) );
+    scents()[&ref] = std::make_unique<scent_map>( *g );
+    scents()[&ref]->reset();
     list().push_back( &ref );
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: opened an extra bubble at " << origin.to_string();
     return ref;
@@ -239,6 +252,24 @@ map &owner( const tripoint_abs_ms &p )
     return reality_bubble();
 }
 
+scent_map &scent_of( const map &m )
+{
+    if( &m == &reality_bubble() ) {
+        return g->scent;
+    }
+    const auto it = scents().find( &m );
+    if( it == scents().end() ) {
+        // not a bubble we know (e.g. a map used for mapgen): fall back to the main grid
+        return g->scent;
+    }
+    return *it->second;
+}
+
+void shift_scent( const map &m, const point_rel_ms &shift )
+{
+    scent_of( m ).shift( shift );
+}
+
 void tick()
 {
     for( map *m : list() ) {
@@ -256,6 +287,7 @@ void close_all()
 {
     by_body().clear();
     list().clear();
+    scents().clear();
     storage().clear();
 }
 } // namespace bubbles

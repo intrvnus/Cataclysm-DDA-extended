@@ -14753,7 +14753,8 @@ void set_scenario( const scenario *new_scenario )
 
 scent_map &get_scent()
 {
-    return g->scent;
+    // each reality bubble (main or extra) has its own scent grid
+    return bubbles::scent_of( get_map() );
 }
 
 stats_tracker &get_stats()

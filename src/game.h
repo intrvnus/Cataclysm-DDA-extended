@@ -164,6 +164,10 @@ namespace turn_handler
 {
 bool cleanup_at_end();
 } // namespace turn_handler
+namespace bubbles
+{
+scent_map &scent_of( const map &m );
+} // namespace bubbles
 
 // There is only one game instance, so losing a few bytes of memory
 // due to padding is not much of a concern.
@@ -187,6 +191,7 @@ class game
         friend void set_scenario( const scenario *new_scenario );
         friend stats_tracker &get_stats();
         friend scent_map &get_scent();
+        friend scent_map &bubbles::scent_of( const map & );
         friend timed_event_manager &get_timed_events();
         friend memorial_logger &get_memorial();
         friend bool do_turn();
