@@ -238,6 +238,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
 actor_state &avatar_state();
 actor_state &state_of( int character_id );
 void forget_state( int character_id );
+/** The body of a multiplayer player takes hold of the furniture in direction @p dir (or lets go
+ * for the zero direction); dragging happens in the steps.  False if nothing was grabbed. */
+bool body_grab( Character &who, const tripoint_rel_ms &dir );
 
 // ---------------------------------------------------------------------------------------
 // the loop

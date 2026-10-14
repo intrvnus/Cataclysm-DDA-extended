@@ -1162,6 +1162,11 @@ bool handle_input()
             }
             ui::omap::display();
             break;
+        case ACTION_GRAB:
+            send_ui( "grab", [] {
+                choose_adjacent( _( "Grab where?  (Your own tile lets go.)" ) );
+            } );
+            break;
         case ACTION_HAUL_TOGGLE:
             send_ui( "haul_toggle", [] {
                 get_avatar().toggle_hauling();

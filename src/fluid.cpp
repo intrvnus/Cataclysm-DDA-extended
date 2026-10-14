@@ -755,6 +755,68 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
 // ---- steps -------------------------------------------------------------------------------
 
 // Starts a step in direction (dx, dy). Returns true if time was spent.
+// ---- dragging furniture (grab) for the body of a multiplayer player ----
+
+// A step while holding furniture: pulling or pushing moves it along.  Returns true if the body
+// moved (or tried to and failed: then @p blocked is set).
+bool body_drag_step( npc &guy, const tripoint_abs_ms &dest, bool &blocked )
+{
+    blocked = false;
+    if( guy.grab_point == tripoint_rel_ms::zero ) {
+        return false;
+    }
+    map &here = get_map();
+    const tripoint_bub_ms pos = guy.pos_bub( here );
+    const tripoint_bub_ms fpos = pos + guy.grab_point;
+    if( !here.has_furn( fpos ) ) {
+        guy.grab_point = tripoint_rel_ms::zero;
+        return false;
+    }
+    const tripoint_bub_ms to = here.get_bub( dest );
+    const point_rel_ms dp = to.xy() - pos.xy();
+    const point_rel_ms grab = guy.grab_point.xy();
+    const bool pulling = dp == -grab;
+    const bool pushing = dp == grab;
+    if( !pulling && !pushing ) {
+        // stepping sideways lets go of it
+        guy.add_msg_if_player( _( "You let go of the %s." ), here.furnname( fpos ) );
+        guy.grab_point = tripoint_rel_ms::zero;
+        return false;
+    }
+    const tripoint_bub_ms fdest = pulling ? pos : fpos + tripoint_rel_ms( dp, 0 );
+    const furn_t &furn = here.furn( fpos ).obj();
+    if( !here.can_move_furniture( fdest, &guy ) || here.has_flag( ter_furn_flag::TFLAG_NOITEM, fdest ) ||
+        get_creature_tracker().creature_at( fdest ) != nullptr ) {
+        guy.add_msg_if_player( m_bad, _( "The %s won't move that way." ), here.furnname( fpos ) );
+        blocked = true;
+        return true;
+    }
+    if( furn.move_str_req > guy.get_arm_str() + 2 ) {
+        guy.add_msg_if_player( m_bad, _( "The %s is too heavy for you." ), here.furnname( fpos ) );
+        blocked = true;
+        return true;
+    }
+    if( pulling && ( !here.passable( to ) || get_creature_tracker().creature_at( to ) != nullptr ) ) {
+        blocked = true;
+        return true;
+    }
+    // the furniture and what lies on it go first, then the body follows
+    const furn_id fid = here.furn( fpos ).id();
+    std::vector<item> things;
+    for( const item &it : here.i_at( fpos ) ) {
+        things.push_back( it );
+    }
+    here.i_clear( fpos );
+    here.furn_set( fpos, furn_str_id::NULL_ID() );
+    here.furn_set( fdest, fid );
+    for( const item &it : things ) {
+        here.add_item_or_charges( fdest, it );
+    }
+    guy.mod_moves( -std::max( 100, furn.move_str_req * 10 ) );
+    guy.move_to( to );
+    return true;
+}
+
 bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t t0,
                  std::vector<event> *out )
 {
@@ -785,8 +847,11 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         if( who.is_avatar() ) {
             moved = avatar_action::move( get_avatar(), here, tripoint_rel_ms( dx, dy, 0 ) );
         } else if( npc *guy = dynamic_cast<npc *>( &who ) ) {
-            guy->move_to( here.get_bub( dest ) );
-            moved = true;
+            bool blocked = false;
+            if( !body_drag_step( *guy, dest, blocked ) ) {
+                guy->move_to( here.get_bub( dest ) );
+            }
+            moved = !blocked;
         }
         charged = scope.finish();
     }
@@ -834,6 +899,34 @@ bool can_act_now( const Character &who )
 }
 
 } // namespace
+
+bool body_grab( Character &who, const tripoint_rel_ms &dir )
+{
+    map &here = get_map();
+    if( dir.xy() == point_rel_ms::zero ) {
+        const bool had = who.grab_point != tripoint_rel_ms::zero;
+        who.grab_point = tripoint_rel_ms::zero;
+        who.add_msg_if_player( had ? _( "You let go." ) : _( "You get a hold of yourself." ) );
+        return had;
+    }
+    const tripoint_bub_ms there = who.pos_bub( here ) + dir;
+    if( here.veh_at( there ) ) {
+        who.add_msg_if_player( m_info, _( "Dragging vehicles is not available in multiplayer yet." ) );
+        return false;
+    }
+    if( !here.has_furn( there ) ) {
+        who.add_msg_if_player( m_info, _( "There's nothing to grab there!" ) );
+        return false;
+    }
+    if( !here.furn( there ).obj().is_movable() ) {
+        who.add_msg_if_player( _( "You can not grab the %s." ), here.furnname( there ) );
+        return false;
+    }
+    who.grab_point = tripoint_rel_ms( dir.xy(), 0 );
+    who.add_msg_if_player( _( "You grab the %s." ), here.furnname( there ) );
+    return true;
+}
+
 
 // ---------------------------------------------------------------------------------------
 // visuals API

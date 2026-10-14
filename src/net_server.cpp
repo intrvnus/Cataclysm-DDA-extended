@@ -1316,6 +1316,14 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 }
                 other->reorder_worn( order );
             }
+        } else if( what == "grab" ) {
+            std::istringstream is( remote_ui::answer( "d" ).value_or( "-" ) );
+            int x = 0;
+            int y = 0;
+            int z = 0;
+            if( is >> x >> y >> z ) {
+                fluid::body_grab( guy, tripoint_rel_ms( x, y, 0 ) );
+            }
         } else if( what == "control_vehicle" ) {
             g->mp_control_vehicle();
         } else if( what == "drive" ) {
