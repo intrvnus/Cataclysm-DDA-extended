@@ -1035,26 +1035,53 @@ npc *spawn_remote_npc( remote_player &rp )
             guy->name = rp.name;
         }
     }
-    if( returning ) {
+    // a fresh id in this world, whatever the save said
+    const tripoint_abs_ms left_at = guy->pos_abs();
+    guy->setID( g->assign_npc_id(), true );
+    tripoint_abs_ms start_at = here.get_abs( spot );
+    map *own_bubble = nullptr;
+    if( returning && bubbles::enabled() ) {
+        // back where they left, in a reality bubble of their own, wherever that is
+        own_bubble = &bubbles::open_for( left_at, guy->getID().get_value() );
+        swap_map swap( *own_bubble );
+        tripoint_bub_ms best = own_bubble->get_bub( left_at );
+        if( !own_bubble->passable( best ) || get_creature_tracker().creature_at( best ) != nullptr ) {
+            for( const tripoint_bub_ms &p : own_bubble->points_in_radius( best, 4 ) ) {
+                if( own_bubble->passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
+                    best = p;
+                    break;
+                }
+            }
+        }
+        start_at = own_bubble->get_abs( best );
+    } else if( returning ) {
         // back where they left, if that place is loaded and free (else next to the host)
-        const tripoint_abs_ms left_at = guy->pos_abs();
         if( here.inbounds( left_at ) ) {
             const tripoint_bub_ms p = here.get_bub( left_at );
             if( here.passable( p ) && creatures.creature_at( p ) == nullptr ) {
-                spot = p;
+                start_at = here.get_abs( p );
             }
         }
     }
-    // a fresh id in this world, whatever the save said
-    guy->setID( g->assign_npc_id(), true );
-    guy->spawn_at_precise( here.get_abs( spot ) );
+    guy->spawn_at_precise( start_at );
     overmap_buffer.insert_npc( guy );
     guy->set_fac( faction_your_followers );
     guy->set_attitude( NPCATT_NULL );
     guy->mission = NPC_MISSION_NULL;
     guy->set_value( "mp_remote_player", "1" );
     const character_id id = guy->getID();
-    g->load_npcs();
+    if( own_bubble != nullptr ) {
+        swap_map swap( *own_bubble );
+        g->load_npcs( own_bubble );
+    } else {
+        g->load_npcs();
+        if( bubbles::enabled() ) {
+            // every player gets a bubble of his own (it overlaps the host's while they are close)
+            map &own = bubbles::open_for( guy->pos_abs(), id.get_value() );
+            swap_map swap( own );
+            g->load_npcs( &own );
+        }
+    }
     if( returning ) {
         send_text( rp, _( "Welcome back.  Your character was waiting for you." ) );
     }
@@ -1073,6 +1100,7 @@ void store_and_remove_body( remote_player &rp )
         }
     }
     fluid::forget_state( rp.npc_id.get_value() );
+    bubbles::release( rp.npc_id.get_value() );
     g->remove_npc( rp.npc_id );
     overmap_buffer.remove_npc( rp.npc_id );
     rp.npc_id = character_id();
@@ -1902,6 +1930,13 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
     if( rp == nullptr ) {
         return;
     }
+    // what a client does happens in the reality bubble of its body
+    std::optional<bubbles::view> in_bubble;
+    if( rp->npc_id.is_valid() ) {
+        if( const npc *body = g->find_npc( rp->npc_id ) ) {
+            in_bubble.emplace( *body );
+        }
+    }
     const std::string type = msg.get_string( "t", "" );
     if( type == "hello" ) {
         if( msg.get_int( "v", 0 ) != protocol_version ) {
@@ -2259,6 +2294,7 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             frame.secondary = false;
             frame.cancel = false;
         }
+        bubbles::view in_bubble( *guy );
         fluid::actor_state &st = fluid::state_of( guy->getID().get_value() );
         // the host's message log is forwarded to the owner, like in the classic protocol
         const size_t messages_before = Messages::size();
@@ -2582,7 +2618,7 @@ void host_end_of_turn()
         }
 
         // a player in an extra reality bubble is sent that bubble
-        map *own_bubble = bubbles::extra_containing( guy->pos_abs() );
+        map *own_bubble = bubbles::bubble_of( *guy );
         std::optional<swap_map> view;
         if( own_bubble != nullptr ) {
             view.emplace( *own_bubble );

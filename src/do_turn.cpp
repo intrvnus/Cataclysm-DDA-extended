@@ -404,10 +404,9 @@ void monmove()
     // Now, do active NPCs.
     for( npc &guy : g->all_npcs() ) {
         // a player's body in an extra bubble is simulated there
-        map *guy_bubble = bubbles::extra_containing( guy.pos_abs() );
         std::optional<swap_map> swap_guy;
-        if( guy_bubble != nullptr ) {
-            swap_guy.emplace( *guy_bubble );
+        if( !bubbles::extras().empty() ) {
+            swap_guy.emplace( bubbles::map_for( guy ) );
         }
         int turns = 0;
         int real_count = 0;
@@ -788,6 +787,7 @@ bool do_turn()
     // Update vision caches for monsters. If this turns out to be expensive,
     // consider a stripped down cache just for monsters.
     m.build_map_cache( levz, true );
+    bubbles::follow_all();
     bubbles::tick();
     fluid::snapshot_before_monsters();
     monmove();

@@ -2,11 +2,14 @@
 #ifndef CATA_SRC_BUBBLES_H
 #define CATA_SRC_BUBBLES_H
 
+#include <optional>
 #include <vector>
 
 #include "coordinates.h"
+#include "current_map.h"
 
 class map;
+class Character;
 
 // Experimental multiplayer: extra reality bubbles.
 // The game's own map ("the main bubble", game::m) follows the host's avatar.  Every other
@@ -15,8 +18,34 @@ class map;
 // each bubble is only the loaded and simulated area around one place.
 namespace bubbles
 {
+/** Multiplayer hosts give every player's body a bubble of its own (CATA_MP_NO_BUBBLES switches that off). */
+bool enabled();
 /** Opens (loads) a bubble whose south-west-most submap is @p origin. */
 map &open( const tripoint_abs_sm &origin );
+/**
+ * Opens a bubble of its own for the player's body @p body_id, centred on @p centre. A bubble the
+ * body had before is closed.
+ */
+map &open_for( const tripoint_abs_ms &centre, int body_id );
+/** The bubble of this player's body; nullptr for everybody else (and for bodies without one). */
+map *bubble_of( const Character &who );
+/** The map that simulates @p who: the body's own bubble, else the owner of its position. */
+map &map_for( const Character &who );
+/** The player's body leaves: its bubble is closed. */
+void release( int body_id );
+/** True if the position is inside the main bubble or an extra one. */
+bool in_any( const tripoint_abs_ms &p );
+/** Every body's bubble follows its body (shifts, loads NPCs, spawns monsters); once per turn. */
+void follow_all();
+
+/** Runs the following code as seen from the body's bubble (get_map() is that bubble). */
+class view
+{
+    public:
+        explicit view( const Character &who );
+    private:
+        std::optional<swap_map> swapped;
+};
 /** The extra bubble that contains @p p, or nullptr (then it is in the main bubble or nowhere). */
 map *extra_containing( const tripoint_abs_ms &p );
 bool in_extra( const tripoint_abs_ms &p );

@@ -1,11 +1,17 @@
 #include "bubbles.h"
 
+#include <algorithm>
+#include <cstdlib>
+#include <map>
 #include <memory>
 
 #include "current_map.h"
 #include "debug.h"
+#include "character.h"
 #include "game.h"
 #include "map.h"
+#include "net_session.h"
+#include "npc.h"
 
 namespace
 {
@@ -22,8 +28,103 @@ std::vector<map *> &list()
 }
 } // namespace
 
+namespace
+{
+std::map<int, map *> &by_body()
+{
+    static std::map<int, map *> b;
+    return b;
+}
+
+void forget( map *m )
+{
+    list().erase( std::remove( list().begin(), list().end(), m ), list().end() );
+    auto &v = storage();
+    v.erase( std::remove_if( v.begin(), v.end(), [m]( const std::unique_ptr<map> &p ) {
+        return p.get() == m;
+    } ), v.end() );
+}
+} // namespace
+
 namespace bubbles
 {
+bool enabled()
+{
+    static const bool off = std::getenv( "CATA_MP_NO_BUBBLES" ) != nullptr;
+    return !off && net::is_host();
+}
+
+map &open_for( const tripoint_abs_ms &centre, int body_id )
+{
+    release( body_id );
+    const tripoint_abs_sm c = project_to<coords::sm>( centre );
+    const tripoint_abs_sm origin( c.x() - MAPSIZE / 2, c.y() - MAPSIZE / 2, centre.z() );
+    auto m = std::make_unique<map>();
+    map &ref = *m;
+    {
+        swap_map swap( ref );
+        ref.load( origin, true );
+    }
+    storage().push_back( std::move( m ) );
+    list().push_back( &ref );
+    by_body()[body_id] = &ref;
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble for body " << body_id << " at " << origin.to_string();
+    return ref;
+}
+
+map *bubble_of( const Character &who )
+{
+    if( list().empty() ) {
+        return nullptr;
+    }
+    const auto it = by_body().find( who.getID().get_value() );
+    return it == by_body().end() ? nullptr : it->second;
+}
+
+map &map_for( const Character &who )
+{
+    if( map *m = bubble_of( who ) ) {
+        return *m;
+    }
+    return owner( who.pos_abs() );
+}
+
+void release( int body_id )
+{
+    const auto it = by_body().find( body_id );
+    if( it == by_body().end() ) {
+        return;
+    }
+    map *m = it->second;
+    by_body().erase( it );
+    forget( m );
+}
+
+bool in_any( const tripoint_abs_ms &p )
+{
+    return reality_bubble().inbounds( p ) || in_extra( p );
+}
+
+void follow_all()
+{
+    // copy: following can open and close bubbles
+    const std::map<int, map *> bodies = by_body();
+    for( const auto &entry : bodies ) {
+        npc *guy = g->find_npc( character_id( entry.first ) );
+        if( guy == nullptr || guy->is_dead() ) {
+            continue;
+        }
+        g->update_extra_bubble( *entry.second, guy->pos_abs() );
+    }
+}
+
+view::view( const Character &who )
+{
+    if( map *m = bubble_of( who ) ) {
+        swapped.emplace( *m );
+    }
+}
+
 map &open( const tripoint_abs_sm &origin )
 {
     for( map *m : list() ) {
@@ -153,6 +254,7 @@ void tick()
 
 void close_all()
 {
+    by_body().clear();
     list().clear();
     storage().clear();
 }

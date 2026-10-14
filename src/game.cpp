@@ -13308,6 +13308,82 @@ point_rel_sm game::update_map( int &x, int &y, bool z_level_changed )
     return shift;
 }
 
+point_rel_sm game::update_extra_bubble( map &bm, const tripoint_abs_ms &centre )
+{
+    swap_map swap( bm );
+    if( centre.z() != bm.get_abs_sub().z() ) {
+        bm.vertical_shift( centre.z() );
+    }
+    const tripoint_bub_ms c = bm.get_bub( centre );
+    int x = c.x();
+    int y = c.y();
+    point_rel_sm shift;
+    while( x < HALF_MAPSIZE_X ) {
+        x += SEEX;
+        shift.x()--;
+    }
+    while( x >= HALF_MAPSIZE_X + SEEX ) {
+        x -= SEEX;
+        shift.x()++;
+    }
+    while( y < HALF_MAPSIZE_Y ) {
+        y += SEEY;
+        shift.y()--;
+    }
+    while( y >= HALF_MAPSIZE_Y + SEEY ) {
+        y -= SEEY;
+        shift.y()++;
+    }
+    if( shift == point_rel_sm::zero ) {
+        return point_rel_sm::zero;
+    }
+
+    if( std::abs( shift.x() ) >= MAPSIZE || std::abs( shift.y() ) >= MAPSIZE ) {
+        // far jump (teleport, long ride): load the new place in one go
+        const tripoint_abs_sm o = bm.get_abs_sub();
+        bm.load( tripoint_abs_sm( o.x() + shift.x(), o.y() + shift.y(), o.z() ), true );
+    } else {
+        // NOLINTNEXTLINE(cata-use-named-point-constants)
+        inclusive_rectangle<point_rel_sm> size_1( {-1, -1}, { 1, 1 } );
+        point_rel_sm remaining_shift = shift;
+        while( remaining_shift != point_rel_sm::zero ) {
+            point_rel_sm this_shift = clamp( remaining_shift, size_1 );
+            bm.shift( point_rel_sm( this_shift ) );
+            remaining_shift -= this_shift;
+        }
+    }
+
+    // creatures keep their absolute positions; cached paths of the ones here are dropped
+    for( monster &critter : all_monsters() ) {
+        if( bm.inbounds( critter.pos_abs() ) ) {
+            critter.shift( shift );
+        } else if( !bubbles::in_any( critter.pos_abs() ) ) {
+            // outside every bubble now: stored away
+            despawn_monster( critter );
+        }
+    }
+    for( auto it = critter_tracker->active_npc.begin(); it != critter_tracker->active_npc.end(); ) {
+        if( bm.inbounds( ( *it )->pos_abs() ) ) {
+            ( *it )->shift( shift );
+        }
+        if( !bubbles::in_any( ( *it )->pos_abs() ) ) {
+            ( *it )->on_unload();
+            it = critter_tracker->active_npc.erase( it );
+        } else {
+            ++it;
+        }
+    }
+    get_scent().shift( coords::project_to<coords::ms>( shift ) );
+
+    load_npcs( &bm );
+    for( int zlev = -OVERMAP_DEPTH; zlev <= OVERMAP_HEIGHT; ++zlev ) {
+        bm.invalidate_map_cache( zlev );
+    }
+    bm.build_map_cache( bm.get_abs_sub().z() );
+    bm.spawn_monsters( false );
+    return shift;
+}
+
 void game::update_overmap_seen()
 {
     const tripoint_abs_omt ompos = u.pos_abs_omt();
