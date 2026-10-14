@@ -15,6 +15,8 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - **Reconnect**: killing a client and starting it again puts it back into its saved body (`loaded body of ...`), the host keeps running, 0 errors.
 - **Car regression** on the newest build: velocity 800 -> 2400 -> 844, the car moved from x=7844 to x=7892, 6 drive actions replayed, 0 errors.
 
+- **Vanilla unit tests** (compiled in a separate copy) with my changes: vehicle (46 cases, 503825 assertions), monster, NPC, construction, item actions, missions, factions all pass. One melee test case ("Character attacking a zombie") crashes inside the test helper `full_attack_details` (`get_hit_weapon` on an empty wielded item); this is in test code I did not touch and is probably already present in the base. A full run of the whole suite was started afterwards.
+
 ## Built (compiles) but not run in game
 - Factions read-only view, pets/mounts/friendly monsters examine, computers/consoles, disarm/steal/use-item replay (the confirmation prompts reach the host), sort armor for friends, repeat last craft, construction placement on the host, workout.
 
