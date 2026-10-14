@@ -337,7 +337,8 @@ void apply_fx( const JsonArray &list )
             if( mine ) {
                 // The position is known now, no need to wait for the end of the turn.
                 place_avatar( ev.to );
-            } else {
+            } else if( !fluid::client_free_movement() ) {
+                // (with free movement the shadows follow the body positions instead)
                 const auto iter = cs.shadows.find( ev.actor );
                 map &now = get_map();
                 if( iter != cs.shadows.end() && now.inbounds( ev.to ) ) {
@@ -1612,6 +1613,23 @@ void client_on_message( const JsonObject &msg )
         apply_submaps( msg.get_array( "list" ) );
     } else if( type == "fx" ) {
         apply_fx( msg.get_array( "list" ) );
+    } else if( type == "bp" ) {
+        // free movement: where every player's body is (channel 1, ~20 times a second)
+        std::vector<fluid::body_sample> list;
+        for( JsonArray a : msg.get_array( "l" ) ) {
+            if( a.size() < 4 ) {
+                continue;
+            }
+            fluid::body_sample b;
+            b.actor = a.get_int( 0 );
+            b.x = a.get_int( 1 ) / 1000.0;
+            b.y = a.get_int( 2 ) / 1000.0;
+            b.z = a.get_int( 3 );
+            list.push_back( b );
+        }
+        if( cstate().fluid_on ) {
+            fluid::client_bodies( list, msg.get_int( "q", -1 ), fluid::now_ms() );
+        }
     } else if( type == "aim" ) {
         fluid::client_aim_status( msg.get_int( "s", 0 ) / 1000.0, msg.get_int( "r", 0 ) / 1000.0,
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );
@@ -1716,12 +1734,13 @@ void client_on_message( const JsonObject &msg )
 
 } // namespace impl
 
-void client_send_input( const fluid::input_frame &in )
+int client_send_input( const fluid::input_frame &in )
 {
     client_state &cs = cstate();
     if( !cs.welcomed || !cs.fluid_on || impl::state().server_peer == nullptr ) {
-        return;
+        return -1;
     }
+    static int seq = 0;
     static fluid::input_frame last;
     static fluid::ms_t last_at = -100000;
     const fluid::ms_t now = fluid::now_ms();
@@ -1736,12 +1755,14 @@ void client_send_input( const fluid::input_frame &in )
     const bool send = ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
                       ( in.cursor_valid && moved > 0.12 && now - last_at >= 40 );
     if( !send ) {
-        return;
+        return -1;
     }
     last = in;
     last_at = now;
+    ++seq;
     impl::send_json_fast( impl::state().server_peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "in" );
+        jo.member( "q", seq );
         jo.member( "mx", in.move_x );
         jo.member( "my", in.move_y );
         jo.member( "p", in.primary );
@@ -1756,6 +1777,20 @@ void client_send_input( const fluid::input_frame &in )
         jo.member( "cy", in.cursor_y );
         jo.member( "cz", in.cursor_z );
     } ) );
+    return seq;
+}
+
+void client_place_shadow( int actor, const tripoint_abs_ms &tile )
+{
+    client_state &cs = cstate();
+    const auto iter = cs.shadows.find( actor );
+    map &here = get_map();
+    if( iter == cs.shadows.end() || !here.inbounds( tile ) ) {
+        return;
+    }
+    if( npc *guy = g->find_npc( iter->second ) ) {
+        guy->setpos( here, here.get_bub( tile ), false );
+    }
 }
 
 bool client_do_turn()

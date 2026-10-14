@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <deque>
 #include <map>
 #include <thread>
 #include <tuple>
@@ -2380,6 +2381,239 @@ event read_event( const JsonObject &jo )
 // ---------------------------------------------------------------------------------------
 // the client
 
+// ---- free movement over the network (phase 4 of doc/MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md)
+// The host sends every body's exact position ~20 times a second.  The own body is predicted
+// with the same movement maths on the client's copy of the map and corrected against the
+// prediction made for the input frame the host had applied; other players are drawn
+// interp_delay_ms in the past, between two positions from the host.
+
+namespace
+{
+constexpr int interp_delay_ms = 100;
+
+struct remote_body {
+    // arrival time, x, y, z
+    std::deque<std::tuple<ms_t, double, double, int>> samples;
+    tripoint_abs_ms placed = tripoint_abs_ms::invalid;
+};
+
+struct free_client {
+    bool on = false;
+    actor_state st;
+    ms_t last = 0;
+    // input frame sequence number and the predicted body position right after sending it
+    std::deque<std::tuple<int, double, double>> history;
+    std::map<int, remote_body> others;
+};
+
+free_client &fclient()
+{
+    static free_client f;
+    return f;
+}
+
+void body_place( actor_state &st, double x, double y, int z )
+{
+    st.body_valid = true;
+    st.body_x = x;
+    st.body_y = y;
+    st.body_tile = tripoint_abs_ms( floor_int( x ), floor_int( y ), z );
+    st.corr_ms = 0;
+}
+
+// The host's free_move without the native moves: the body slides and collides on the
+// client's copy of the map; crossing into another tile is only noted (the host moves the
+// character, and its step event places the avatar).
+void predict_free_move( const Character &who, actor_state &st, const input_frame &in, int dt )
+{
+    const tuning &tn = tune();
+    const double len = std::sqrt( static_cast<double>( in.move_x * in.move_x + in.move_y * in.move_y ) );
+    if( len < 0.5 || dt <= 0 ) {
+        return;
+    }
+    const double ux = in.move_x / len;
+    const double uy = in.move_y / len;
+    const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
+    int cost = body_step_cost( who, st.body_tile, ahead );
+    if( in.sprint && !who.is_running() ) {
+        // the local copy does not know the move mode yet: running halves the step cost
+        cost = std::max( 1, cost / 2 );
+    }
+    const int ms_per_tile = std::max( 1, moves_to_ms( who, cost ) );
+    double left = static_cast<double>( dt ) / ms_per_tile;
+    std::vector<int> cells;
+    while( left > 1e-9 ) {
+        const double step = std::min( left, tn.max_substep );
+        left -= step;
+        const double bx = st.body_x;
+        const double by = st.body_y;
+        if( ux != 0.0 && !body_move_axis( who, st, 0, ux * step, cells ) && uy == 0.0 ) {
+            body_corner_nudge( who, st, 0, cells, step );
+        }
+        if( uy != 0.0 && !body_move_axis( who, st, 1, uy * step, cells ) && ux == 0.0 ) {
+            body_corner_nudge( who, st, 1, cells, step );
+        }
+        st.body_tile = tripoint_abs_ms( floor_int( st.body_x ), floor_int( st.body_y ), st.body_tile.z() );
+        if( std::abs( st.body_x - bx ) + std::abs( st.body_y - by ) < 1e-9 ) {
+            break;
+        }
+    }
+}
+
+void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now )
+{
+    actor_state &st = fc.st;
+    if( !st.body_valid || b.z != st.body_tile.z() ) {
+        body_place( st, b.x, b.y, b.z );
+        fc.history.clear();
+        return;
+    }
+    while( !fc.history.empty() && std::get<0>( fc.history.front() ) < seq ) {
+        fc.history.pop_front();
+    }
+    double px = st.body_x;
+    double py = st.body_y;
+    if( !fc.history.empty() && std::get<0>( fc.history.front() ) == seq ) {
+        px = std::get<1>( fc.history.front() );
+        py = std::get<2>( fc.history.front() );
+    }
+    const double ex = b.x - px;
+    const double ey = b.y - py;
+    if( std::abs( ex ) + std::abs( ey ) < 0.02 ) {
+        return;
+    }
+    if( std::abs( ex ) > 2.0 || std::abs( ey ) > 2.0 ) {
+        // far off (stairs, a fall, a teleport): jump there
+        body_place( st, st.body_x + ex, st.body_y + ey, b.z );
+        fc.history.clear();
+        return;
+    }
+    // shift the prediction by the error; the sprite eases over from where it was drawn
+    const double old_x = st.body_x;
+    const double old_y = st.body_y;
+    st.body_x += ex;
+    st.body_y += ey;
+    st.body_tile = tripoint_abs_ms( floor_int( st.body_x ), floor_int( st.body_y ), b.z );
+    for( std::tuple<int, double, double> &h : fc.history ) {
+        std::get<1>( h ) += ex;
+        std::get<2>( h ) += ey;
+    }
+    body_set_correction( st, old_x, old_y, now, 100 );
+}
+
+// Client, every frame: the own body moves on, other bodies are interpolated; both go to the
+// renderer through body_draws().
+void client_free_frame( const input_frame &in, int seq, ms_t now )
+{
+    free_client &fc = fclient();
+    client_info &ci = cinfo();
+    avatar &u = get_avatar();
+    const tripoint_abs_ms tile = u.pos_abs();
+    actor_state &st = fc.st;
+    if( !st.body_valid || st.body_tile.z() != tile.z() ||
+        std::abs( st.body_x - ( tile.x() + 0.5 ) ) > 2.5 || std::abs( st.body_y - ( tile.y() + 0.5 ) ) > 2.5 ) {
+        body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
+        fc.history.clear();
+    }
+    const int dt = static_cast<int>( std::clamp<ms_t>( now - fc.last, 0, tune().max_move_frame_ms ) );
+    fc.last = now;
+    if( u.controlling_vehicle || u.in_vehicle ) {
+        // riding: the vehicle moves the character, the body stays on its tile
+        body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
+    } else if( now >= ci.busy_until ) {
+        predict_free_move( u, st, in, dt );
+    }
+    if( seq >= 0 ) {
+        fc.history.emplace_back( seq, st.body_x, st.body_y );
+        while( fc.history.size() > 120 ) {
+            fc.history.pop_front();
+        }
+    }
+    {
+        body_draw &d = body_draws()[ci.my_id];
+        d.tile = tile;
+        const offset c = body_correction_at( st, now );
+        d.off.x = std::clamp( st.body_x - ( tile.x() + 0.5 ) + c.x, -1.5, 1.5 );
+        d.off.y = std::clamp( st.body_y - ( tile.y() + 0.5 ) + c.y, -1.5, 1.5 );
+        d.moving = true;
+        d.stamp = now;
+    }
+    const ms_t render_t = now - interp_delay_ms;
+    for( std::pair<const int, remote_body> &e : fc.others ) {
+        std::deque<std::tuple<ms_t, double, double, int>> &q = e.second.samples;
+        if( q.empty() || now - std::get<0>( q.back() ) > 1000 ) {
+            continue;
+        }
+        while( q.size() >= 2 && std::get<0>( q[1] ) <= render_t ) {
+            q.pop_front();
+        }
+        double x = std::get<1>( q.front() );
+        double y = std::get<2>( q.front() );
+        const int z = std::get<3>( q.front() );
+        if( q.size() >= 2 && std::get<0>( q.front() ) <= render_t && std::get<3>( q[1] ) == z ) {
+            const ms_t t0 = std::get<0>( q.front() );
+            const ms_t t1 = std::get<0>( q[1] );
+            const double f = t1 > t0 ? std::clamp( static_cast<double>( render_t - t0 ) / ( t1 - t0 ), 0.0,
+                                                   1.0 ) : 1.0;
+            x += ( std::get<1>( q[1] ) - x ) * f;
+            y += ( std::get<2>( q[1] ) - y ) * f;
+        }
+        const tripoint_abs_ms at( floor_int( x ), floor_int( y ), z );
+        if( at != e.second.placed ) {
+            e.second.placed = at;
+            net::client_place_shadow( e.first, at );
+        }
+        body_draw &d = body_draws()[e.first];
+        d.tile = at;
+        d.off.x = x - ( at.x() + 0.5 );
+        d.off.y = y - ( at.y() + 0.5 );
+        d.moving = true;
+        d.stamp = now;
+    }
+}
+} // namespace
+
+std::vector<body_sample> host_body_samples()
+{
+    std::vector<body_sample> out;
+    const ms_t now = now_ms();
+    for( const std::pair<const int, body_draw> &e : body_draws() ) {
+        if( now - e.second.stamp > 250 ) {
+            continue;
+        }
+        body_sample b;
+        b.actor = e.first;
+        b.x = e.second.tile.x() + 0.5 + e.second.off.x;
+        b.y = e.second.tile.y() + 0.5 + e.second.off.y;
+        b.z = e.second.tile.z();
+        out.push_back( b );
+    }
+    return out;
+}
+
+void client_bodies( const std::vector<body_sample> &list, int acked_seq, ms_t arrival )
+{
+    free_client &fc = fclient();
+    const int me = cinfo().my_id;
+    fc.on = true;
+    for( const body_sample &b : list ) {
+        if( b.actor == me ) {
+            client_reconcile( fc, b, acked_seq, arrival );
+        } else {
+            std::deque<std::tuple<ms_t, double, double, int>> &q = fc.others[b.actor].samples;
+            q.emplace_back( arrival, b.x, b.y, b.z );
+            while( q.size() > 20 ) {
+                q.pop_front();
+            }
+        }
+    }
+}
+
+bool client_free_movement()
+{
+    return fclient().on;
+}
+
 void client_set_mode( bool on, int my_character_id )
 {
     client_info &ci = cinfo();
@@ -2387,6 +2621,7 @@ void client_set_mode( bool on, int my_character_id )
     ci.on = on;
     ci.my_id = my_character_id;
     pred().active = false;
+    fclient() = free_client();
 }
 
 bool client_active()
@@ -2412,6 +2647,12 @@ void client_event( const event &ev, ms_t arrival, bool mine )
     }
     switch( ev.type ) {
         case fx_type::step: {
+            if( client_free_movement() ) {
+                // the predicted body is drawn; the step only moves the avatar to its tile
+                note_own_step_started();
+                ci.last_step_ms = ev.dur_ms;
+                break;
+            }
             prediction &pr = pred();
             ms_t t0 = arrival;
             if( pr.active && pr.from == ev.from && pr.to == ev.to ) {
@@ -2471,8 +2712,11 @@ void client_frame()
     if( !poll_device( in ) ) {
         return;
     }
-    net::client_send_input( in );
+    const int seq = net::client_send_input( in );
     note_cursor( in, now );
+    if( client_free_movement() ) {
+        client_free_frame( in, seq, now );
+    }
 
     // ---- prediction of the own step
     prediction &pr = pred();
@@ -2483,7 +2727,7 @@ void client_frame()
         ease_back( u.pos_abs(), pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, now );
     }
     const bool wants_move = in.move_x != 0 || in.move_y != 0;
-    if( wants_move && !pr.active && now >= ci.confirmed_end && now >= ci.busy_until &&
+    if( wants_move && !client_free_movement() && !pr.active && now >= ci.confirmed_end && now >= ci.busy_until &&
         !u.controlling_vehicle && !in.primary && !in.secondary && !easing_back_at( u.pos_abs(), now ) ) {
         const tripoint_abs_ms from = u.pos_abs();
         // the host slides a blocked diagonal along a wall: predict the same

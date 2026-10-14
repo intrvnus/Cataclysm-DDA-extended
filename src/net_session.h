@@ -160,8 +160,12 @@ bool dialogue_protected( const Creature &who );
  * @p loc: the action is sent to the host.  False if the choice is only a view or a setting
  * that is done locally. */
 bool client_item_action( int key, const item_location &loc );
-/** Fluid mode: sends the input of this frame (only if something changed, or now and then). */
-void client_send_input( const fluid::input_frame &in );
+/** Fluid mode: sends the input of this frame (only if something changed, or now and then).
+ * Returns the sequence number of the frame sent, or -1 if nothing was sent. */
+int client_send_input( const fluid::input_frame &in );
+/** Client, free movement: puts the shadow of another player on @p tile (from the
+ * interpolated body position). */
+void client_place_shadow( int actor, const tripoint_abs_ms &tile );
 
 } // namespace net
 

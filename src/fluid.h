@@ -391,6 +391,24 @@ void apply_visual_event( const event &ev, ms_t arrival );
 void write_event( JsonOut &jo, const event &ev );
 event read_event( const JsonObject &jo );
 
+/** A player's body (free movement) as the host sends it to the clients: absolute tile
+ * coordinates, 0.5 = the centre of a tile. */
+struct body_sample {
+    int actor = 0;
+    double x = 0.0;
+    double y = 0.0;
+    int z = 0;
+};
+/** Host: where the free-moving bodies (players' bodies and the host's avatar) are now. */
+std::vector<body_sample> host_body_samples();
+/** Client: body positions from the host.  @p acked_seq is the newest input frame of this
+ * client the host had applied (see net::client_send_input); the own predicted body is
+ * corrected against what was predicted for that frame. */
+void client_bodies( const std::vector<body_sample> &list, int acked_seq, ms_t arrival );
+/** Client: the host sends body positions (free movement): other players are placed from
+ * them, not from their tile steps. */
+bool client_free_movement();
+
 /** Client: fluid mode is on for this session (the host plays fluid and so do we). */
 void client_set_mode( bool on, int my_character_id );
 bool client_active();

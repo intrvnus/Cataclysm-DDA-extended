@@ -119,6 +119,10 @@ struct remote_player {
     bool has_input = false;
     fluid::ms_t input_at = 0;
     fluid::ms_t aim_sent = 0;
+    // free movement: the newest input frame number of this client, and when the body
+    // positions were last sent
+    int input_seq = -1;
+    fluid::ms_t bodies_sent = 0;
     // hash of the last version of every submap sent to this client
     std::map<tripoint_abs_sm, size_t> sent_submaps;
     // A4: last full character sent to the owner (hash) and when
@@ -2471,6 +2475,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             st.initialised = true;
         }
         rp->input = f;
+        rp->input_seq = msg.get_int( "q", -1 );
         rp->has_input = true;
         rp->input_at = fluid::now_ms();
     } else if( type == "act" && rp->npc_id.is_valid() ) {
@@ -2665,6 +2670,28 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
                 jo.member( "f", st.can_fire );
                 jo.member( "a", st.aiming );
             } ) );
+        }
+        // free movement: every body's exact position, and which input it answers to
+        if( fluid::free_movement() && now - rp.bodies_sent >= 50 ) {
+            rp.bodies_sent = now;
+            const std::vector<fluid::body_sample> bodies = fluid::host_body_samples();
+            if( !bodies.empty() ) {
+                impl::send_json_fast( rp.peer, message( [&]( JsonOut & jo ) {
+                    jo.member( "t", "bp" );
+                    jo.member( "q", rp.input_seq );
+                    jo.member( "l" );
+                    jo.start_array();
+                    for( const fluid::body_sample &b : bodies ) {
+                        jo.start_array();
+                        jo.write( b.actor );
+                        jo.write( static_cast<int>( std::lround( b.x * 1000.0 ) ) );
+                        jo.write( static_cast<int>( std::lround( b.y * 1000.0 ) ) );
+                        jo.write( b.z );
+                        jo.end_array();
+                    }
+                    jo.end_array();
+                } ) );
+            }
         }
     }
 }

@@ -15,7 +15,7 @@
 //   {"t":"act","a":"pickup"}                           pick up everything on own tile
 //   channel 1, fluid mode only (see fluid.h): the whole input state, not a single key press
 //   {"t":"in","mx":-1..1,"my":-1..1,"p":<bool>,"s":<bool>,"pc":<int>,"sc":<int>,"tc":<int>,"c":<bool>,
-//    "cv":<bool>,"cx":<float>,"cy":<float>,"cz":<int>}
+//    "cv":<bool>,"cx":<float>,"cy":<float>,"cz":<int>,"q":<frame number>}
 //     p/s: primary/secondary button held, pc/sc: running counters of presses, c: cancel,
 //     cv/cx/cy/cz: the cursor in absolute tile coordinates (integer part = tile)
 // host -> client
@@ -24,6 +24,8 @@
 //                        "w":<ms>,"x":<dx>,"y":<dy>,"h":<bool>} ... ]}
 //   channel 1: {"t":"aim","s":<steadiness 0..1000>,"r":<spread in 1/1000 tile>,"f":<bool>,
 //               "a":<bool aiming>}
+//   channel 1, free movement (protocol 3): {"t":"bp","q":<newest applied input frame number>,
+//               "l":[[<actor>,<x*1000>,<y*1000>,<z>],...]}  body positions, 0.5 = tile centre
 //   {"t":"reject","reason":"<text>"}
 //   {"t":"submaps","list":[ <submaps in map save file layout> ]}
 //   {"t":"state","turn":<int>,"you":{...},"others":[...],"monsters":[...]}
@@ -40,7 +42,7 @@ class JsonObject;
 namespace net
 {
 
-constexpr int protocol_version = 2;
+constexpr int protocol_version = 3;
 constexpr int channel_count = 2;
 constexpr int max_clients = 4;
 
