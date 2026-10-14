@@ -683,7 +683,7 @@ void test_bubble( remote_player &rp, npc &guy )
                                        guy.pos_abs().to_string() << " host avatar at " <<
                                        get_avatar().pos_abs().to_string();
             for( const tripoint_bub_ms &q : bm.points_in_radius( p, 8 ) ) {
-                if( rl_dist( p, q ) >= 4 && rl_dist( p, q ) <= 5 && bm.passable( q ) && bm.sees( q, p, 20 ) &&
+                if( rl_dist( p, q ) >= 2 && rl_dist( p, q ) <= 3 && bm.passable( q ) && bm.sees( q, p, 20 ) &&
                     get_creature_tracker().creature_at( q ) == nullptr ) {
                     if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), q ) ) {
                         z->unique_name = "TESTBZ";
@@ -700,7 +700,7 @@ void test_bubble( remote_player &rp, npc &guy )
         swap_map swap_main( here );
         const tripoint_bub_ms at = get_avatar().pos_bub( here );
         for( const tripoint_bub_ms &q : here.points_in_radius( at, 8 ) ) {
-            if( rl_dist( at, q ) >= 4 && rl_dist( at, q ) <= 5 && here.passable( q ) && here.sees( q, at, 20 ) &&
+            if( rl_dist( at, q ) >= 2 && rl_dist( at, q ) <= 3 && here.passable( q ) && here.sees( q, at, 20 ) &&
                 get_creature_tracker().creature_at( q ) == nullptr ) {
                 if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), q ) ) {
                     z->unique_name = "TESTAZ";
