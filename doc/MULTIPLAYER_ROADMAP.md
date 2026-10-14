@@ -11,9 +11,9 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | **C2 per-player reality bubbles** | **Done, merged, regression-tested** (`MULTIPLAYER_BUBBLES_SPIKE.md`): two clients, cars, stairs, reconnect far away, review fixes. Open: 3+ bubbles, perf with many players. |
 | **Multiplayer = fluid mode** | Done: every multiplayer session is fluid (the `FLUID_MODE` option is for solo play only). Fluid-only shooting/throwing is by design; classic targeting is not planned. |
 | **B2 stamina / B10 weariness** | **Stamina done and run in game** (walking free; sprint ~34 s / ~83 tiles; regen delay 1.5 s, full bar 20 s; load/hunger/thirst slow regen). Weariness: unchanged, "take a break" action still open. |
-| **Movement rework M-A..M-D** (WASD feel) | **Implemented and merged.** Run in game (scripted keys): hold, tap = one tile, chord from rest, release grace, opposing keys, direction change, no stutter. Compile-only (needs Noah's hands-on test): corner sliding, ease-back, camera lead, cursor-sector melee. WASD is the default layout in fluid mode. |
+| **Movement rework M-A..M-D** (WASD feel) | **Implemented and merged.** Run in game (scripted keys): hold, tap = one tile, chord from rest, release grace, opposing keys, direction change, no stutter. Run in game: corner sliding (3 slides, no step through the wall), cursor-sector melee (swing direction = sector of the host's cursor). Still needs Noah's hands-on test: ease-back, camera lead, feel. WASD is the default layout in fluid mode. |
 | Compiled-only, not yet run in game: factions view, pets/mounts, consoles, disarm/steal/use-item, sort armor for friends, repeat craft, workout, zones with a created zone, saved map memory | Open: needs test scripts |
-| C4 faction rework, C6 basecamps | Open: design talk with Noah first |
+| C4 faction rework, C6 basecamps | Options paper written (`MULTIPLAYER_FACTIONS_OPTIONS.md`): waiting for Noah's decisions |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
 | Phase 7 | Not started: consult Noah first |
