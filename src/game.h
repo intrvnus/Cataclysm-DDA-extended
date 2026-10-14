@@ -21,6 +21,7 @@
 #include "character.h"
 #include "character_id.h"
 #include "color.h"
+#include "bubbles.h"
 #include "coordinates.h"
 #include "creature.h"
 #include "cursesdef.h"
@@ -164,11 +165,6 @@ namespace turn_handler
 {
 bool cleanup_at_end();
 } // namespace turn_handler
-namespace bubbles
-{
-scent_map &scent_of( const map &m );
-} // namespace bubbles
-
 // There is only one game instance, so losing a few bytes of memory
 // due to padding is not much of a concern.
 // NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)

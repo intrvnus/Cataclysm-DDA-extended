@@ -668,8 +668,8 @@ void test_bubble( remote_player &rp, npc &guy )
         const char *mode = std::getenv( "CATA_MP_TEST_BUBBLE" );
         const int dist_sm = std::string( mode ) == "near" ? 3 : 24;
         const tripoint_abs_sm home = guy.pos_abs_sm();
-        const tripoint_abs_sm origin( home.x() + dist_sm - MAPSIZE / 2, home.y() - MAPSIZE / 2, home.z() );
-        map &bm = bubbles::open( origin );
+        const tripoint_abs_ms far_centre = guy.pos_abs() + tripoint_rel_ms( dist_sm * SEEX, 0, 0 );
+        map &bm = bubbles::open_for( far_centre, guy.getID().get_value() );
         swap_map swap( bm );
         const tripoint_bub_ms centre( MAPSIZE_X / 2, MAPSIZE_Y / 2, home.z() );
         for( const tripoint_bub_ms &p : bm.points_in_radius( centre, 20 ) ) {
