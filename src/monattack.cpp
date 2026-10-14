@@ -62,6 +62,7 @@
 #include "monfaction.h"
 #include "monster.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "output.h"
 #include "pathfinding.h"
 #include "pimpl.h"
@@ -232,7 +233,7 @@ static bool within_visual_range( monster *z, int max_range )
 {
     const map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     return !( rl_dist( z->pos_abs(), player_character.pos_abs() ) > max_range ||
               !z->sees( here, player_character ) );
 }
@@ -675,7 +676,7 @@ bool mattack::rattle( monster *z )
 
     // TODO: Let it rattle at non-player friendlies
     const int min_dist = z->friendly != 0 ? 1 : 4;
-    Creature *target = &get_player_character();
+    Creature *target = &net::nearest_player( z->pos_abs() );
     // Can't use attack_target - the snake has no target
     if( rl_dist( z->pos_abs(), target->pos_abs() ) > min_dist ||
         !z->sees( here, *target ) ) {
@@ -1573,7 +1574,7 @@ bool mattack::triffid_heartbeat( monster *z )
         return true;
         // TODO: when friendly: open a way to the stairs, don't spawn monsters
     }
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     if( player_character.posz() != z->posz() ) {
         // Maybe remove this and allow spawning monsters above?
         return true;
@@ -1769,8 +1770,8 @@ bool mattack::fungus_inject( monster *z )
 {
     map &here = get_map();
     // For faster copy+paste
-    Creature *target = &get_player_character();
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
+    Creature *target = &player_character;
     if( rl_dist( z->pos_bub(), player_character.pos_bub() ) > 1 ) {
         return false;
     }
@@ -1834,7 +1835,7 @@ bool mattack::fungus_bristle( monster *z )
 {
     map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     if( player_character.has_trait( trait_THRESH_MARLOSS ) ||
         player_character.has_trait( trait_THRESH_MYCUS ) ) {
         z->friendly = 1;
@@ -1899,7 +1900,7 @@ bool mattack::fungus_sprout( monster *z )
 {
     // To avoid map shift weirdness
     bool push_player = false;
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     for( const tripoint_bub_ms &dest : get_map().points_in_radius( z->pos_bub(), 1 ) ) {
         if( player_character.pos_bub() == dest ) {
             push_player = true;
@@ -1924,8 +1925,8 @@ bool mattack::fungus_fortify( monster *z )
         // TODO: handle friendly monsters
         return false;
     }
-    Creature *target = &get_player_character();
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
+    Creature *target = &player_character;
     bool mycus = false;
     bool peaceful = true;
     //No nifty support effects.  Yet.  This lets it rebuild hedges.
@@ -1936,7 +1937,8 @@ bool mattack::fungus_fortify( monster *z )
     map &here = get_map();
     if( player_character.has_trait( trait_MARLOSS ) &&
         player_character.has_trait( trait_MARLOSS_BLUE ) &&
-        !player_character.crossed_threshold() && !mycus ) {
+        !player_character.crossed_threshold() && !mycus &&
+        !net::is_remote_player( player_character ) ) {
         // You have the other two.  Is it really necessary for us to fight?
         add_msg( m_info, _( "The %s spreads its tendrils.  It seems as though it's expecting you…" ),
                  z->name() );
@@ -2265,7 +2267,7 @@ bool mattack::callblobs( monster *z )
     // if we want to deal with NPCS and friendly monsters as well.
     // The strategy is to send about 1/3 of the available blobs after the player,
     // and keep the rest near the brain blob for protection.
-    const tripoint_abs_ms enemy = get_player_character().pos_abs();
+    const tripoint_abs_ms enemy = net::nearest_player( z->pos_abs() ).pos_abs();
     const std::vector<tripoint_abs_ms> nearby_points = closest_points_first( z->pos_abs(), 3 );
     std::list<monster *> allies;
     for( monster &candidate : g->all_monsters() ) {
@@ -2559,7 +2561,8 @@ bool mattack::nurse_operate( monster *z )
             }
         }
     }
-    if( found_target && z->attitude_to( player_character ) == Creature::Attitude::FRIENDLY ) {
+    if( found_target &&
+        z->attitude_to( net::nearest_player( z->pos_abs() ) ) == Creature::Attitude::FRIENDLY ) {
         // 50% chance to not turn hostile again
         if( one_in( 2 ) ) {
             return false;
@@ -2932,7 +2935,7 @@ bool mattack::searchlight( monster *z )
         }
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     for( int i = 0; i < max_lamp_count; i++ ) {
 
         item &settings = z->inv[i];
@@ -3116,7 +3119,7 @@ bool mattack::ratking( monster *z )
         // TODO: handle friendly monsters
         return false;
     }
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     // Disable z-level ratting or it can get silly
     if( rl_dist( z->pos_bub(), player_character.pos_bub() ) > 50 ||
         z->posz() != player_character.posz() ) {
@@ -3258,7 +3261,7 @@ bool mattack::brandish( monster *z )
         return false;
     }
     // Only brandish if we can see you!
-    if( !z->sees( here, get_player_character() ) ) {
+    if( !z->sees( here, net::nearest_player( z->pos_abs() ) ) ) {
         return false;
     }
     add_msg( m_warning, _( "He's brandishing a knife!" ) );
@@ -3472,7 +3475,7 @@ bool mattack::blow_whistle( monster *z )
         return false;
     }
     // Only blow whistle if we can see you!
-    if( !z->sees( here, get_player_character() ) ) {
+    if( !z->sees( here, net::nearest_player( z->pos_abs() ) ) ) {
         return false;
     }
     add_msg_if_player_sees( *z, m_warning, _( "The %1$s loudly blows their whistle!" ), z->name() );
@@ -3544,7 +3547,7 @@ bool mattack::darkman( monster *z )
         // TODO: handle friendly monsters
         return false;
     }
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     if( rl_dist( z->pos_abs(), player_character.pos_abs() ) > 40 ) {
         return false;
     }
@@ -3590,7 +3593,7 @@ bool mattack::slimespring( monster *z )
 {
     const map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = net::nearest_player( z->pos_abs() );
     if( rl_dist( z->pos_abs(), player_character.pos_abs() ) > 30 ) {
         return false;
     }
@@ -4637,7 +4640,7 @@ bool mattack::grenadier( monster *const z )
 
     // Only can actively target the player right now. Once we have the ability to grab targets that we aren't
     // actively attacking change this to use that instead.
-    Creature *const target = static_cast<Creature *>( &get_player_character() );
+    Creature *const target = static_cast<Creature *>( &net::nearest_player( z->pos_abs() ) );
     if( z->attitude_to( *target ) == Creature::Attitude::FRIENDLY ) {
         return false;
     }
@@ -4670,7 +4673,7 @@ bool mattack::grenadier_elite( monster *const z )
 
     // Only can actively target the player right now. Once we have the ability to grab targets that we aren't
     // actively attacking change this to use that instead.
-    Creature *const target = static_cast<Creature *>( &get_player_character() );
+    Creature *const target = static_cast<Creature *>( &net::nearest_player( z->pos_abs() ) );
     if( z->attitude_to( *target ) == Creature::Attitude::FRIENDLY ) {
         return false;
     }

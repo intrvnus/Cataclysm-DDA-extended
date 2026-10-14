@@ -234,8 +234,9 @@ bool monster::know_danger_at( map *here, const tripoint_bub_ms &p ) const
             }
 
             // Some things are only avoided if we're not attacking
-            if( get_player_character().pos_abs() != get_dest() ||
-                attitude( &get_player_character() ) != MATT_ATTACK ) {
+            Character &nearest = net::nearest_player( pos_abs() );
+            if( nearest.pos_abs() != get_dest() ||
+                attitude( &nearest ) != MATT_ATTACK ) {
                 // Sharp terrain is ignored while attacking
                 if( avoid_sharp && here->has_flag( ter_furn_flag::TFLAG_SHARP, p ) &&
                     !( type->size == creature_size::tiny || flies() ||

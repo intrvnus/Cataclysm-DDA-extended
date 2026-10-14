@@ -76,6 +76,8 @@
 #include "mongroup.h"
 #include "monster.h"
 #include "mtype.h"
+#include "net_session.h"
+#include "npc.h"
 #include "output.h"
 #include "overmap.h"
 #include "overmapbuffer.h"
@@ -8780,9 +8782,23 @@ void map::copy_grid( const tripoint_rel_sm &to, const tripoint_rel_sm &from )
 void map::spawn_monsters_submap_group( const tripoint_rel_sm &gp, mongroup &group,
                                        bool ignore_sight )
 {
-    Character &player_character = get_player_character();
-    const int s_range = std::min( HALF_MAPSIZE_X,
-                                  player_character.sight_range( g->light_level( player_character.posz() ) ) );
+    // Monsters must not spawn in sight of any player: the host's avatar and the bodies of the
+    // connected clients (only the players on the level of the submap can see its tiles).
+    struct spawn_watcher {
+        tripoint_bub_ms pos;
+        int sight_range;
+    };
+    std::vector<spawn_watcher> watchers;
+    const auto add_watcher = [&]( const Character & who ) {
+        if( who.posz() == gp.z() ) {
+            watchers.push_back( { who.pos_bub(), std::min( HALF_MAPSIZE_X,
+                                  who.sight_range( g->light_level( who.posz() ) ) ) } );
+        }
+    };
+    add_watcher( get_player_character() );
+    for( const npc *remote : net::remote_player_npcs() ) {
+        add_watcher( *remote );
+    }
     int pop = group.population;
     std::vector<tripoint_bub_ms> locations;
     if( !ignore_sight ) {
@@ -8793,7 +8809,7 @@ void map::spawn_monsters_submap_group( const tripoint_rel_sm &gp, mongroup &grou
         }
     }
 
-    if( gp.z() != player_character.posz() ) {
+    if( watchers.empty() ) {
         // Note: this is only OK because 3D vision isn't a thing yet. 3D vision is a thing! Is this still OK?
         ignore_sight = true;
     }
@@ -8842,8 +8858,17 @@ void map::spawn_monsters_submap_group( const tripoint_rel_sm &gp, mongroup &grou
                 continue; // solid area, impassable
             }
 
-            if( !ignore_sight && sees( player_character.pos_bub(), fp, s_range ) ) {
-                continue; // monster must spawn outside the viewing range of the player
+            bool watched = false;
+            if( !ignore_sight ) {
+                for( const spawn_watcher &watcher : watchers ) {
+                    if( sees( watcher.pos, fp, watcher.sight_range ) ) {
+                        watched = true;
+                        break;
+                    }
+                }
+            }
+            if( watched ) {
+                continue; // monster must spawn outside the viewing range of the players
             }
 
             if( !ignore_inside_checks && has_flag_ter_or_furn( ter_furn_flag::TFLAG_INDOORS, fp ) ) {
