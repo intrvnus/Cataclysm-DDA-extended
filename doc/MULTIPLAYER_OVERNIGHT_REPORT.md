@@ -27,4 +27,4 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - Zombie check is only partly verified: in one run it walked from 9 to 3 tiles toward a client with line of sight, in another it wandered off while out of sight. Monsters use the nearest player now; a cleaner test is still missing.
 - Balance/gameplay: nothing changed.
 
-(Last update: chat verified; queue continues: host chat key, more verification, docs.)
+(Last update 00:30: regression sweep re-run: downed/bleed-out cycle and dedicated server pass again; the car part of that run failed because of a test-script focus bug (fixed), re-run queued together with host chat and reconnect tests.)

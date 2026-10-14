@@ -44,6 +44,7 @@ you: when you come back, you are back in your own body where you left it.
   overmap shows what any player has seen.
 - Talk to people by walking into them: you get a menu (talk, push, examine, attack, trade ...).
   While you talk you cannot be seen or hurt.
+- Chat: `F2` says something to everybody, `F4` lists the players with health and distance (the host has the same keys).
 - Dangers warn you with a sound and a coloured message instead of stopping the game.
 - Downed players can be helped up by walking into them.
 - Everybody sleeping skips the night.
@@ -52,7 +53,7 @@ you: when you come back, you are back in your own body where you left it.
 
 - Players must stay within about 60 tiles of each other (one simulated area); the dedicated
   server follows the middle of the group.
-- Grab/drag, spells, the faction menu, chat and a player list are not available yet.
+- Grab/drag and spells are not available yet; the factions window is a read-only list.
 - Classic (non-fluid) shooting and throwing are not available to clients: use fluid mode.
 - "Wait" is refused on purpose (the world does not stop).
 
