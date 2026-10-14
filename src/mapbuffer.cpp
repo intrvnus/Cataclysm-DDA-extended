@@ -25,6 +25,7 @@
 #include "json.h"
 #include "json_loader.h"
 #include "map.h"
+#include "net_session.h"
 #include "output.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
@@ -452,41 +453,53 @@ bool mapbuffer::net_store_submap( const tripoint_abs_sm &p, JsonOut &jsout )
     return true;
 }
 
+namespace
+{
+std::unique_ptr<submap> read_submap( const JsonObject &submap_json, tripoint_abs_sm &submap_coordinates )
+{
+    std::unique_ptr<submap> sm = std::make_unique<submap>();
+    int version = 0;
+    // We have to read version first because the iteration order of json members is undefined.
+    if( submap_json.has_int( "version" ) ) {
+        version = submap_json.get_int( "version" );
+    }
+    for( JsonMember submap_member : submap_json ) {
+        std::string submap_member_name = submap_member.name();
+        if( submap_member_name == "coordinates" ) {
+            JsonArray coords_array = submap_member;
+            tripoint_abs_sm loc{ coords_array.next_int(), coords_array.next_int(), coords_array.next_int() };
+            submap_coordinates = loc;
+        } else {
+            sm->load( submap_member, submap_member_name, version );
+        }
+    }
+    return sm;
+}
+} // namespace
+
 void mapbuffer::net_replace_submaps( const JsonArray &ja )
 {
+    // one by one: a submap that comes twice in one batch (overlapping bubbles) replaces the
+    // earlier copy instead of failing as "already loaded"
     for( JsonObject submap_json : ja ) {
-        submap_json.allow_omitted_members();
-        JsonArray coords_array = submap_json.get_array( "coordinates" );
-        const tripoint_abs_sm loc{ coords_array.next_int(), coords_array.next_int(), coords_array.next_int() };
+        tripoint_abs_sm loc;
+        std::unique_ptr<submap> sm = read_submap( submap_json, loc );
         if( submaps.count( loc ) != 0 ) {
             remove_submap( loc );
         }
+        if( !add_submap( loc, sm ) ) {
+            debugmsg( "submap %s was already loaded", loc.to_string() );
+        }
     }
-    deserialize( ja );
 }
 
 void mapbuffer::deserialize( const JsonArray &ja )
 {
     for( JsonObject submap_json : ja ) {
-        std::unique_ptr<submap> sm = std::make_unique<submap>();
         tripoint_abs_sm submap_coordinates;
-        int version = 0;
-        // We have to read version first because the iteration order of json members is undefined.
-        if( submap_json.has_int( "version" ) ) {
-            version = submap_json.get_int( "version" );
-        }
-        for( JsonMember submap_member : submap_json ) {
-            std::string submap_member_name = submap_member.name();
-            if( submap_member_name == "coordinates" ) {
-                JsonArray coords_array = submap_member;
-                tripoint_abs_sm loc{ coords_array.next_int(), coords_array.next_int(), coords_array.next_int() };
-                submap_coordinates = loc;
-            } else {
-                sm->load( submap_member, submap_member_name, version );
-            }
-        }
-
-        if( !add_submap( submap_coordinates, sm ) ) {
+        std::unique_ptr<submap> sm = read_submap( submap_json, submap_coordinates );
+        if( !add_submap( submap_coordinates, sm ) && !net::is_client() ) {
+            // (a multiplayer client already has the host's newer copy: the saved one is dropped)
             debugmsg( "submap %s was already loaded", submap_coordinates.to_string() );
         }
     }
