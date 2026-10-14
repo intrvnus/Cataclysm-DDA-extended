@@ -167,6 +167,23 @@ Rules:
 * The own crosshair is drawn at the local cursor (zero latency); only spread and steadiness
   come from the host `aim` message.
 
+### Free movement over the network (protocol 3)
+
+* With free movement on (option `FLUID_FREE_MOVEMENT`) the host sends `{"t":"bp"}` on channel 1
+  about 20 times a second: every free-moving body (`fluid::host_body_samples`) as
+  `[actor, x*1000, y*1000, z]` (0.5 = tile centre) and `q`, the newest input frame number of that
+  client (`"q"` in its `in` messages).
+* Own body: the client runs the same movement maths on its map copy (`predict_free_move`), keeps
+  the predicted position per input frame, and on each `bp` compares it with the host position for
+  frame `q`; the difference is applied at once and the sprite eases over 100 ms
+  (`client_reconcile`). Over 2 tiles it jumps (stairs, falls). Corrections over 0.3 tiles are
+  logged ("free movement correction").
+* Other players are drawn `FLUID_INTERP_MS` (default 100 ms) in the past, between two `bp`
+  positions; their shadow NPC is moved to the tile under the interpolated body.
+* Soft walls: fire, known traps and ledges stop a body at the edge; pushing on for
+  `FLUID_SOFT_WALL_MS` (default 400 ms) goes in without a query. A client body at a ledge gets a
+  hint to examine it (climb down).
+
 ### The avatar issue (host avatar)
 
 The host's avatar is special because the process that simulates the world is also the process that
