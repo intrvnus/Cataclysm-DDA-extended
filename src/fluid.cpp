@@ -785,8 +785,12 @@ bool body_drag_step( npc &guy, const tripoint_abs_ms &dest, bool &blocked )
     }
     const tripoint_bub_ms fdest = pulling ? pos : fpos + tripoint_rel_ms( dp, 0 );
     const furn_t &furn = here.furn( fpos ).obj();
-    if( !here.can_move_furniture( fdest, &guy ) || here.has_flag( ter_furn_flag::TFLAG_NOITEM, fdest ) ||
-        get_creature_tracker().creature_at( fdest ) != nullptr ) {
+    const Creature *in_the_way = get_creature_tracker().creature_at( fdest );
+    const bool can_move = here.can_move_furniture( fpos, &guy );
+    const bool no_items = here.has_flag( ter_furn_flag::TFLAG_NOITEM, fdest );
+    if( !can_move || no_items || ( in_the_way != nullptr && in_the_way != &guy ) ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: drag blocked: can_move " << can_move << " noitem " <<
+                                   no_items << " creature " << ( in_the_way != nullptr && in_the_way != &guy );
         guy.add_msg_if_player( m_bad, _( "The %s won't move that way." ), here.furnname( fpos ) );
         blocked = true;
         return true;
