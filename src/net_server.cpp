@@ -61,6 +61,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "mission.h"
+#include "mp_lives.h"
 #include "mp_test_npc.h"
 #include "monster.h"
 #include "mp_test_corner.h"
@@ -72,6 +73,7 @@
 #include "net_session.h"
 #include "npc.h"
 #include "options.h"
+#include "output.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
 #include "player_activity.h"
@@ -124,6 +126,10 @@ struct remote_player {
     // down instead of dead (C1): helped up by a friend, or dies when the time runs out
     bool downed = false;
     bool allow_death = false;
+    // no life left: the player makes a new character on their computer and joins again
+    bool out_of_lives = false;
+    // came back to life: moves to its bed (the respawn point) at the end of the turn
+    bool respawn_to_bed = false;
     // test helper (CATA_MP_TEST_DOWN): where we are in the down/revive/bleed-out cycle
     int test_stage = 0;
     fluid::ms_t test_at = 0;
@@ -563,22 +569,53 @@ bool load_body( npc &guy, std::string json )
 // what happened (C1: downed players, help, respawn).
 void test_downed_cycle( remote_player &rp, npc &guy )
 {
-    static const bool on = std::getenv( "CATA_MP_TEST_DOWN" ) != nullptr;
-    if( !on ) {
+    // CATA_MP_TEST_DOWN=1: the client's body; =bed: the same with a respawn point 30 tiles east;
+    // =nolives: the same with no extra life left; =host: the host's own character
+    static const char *const mode_env = std::getenv( "CATA_MP_TEST_DOWN" );
+    if( mode_env == nullptr ) {
         return;
     }
+    const std::string mode( mode_env );
+    Character &victim = mode == "host" ? static_cast<Character &>( get_avatar() ) :
+                        static_cast<Character &>( guy );
     const fluid::ms_t now = fluid::now_ms();
+    if( mode == "host" && rp.test_stage >= 1 && rp.test_stage <= 4 ) {
+        static int last_stage = -1;
+        if( last_stage != rp.test_stage || now % 5000 < 40 ) {
+            last_stage = rp.test_stage;
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: host stage " << rp.test_stage << " downed=" <<
+                                       host_avatar_downed() << " lives " << mp_lives::lives_text( victim ) << " at " <<
+                                       victim.pos_abs().to_string();
+        }
+    }
     switch( rp.test_stage ) {
         case 0:
+            mp_lives::init( victim );
+            if( mode == "bed" ) {
+                const tripoint_abs_ms bed = victim.pos_abs() + tripoint_rel_ms( 30, 0, 0 );
+                victim.set_value( "mp_bed_set", 1.0 );
+                victim.set_value( "mp_bed_x", static_cast<double>( bed.x() ) );
+                victim.set_value( "mp_bed_y", static_cast<double>( bed.y() ) );
+                victim.set_value( "mp_bed_z", static_cast<double>( bed.z() ) );
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: bed set at " << bed.to_string();
+            } else if( mode == "nolives" ) {
+                victim.set_value( "mp_lives", 0.0 );
+            }
             rp.test_at = now + 20000;
             rp.test_stage = 1;
             break;
         case 1:
         case 3:
             if( now >= rp.test_at ) {
-                guy.die( &get_map(), nullptr );
+                if( mode == "host" ) {
+                    get_avatar().set_part_hp_cur( bodypart_id( "torso" ), 0 );
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: host killed, lives " <<
+                                               mp_lives::lives_text( victim );
+                } else {
+                    guy.die( &get_map(), nullptr );
+                }
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: body killed, downed=" << rp.downed <<
-                                           " dead=" << guy.is_dead();
+                                           " dead=" << guy.is_dead() << " lives " << mp_lives::lives_text( victim );
                 rp.test_at = now + ( rp.test_stage == 1 ? 8000 : 75000 );
                 rp.test_stage++;
             }
@@ -587,7 +624,8 @@ void test_downed_cycle( remote_player &rp, npc &guy )
             if( now >= rp.test_at ) {
                 bool helped = false;
                 for( int i = 0; i < 10; i++ ) {
-                    helped = host_try_revive( get_avatar(), guy.pos_abs() ) || helped;
+                    helped = ( mode == "host" ? host_try_revive( guy, victim.pos_abs() ) :
+                               host_try_revive( get_avatar(), guy.pos_abs() ) ) || helped;
                 }
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: helped=" << helped << " downed=" <<
                                            rp.downed << " dead=" << guy.is_dead();
@@ -599,7 +637,10 @@ void test_downed_cycle( remote_player &rp, npc &guy )
             if( now >= rp.test_at ) {
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test: after bleeding out downed=" << rp.downed <<
                                            " allow_death=" << rp.allow_death << " dead=" << guy.is_dead() <<
-                                           " body id " << guy.getID().get_value();
+                                           " body id " << guy.getID().get_value() << " lives " <<
+                                           mp_lives::lives_text( victim ) << " at " << victim.pos_abs().to_string() <<
+                                           " incorporeal " << victim.has_effect( efftype_id( "mp_respawn_incorporeal" ) ) <<
+                                           " hp torso " << victim.get_part_hp_cur( bodypart_id( "torso" ) );
                 rp.test_stage = 5;
             }
             break;
@@ -1863,20 +1904,170 @@ bool update_downed( remote_player &rp, npc &guy )
     guy.set_moves( 0 );
     if( fluid::now_ms() >= rp.bleed_out_at ) {
         rp.downed = false;
+        // multiplayer lives (mp_lives.h): back as the same character where they fell
+        const std::string name = guy.get_name();
+        if( mp_lives::spend_life( guy ) ) {
+            send_text( rp, _( "Nobody came to help.  You died…" ) );
+            mp_lives::respawn_here( guy );
+            if( const std::optional<tripoint_abs_ms> bed = mp_lives::bed_of( guy ) ) {
+                if( *bed != guy.pos_abs() && valid_key( rp.key ) ) {
+                    // to the bed: the body is stored there and comes back in a reality bubble of
+                    // its own at the end of the turn (the same way as a player who rejoins far away)
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << name << " respawns at the bed " <<
+                                               bed->to_string();
+                    rp.respawn_to_bed = true;
+                }
+            }
+            alerts::warn( string_format( _( "%s died and came back (%s)." ), name,
+                                         mp_lives::lives_text( guy ) ), alerts::level::warning, guy.pos_abs() );
+            return true;
+        }
         rp.allow_death = true;
+        rp.out_of_lives = true;
         // dead for good: the next character starts fresh
         if( valid_key( rp.key ) && file_exist( player_file( rp.key ) ) ) {
             remove_file( player_file( rp.key ).get_unrelative_path() );
         }
-        send_text( rp, _( "Nobody came to help.  You died." ) );
-        alerts::warn( string_format( _( "%s died." ), guy.get_name() ), alerts::level::danger,
+        send_text( rp, _( "Nobody came to help.  You died, and you have no extra life left." ) );
+        alerts::warn( string_format( _( "%s died for good." ), name ), alerts::level::danger,
                       guy.pos_abs() );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << name << " is out of lives";
         guy.die( &get_map(), nullptr );
+        // the player makes a new character on their computer and joins again
+        impl::send_json( rp.peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "out_of_lives" );
+        } ) );
+        enet_peer_disconnect_later( rp.peer, 0 );
     }
     return true;
 }
 
 } // namespace
+
+namespace
+{
+
+// ---- the host's own character goes down and respawns like a client's (C1, Noah 2026-10-14) ----
+struct host_down_state {
+    bool downed = false;
+    bool allow_death = false;
+    fluid::ms_t bleed_out_at = 0;
+    int revive_progress = 0;
+    fluid::ms_t last_revive_step = 0;
+};
+
+host_down_state &host_down()
+{
+    static host_down_state s;
+    return s;
+}
+
+// The host's character bled out: with a life left it comes back where it fell (mp_lives.h);
+// without one it leaves a corpse with everything it carried and the host makes a new character.
+void respawn_host_avatar()
+{
+    host_down_state &hs = host_down();
+    avatar &u = get_avatar();
+    map &here = get_map();
+    hs.downed = false;
+    hs.revive_progress = 0;
+    add_msg( m_bad, _( "Nobody came to help.  You died…" ) );
+    if( mp_lives::spend_life( u ) ) {
+        mp_lives::respawn_here( u );
+        if( const std::optional<tripoint_abs_ms> bed = mp_lives::bed_of( u ) ) {
+            if( *bed != u.pos_abs() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host respawns at the bed " << bed->to_string();
+                if( u.in_vehicle ) {
+                    here.unboard_vehicle( u.pos_bub( here ) );
+                }
+                g->place_player_overmap( coords::project_to<coords::omt>( *bed ) );
+                map &now = get_map();
+                tripoint_bub_ms spot = now.get_bub( *bed );
+                if( !now.passable( spot ) || get_creature_tracker().creature_at( spot ) != nullptr ) {
+                    for( const tripoint_bub_ms &p : now.points_in_radius( spot, 4 ) ) {
+                        if( now.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
+                            spot = p;
+                            break;
+                        }
+                    }
+                }
+                u.setpos( now, spot );
+                fluid::avatar_state() = fluid::actor_state();
+            }
+        }
+        alerts::warn( string_format( _( "%s died and came back (%s)." ), u.get_name(),
+                                     mp_lives::lives_text( u ) ), alerts::level::warning, u.pos_abs() );
+        return;
+    }
+    alerts::warn( string_format( _( "%s died for good." ), u.get_name() ), alerts::level::danger,
+                  u.pos_abs() );
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host is out of lives";
+    if( u.in_vehicle ) {
+        here.unboard_vehicle( u.pos_bub( here ) );
+    }
+    u.place_corpse( &here );
+    u.remove_effect( effect_downed );
+    u.cancel_activity();
+    popup( _( "You have no extra life left.  Make a new character to go on playing.\n\n(While you make it, the game waits for the other players.)" ) );
+    mp_lives::make_new_character( u );
+    u.set_moves( 0 );
+    fluid::avatar_state() = fluid::actor_state();
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host goes on as the new character " << u.get_name();
+    add_msg( m_good, _( "Multiplayer: you go on as %s." ), u.get_name() );
+}
+
+// Each turn while the host's character is down: it cannot act; when the time is up it respawns.
+void update_host_downed()
+{
+    host_down_state &hs = host_down();
+    avatar &u = get_avatar();
+    if( !hs.downed ) {
+        return;
+    }
+    u.add_effect( effect_downed, 2_turns, false, 0, true );
+    u.set_moves( 0 );
+    if( fluid::now_ms() >= hs.bleed_out_at ) {
+        respawn_host_avatar();
+    }
+}
+
+} // namespace
+
+bool host_avatar_downed()
+{
+    return is_host() && host_down().downed;
+}
+
+bool host_prevent_avatar_death()
+{
+    if( !is_host() || net::dedicated() ) {
+        return false;
+    }
+    host_down_state &hs = host_down();
+    avatar &u = get_avatar();
+    for( const bodypart_id &bp : u.get_all_body_parts() ) {
+        if( u.get_part_hp_cur( bp ) <= 0 ) {
+            u.set_part_hp_cur( bp, 1 );
+        }
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    if( !hs.downed ) {
+        hs.downed = true;
+        hs.bleed_out_at = now + bleed_out_ms;
+        hs.revive_progress = 0;
+        u.cancel_activity();
+        add_msg( m_bad, _( "You are down!  A friend can help you up by walking into you.  You have %d seconds." ),
+                 static_cast<int>( bleed_out_ms / 1000 ) );
+        alerts::warn( string_format( _( "%s is down!  Walk into them to help them up." ),
+                                     u.get_name() ), alerts::level::danger, u.pos_abs() );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host is down";
+    } else {
+        // hit again while down: less time left
+        hs.bleed_out_at -= 10000;
+    }
+    u.add_effect( effect_downed, 2_turns, false, 0, true );
+    return true;
+}
 
 bool host_prevent_death( npc &guy )
 {
@@ -1919,6 +2110,33 @@ bool host_try_revive( Character &helper, const tripoint_abs_ms &p )
     map &here = get_map();
     if( !here.inbounds( p ) ) {
         return false;
+    }
+    avatar &host = get_avatar();
+    host_down_state &hs = host_down();
+    if( hs.downed && host.pos_abs() == p && &helper != &host ) {
+        const fluid::ms_t now = fluid::now_ms();
+        if( now - hs.last_revive_step > 3000 ) {
+            hs.revive_progress = 0;
+        }
+        hs.last_revive_step = now;
+        if( ++hs.revive_progress < revive_steps ) {
+            helper.add_msg_if_player( m_info, _( "You help %s up…" ), host.get_name() );
+            add_msg( m_info, _( "%s is helping you up…" ), helper.get_name() );
+            return true;
+        }
+        hs.downed = false;
+        hs.revive_progress = 0;
+        host.remove_effect( effect_downed );
+        for( const bodypart_id &bp : host.get_all_body_parts() ) {
+            const int min_hp = std::max( 1, host.get_part_hp_max( bp ) / 5 );
+            if( host.get_part_hp_cur( bp ) < min_hp ) {
+                host.set_part_hp_cur( bp, min_hp );
+            }
+        }
+        helper.add_msg_if_player( m_good, _( "You help %s back on their feet." ), host.get_name() );
+        add_msg( m_good, _( "%s helped you back on your feet." ), helper.get_name() );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host helped up by " << helper.get_name();
+        return true;
     }
     npc *patient = get_creature_tracker().creature_at<npc>( here.get_bub( p ) );
     if( patient == nullptr ) {
@@ -2572,6 +2790,17 @@ bool is_remote_player( const Character &who )
     return is_host() && find_client( who.getID() ) != nullptr;
 }
 
+void tell_player( const Character &who, const std::string &text, bool good )
+{
+    if( who.is_avatar() || !is_host() ) {
+        add_msg( good ? m_good : m_bad, "%s", text );
+        return;
+    }
+    if( remote_player *rp = find_client( who.getID() ) ) {
+        send_text( *rp, text );
+    }
+}
+
 void alert_player( const Character &who, const std::string &text, int level,
                    const std::optional<tripoint_abs_ms> &source )
 {
@@ -2698,12 +2927,32 @@ void host_end_of_turn()
         return;
     }
     poll();
+    update_host_downed();
+    if( !net::dedicated() && !host_down().downed ) {
+        mp_lives::tick( get_avatar() );
+    }
     for( remote_player &rp : clients() ) {
         if( !rp.greeted ) {
             continue;
         }
         npc *guy = rp.npc_id.is_valid() ? g->find_npc( rp.npc_id ) : nullptr;
         // Died for good (C1): respawn with a new character next to the others.
+        if( rp.out_of_lives ) {
+            // waits for the player's new character (they join again)
+            continue;
+        }
+        if( rp.respawn_to_bed ) {
+            rp.respawn_to_bed = false;
+            if( guy != nullptr && !guy->is_dead() ) {
+                if( const std::optional<tripoint_abs_ms> bed = mp_lives::bed_of( *guy ) ) {
+                    // stored at the bed; spawn_remote_npc below brings it back there, in a
+                    // reality bubble of its own (like a player who rejoins far away)
+                    guy->spawn_at_precise( *bed );
+                    store_and_remove_body( rp );
+                    guy = nullptr;
+                }
+            }
+        }
         if( rp.allow_death && ( guy == nullptr || guy->is_dead() ) ) {
             fluid::forget_state( rp.npc_id.get_value() );
             bubbles::release( rp.npc_id.get_value() );
@@ -2734,6 +2983,10 @@ void host_end_of_turn()
             } ) );
         }
         report_traffic();
+        if( guy != nullptr && !rp.downed && !guy->is_dead() ) {
+            bubbles::view in_bubble( *guy );
+            mp_lives::tick( *guy );
+        }
         if( guy != nullptr ) {
             report_test_zombie( *guy );
             report_test_vehicle( *guy );

@@ -2163,7 +2163,7 @@ void host_frame()
         note_cursor( in, now );
         // The classic input of vehicles, menus ... is left alone while they are in use.
         const bool fluid_owns_input = !u.controlling_vehicle && !u.is_dead_state() &&
-                                      g->uquit != QUIT_WATCH;
+                                      g->uquit != QUIT_WATCH && !net::host_avatar_downed();
         if( fluid_owns_input && !net::dedicated() ) {
             drive( u, avatar_state(), in, now, &events );
         } else {

@@ -71,6 +71,7 @@
 #include "mapbuffer.h"
 #include "memory_fast.h"
 #include "messages.h"
+#include "mp_lives.h"
 #include "mod_engine.h"
 #include "monster.h"
 #include "mp_test_menus.h"
@@ -1597,6 +1598,13 @@ void client_on_message( const JsonObject &msg )
         fluid::client_set_mode( cstate().fluid_on, cstate().my_id );
         add_msg( m_good, respawn ? _( "Multiplayer: you are back with a new character." ) :
                  _( "Multiplayer: you joined the game." ) );
+    } else if( type == "out_of_lives" ) {
+        // C1: no extra life left: a new character, made here, then join again
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: out of lives, making a new character";
+        net::shutdown();
+        popup( _( "You have no extra life left.  Make a new character to go on playing." ) );
+        mp_lives::make_new_character( get_avatar() );
+        net::request_reconnect();
     } else if( type == "reject" ) {
         add_msg( m_bad, _( "Multiplayer: the host refused the connection (%s)." ),
                  msg.get_string( "reason", "" ) );

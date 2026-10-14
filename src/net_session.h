@@ -104,6 +104,13 @@ bool host_prevent_death( npc &guy );
 /** Walking into a downed player helps them up.  Returns true if @p p held a downed player
  * (the step is used up by helping). */
 bool host_try_revive( Character &helper, const tripoint_abs_ms &p );
+/** Client: connects again to the host it was connected to (after making a new character). */
+void request_reconnect();
+/** Called by game::is_game_over(): the host's own character goes down instead of dying, like a
+ * client's (C1).  Returns true if the death was prevented. */
+bool host_prevent_avatar_death();
+/** True while the host's own character is down (it cannot act). */
+bool host_avatar_downed();
 /** A4: saves the characters of the connected players (called when the host saves). */
 void host_save_players();
 /** B6: true while every player (host avatar and all clients) sleeps: time may then run as
@@ -111,6 +118,9 @@ void host_save_players();
 bool everyone_asleep();
 /** Is @p who played by a connected client? */
 bool is_remote_player( const Character &who );
+/** A plain message for the player who controls @p who (host avatar: the message log; remote
+ * player: their client's log). */
+void tell_player( const Character &who, const std::string &text, bool good );
 /** Warns the player who controls @p who (host avatar: locally; remote player: on their
  * client) with the alerts system (sound, coloured message, arrow to @p source). */
 void alert_player( const Character &who, const std::string &text, int level,

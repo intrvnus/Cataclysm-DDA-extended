@@ -1,0 +1,62 @@
+[
+  {
+    "//": "Multiplayer lives (src/mp_lives.cpp): the respawn effects, after the mod Extra Lives by ProHere (https://github.com/ProAtWorkHere/CDDA-Extra-Lives), adjusted for multiplayer.",
+    "type": "effect_type",
+    "id": "mp_respawn_speed",
+    "name": [ "Respawned: speed" ],
+    "desc": [ "Big speed boost for a short time after coming back." ],
+    "apply_message": "You gain temporary great speed!",
+    "base_mods": { "speed_mod": [ 100 ] },
+    "removes_effects": [ "grabbing" ],
+    "remove_message": "Your temporary speed boost wears off.",
+    "rating": "good",
+    "show_in_info": true
+  },
+  {
+    "type": "effect_type",
+    "id": "mp_respawn_veil",
+    "name": [ "Respawned: veil" ],
+    "desc": [ "You are invisible, can breathe underwater and are immune to fall damage." ],
+    "apply_message": "You gain temporary invisibility, waterbreathing and immunity to fall damage!",
+    "flags": [ "INVISIBLE", "FEATHER_FALL", "GILLS", "NO_SCENT" ],
+    "remove_message": "Your invisibility wears off.",
+    "rating": "good",
+    "show_in_info": true
+  },
+  {
+    "type": "effect_type",
+    "id": "mp_respawn_incorporeal",
+    "name": [ "Respawned: incorporeal" ],
+    "desc": [ "You are incorporeal, immune to almost everything but unable to interact with much of the physical world." ],
+    "apply_message": "You become semi-tangible to the physical world around you!",
+    "flags": [ "HEAT_IMMUNE", "NO_RADIATION", "INFECTION_IMMUNE", "PORTAL_PROOF" ],
+    "remove_message": "Your incorporeality wears off, and you once again fully exist in the physical world.",
+    "rating": "good",
+    "show_in_info": true
+  },
+  {
+    "type": "effect_type",
+    "id": "mp_respawn_grace",
+    "name": [ "Respawned: grace" ],
+    "desc": [ "Wounds and bad conditions keep being healed for a short time after coming back." ]
+  },
+  {
+    "id": "mp_respawn_pushback",
+    "name": "Respawn blast wave",
+    "type": "SPELL",
+    "description": "Pushes nearby enemies away from a player who just came back.",
+    "valid_targets": [ "ground", "hostile" ],
+    "effect": "area_push",
+    "shape": "blast",
+    "energy_source": "NONE",
+    "difficulty": 0,
+    "min_aoe": 6,
+    "base_casting_time": 0,
+    "sound_type": "combat",
+    "sound_description": "a whoosh",
+    "sound_ambient": true,
+    "sound_id": "misc",
+    "sound_variant": "shockwave",
+    "flags": [ "NO_FAIL", "NON_MAGICAL", "SILENT" ]
+  }
+]

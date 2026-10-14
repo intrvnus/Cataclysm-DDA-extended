@@ -120,6 +120,12 @@ void request_connect( const std::string &address, int port )
     s.pending_port = port;
 }
 
+void request_reconnect()
+{
+    session_state &s = state();
+    s.pending = role::client;
+}
+
 void request_dedicated( int port )
 {
     request_host( port );

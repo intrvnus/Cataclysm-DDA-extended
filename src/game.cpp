@@ -3054,6 +3054,10 @@ bool game::is_game_over()
     }
     // is_dead_state() already checks hp_torso && hp_head, no need to for loop it
     if( u.is_dead_state() ) {
+        // multiplayer: the host goes down like a client and has extra lives (C1)
+        if( net::host_prevent_avatar_death() ) {
+            return false;
+        }
         effect_on_conditions::prevent_death();
         if( !u.is_dead_state() ) {
             return false;

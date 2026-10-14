@@ -2886,6 +2886,12 @@ void options_manager::add_options_world_default()
 
     add_empty_line();
 
+    add( "MP_LIVES_DIFFICULTY", "world_default", to_translation( "Multiplayer lives" ),
+         to_translation( "Multiplayer: every player has extra lives (after the mod Extra Lives).  A player who bleeds out comes back as the same character where they fell, healed, with a short time of speed, invisibility and waves of force.  Tourist: unlimited.  Easy: 3 lives (max 5).  Normal: 2 lives (max 4), one comes back every 14 days.  Hard: 2 (max 3), every 21 days, items stay where you died.  Very hard: 1 (max 2), every 35 days, items stay where you died.  With no life left the player makes a new character." ),
+    { { "tourist", to_translation( "Tourist" ) }, { "easy", to_translation( "Easy" ) }, { "normal", to_translation( "Normal" ) }, { "hard", to_translation( "Hard" ) }, { "very_hard", to_translation( "Very hard" ) } },
+    "normal"
+       );
+
     add( "REALTIME_DAY_MINUTES", "world_default", to_translation( "Realtime day length" ),
          to_translation( "Multiplayer and fluid (realtime) play: how many real minutes a whole game day lasts.  Hunger, thirst, healing, rot, plant growth and weather follow this clock; combat and movement keep their speed.  Seasons keep their number of days.  0 = a game day lasts 24 real hours.  Has no effect in turn-based single player." ),
          0, 1440, 60
