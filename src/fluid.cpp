@@ -1445,6 +1445,12 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 // M-C: the click hits the tile of the cursor's 45 degree sector (no assist cone)
                 const bool sectors = tn.melee_sectors && have_cursor &&
                                      cursor_sector_dir( who, cdx, cdy, dir );
+                if( want_attack && have_cursor && trace_enabled() ) {
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace cursor id=" << who.getID().get_value() <<
+                                               " t=" << now << " cdx=" << cdx << " cdy=" << cdy <<
+                                               " sector=" << dir.first << "," << dir.second <<
+                                               " sectors=" << sectors;
+                }
                 std::pair<int, int> assisted = dir;
                 Creature *tgt = target_at( who, pos + tripoint_rel_ms( dir.first, dir.second, 0 ) );
                 if( tgt == nullptr && !sectors ) {

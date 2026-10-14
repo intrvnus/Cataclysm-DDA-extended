@@ -62,6 +62,8 @@
 #include "messages.h"
 #include "mission.h"
 #include "monster.h"
+#include "mp_test_corner.h"
+#include "mp_test_monster.h"
 #include "mtype.h"
 #include "mutation.h"
 #include "net_protocol.h"
@@ -2672,6 +2674,8 @@ void host_end_of_turn()
             report_test_armor( *guy );
             test_build( rp, *guy );
             test_bubble( rp, *guy );
+            test_corner( *guy );
+            test_monster( *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }

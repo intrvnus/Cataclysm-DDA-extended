@@ -6,12 +6,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "action.h"
 #include "avatar.h"
+#include "debug.h"
 #include "game.h"
 #include "input.h"
 #include "map.h"
@@ -414,6 +416,22 @@ bool read_cursor( input_frame &out )
     out.cursor_x = abs.x() + fx;
     out.cursor_y = abs.y() + fy;
     out.cursor_z = abs.z();
+    // test trace: where the cursor is relative to the view centre (the player's tile), logged
+    // when it moved by more than 0.2 tile
+    static const bool trace = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    if( trace ) {
+        static double last_x = 0.0;
+        static double last_y = 0.0;
+        if( std::abs( out.cursor_x - last_x ) + std::abs( out.cursor_y - last_y ) > 0.2 ) {
+            last_x = out.cursor_x;
+            last_y = out.cursor_y;
+            const tripoint_abs_ms centre = get_map().get_abs( g->ter_view_p );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace cursor x=" << out.cursor_x << " y=" <<
+                                       out.cursor_y << " dx=" << out.cursor_x - ( centre.x() + 0.5 ) <<
+                                       " dy=" << out.cursor_y - ( centre.y() + 0.5 ) << " mouse=" << mx <<
+                                       "," << my << " tile=" << tile.x << "," << tile.y;
+        }
+    }
     return true;
 }
 
