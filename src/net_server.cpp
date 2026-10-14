@@ -307,7 +307,7 @@ bool send_requested_trade( remote_player &rp )
 }
 
 // The player answered: the NPC reacts.
-void pick_talk( remote_player &rp, npc &guy, int index )
+void pick_talk( remote_player &rp, npc &guy, int index, const std::string &special = std::string() )
 {
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << rp.name << " answers " << index;
     if( !rp.talk ) {
@@ -319,7 +319,11 @@ void pick_talk( remote_player &rp, npc &guy, int index )
     {
         remote_ui::replay_scope replay( std::vector<remote_ui::entry>(), guy,
                                         guy.getID().get_value() );
-        rp.talk->choose( index );
+        if( special.empty() ) {
+            rp.talk->choose( index );
+        } else {
+            rp.talk->choose_special( special );
+        }
         texts = replay.texts();
     }
     for( const std::string &text : texts ) {
@@ -1980,7 +1984,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
     } else if( type == "talk_pick" && rp->npc_id.is_valid() ) {
         npc *guy = g->find_npc( rp->npc_id );
         if( guy != nullptr && !guy->is_dead() && rp->talk ) {
-            pick_talk( *rp, *guy, msg.get_int( "i", -1 ) );
+            pick_talk( *rp, *guy, msg.get_int( "i", -1 ), msg.get_string( "s", "" ) );
         }
     } else if( type == "ui" && rp->npc_id.is_valid() ) {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: ui message from " << rp->name;

@@ -9405,6 +9405,21 @@ bool remote_conversation::turn( turn_data &out )
     return true;
 }
 
+void remote_conversation::choose_special( const std::string &action )
+{
+    impl &m = *p;
+    if( !m.turn_open || finished() ) {
+        return;
+    }
+    const talk_topic &topic = special_talk( action );
+    if( topic.id == "TALK_NONE" ) {
+        return;
+    }
+    // like the local window: the topic is added without finishing the turn
+    m.turn_open = false;
+    m.d->add_topic( topic );
+}
+
 void remote_conversation::choose( int index )
 {
     impl &m = *p;

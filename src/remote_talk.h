@@ -49,6 +49,8 @@ class remote_conversation
         bool turn( turn_data &out );
         /** The player picked answer @p index (-1: wants to leave the conversation). */
         void choose( int index );
+        /** One of the side-column commands (look at, size up, assess, check opinion, yell). */
+        void choose_special( const std::string &action );
         int other_id() const;
 
     private:

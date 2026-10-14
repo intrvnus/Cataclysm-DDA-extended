@@ -542,12 +542,19 @@ void run_talk_ui()
         ctxt.register_action( "ANY_INPUT" );
         ctxt.register_action( "QUIT" );
         int chosen = -2;
+        std::string special;
         while( chosen == -2 ) {
             ui_manager::redraw();
             std::string action = ctxt.handle_input();
             const input_event evt = ctxt.get_raw_input();
             win.handle_scrolling( action, ctxt );
             int index = -2;
+            if( action == "LOOK_AT" || action == "SIZE_UP_STATS" || action == "ASSESS_PERSONALITY" ||
+                action == "CHECK_OPINION" || action == "YELL" ) {
+                special = action;
+                chosen = -3;
+                break;
+            }
             if( action == "QUIT" ) {
                 index = -1;
             } else if( action == "CONFIRM" ) {
@@ -583,6 +590,9 @@ void run_talk_ui()
         impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "talk_pick" );
             jo.member( "i", chosen );
+            if( !special.empty() ) {
+                jo.member( "s", special );
+            }
         } ) );
     }
 }
