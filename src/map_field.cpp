@@ -17,6 +17,7 @@
 
 #include "avatar.h"
 #include "bodypart.h"
+#include "bubbles.h"
 #include "calendar.h"
 #include "cata_utility.h"
 #include "character.h"
@@ -168,6 +169,10 @@ void map::process_fields()
         for( int x = 0; x < my_MAPSIZE; x++ ) {
             for( int y = 0; y < my_MAPSIZE; y++ ) {
                 if( field_cache[ x + y * MAPSIZE ] ) {
+                    // where bubbles overlap, only the owning bubble ages the fields of a submap
+                    if( !bubbles::owns_submap( *this, abs_sub.xy() + tripoint_rel_sm{ x, y, z } ) ) {
+                        continue;
+                    }
                     submap *const current_submap = get_submap_at_grid( tripoint_rel_sm{ x, y, z } );
                     if( current_submap == nullptr ) {
                         debugmsg( "Tried to process field at (%d,%d,%d) but the submap is not loaded", x, y, z );
