@@ -117,6 +117,12 @@ void alert_player( const Character &who, const std::string &text, int level,
  * client).  Monsters use it where the single player used to be "the" player.  Without a
  * session this is the avatar. */
 Character &nearest_player( const tripoint_abs_ms &from );
+/**
+ * A player's body walks into another person: for an NPC that is not an enemy the player gets
+ * the NPC menu (talk, trade, examine ...), like walking into one in the single-player game.
+ * Returns true if the step was used for that.  Throttled so that a held key opens one menu.
+ */
+bool bump_npc( npc &guy, npc &other );
 /** Where the players are: the host's avatar first, then the body of every connected client.
  * World simulation that used to be anchored on the avatar (hordes, overmap NPCs, spawns)
  * runs around each of these.  Without a session this is just the avatar. */

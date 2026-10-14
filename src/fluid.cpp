@@ -1079,6 +1079,17 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         }
     }
 
+    // a player's body walking into somebody who is not an enemy: the NPC menu (talk, trade ...)
+    if( !who.is_avatar() ) {
+        npc *walker = dynamic_cast<npc *>( &who );
+        Creature *there = get_creature_tracker().creature_at( here.get_bub( dest ) );
+        if( walker != nullptr && there != nullptr && there->is_npc() &&
+            net::bump_npc( *walker, *there->as_npc() ) ) {
+            st.ready_at = t0 + 150;
+            return true;
+        }
+    }
+
     const double recoil_before = who.recoil;
     int charged = 0;
     bool moved = false;

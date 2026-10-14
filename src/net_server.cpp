@@ -1317,6 +1317,25 @@ void pick_up_all( npc &guy )
     guy.mod_moves( -std::max( 100, 25 * taken ) );
 }
 
+bool bump_npc_impl( npc &guy, npc &other )
+{
+    if( !is_host() || find_client( other.getID() ) != nullptr || other.is_enemy() ) {
+        return false;
+    }
+    remote_player *rp = find_client( guy.getID() );
+    if( rp == nullptr ) {
+        return false;
+    }
+    static std::map<int, fluid::ms_t> last_menu;
+    const fluid::ms_t now = fluid::now_ms();
+    fluid::ms_t &last = last_menu[guy.getID().get_value()];
+    if( now - last > 1500 ) {
+        last = now;
+        send_npc_menu( *rp, guy, other );
+    }
+    return true;
+}
+
 void execute( npc &guy, const command &cmd )
 {
     map &here = get_map();
@@ -2593,6 +2612,11 @@ Character &nearest_player( const tripoint_abs_ms &from )
         }
     }
     return *best;
+}
+
+bool bump_npc( npc &guy, npc &other )
+{
+    return bump_npc_impl( guy, other );
 }
 
 std::vector<tripoint_abs_ms> all_player_positions()
