@@ -44,3 +44,5 @@ Update 03:25: full sweep re-run on the newest build (car: velocity 1200 -> 2400 
 Update 04:10: vanilla unit tests re-run against the current sources (vehicle, monster, NPC, construction, iuse_actor, mission, faction all exit 0; melee still crashes in the same test helper as before). Reconnect re-checked on the newest build (rejoins saved body, 0 errors).
 
 Update 05:10: two-client test (car with a second player seated) 0 errors; key tour of 18 client keys: no crash, no host error, no "not available" (note: most keys open client-local menus, so the host log shows nothing for them). 
+
+Note 05:40: the machine was restarted at about 05:18-05:40 (uptime reset, all processes gone; files intact). The sweep that was running (car part passed: 6 drive actions, 0 failed, 0 errors) was cut off in the zombie part; re-started at 05:40.
