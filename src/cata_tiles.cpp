@@ -1388,7 +1388,8 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     cata_assert( top_any_tile_range.p_min.y >= bottom_any_tile_range.p_min.y );
     cata_assert( top_any_tile_range.p_max.y >= bottom_any_tile_range.p_max.y );
     // one more row / column on every side, the camera may be shifted by up to a tile
-    const int fluid_pad = fluid_camera ? 1 : 0;
+    // the camera lead and a slide can add up to more than one tile
+    const int fluid_pad = fluid_camera ? 2 : 0;
     const int min_col = top_any_tile_range.p_min.x - fluid_pad;
     const int max_col = top_any_tile_range.p_max.x + fluid_pad;
     const int min_row = bottom_any_tile_range.p_min.y - fluid_pad;

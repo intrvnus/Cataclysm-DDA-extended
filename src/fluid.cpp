@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <map>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -119,6 +121,8 @@ struct slide {
     double from_y = 0.0;
     ms_t t0 = 0;
     int dur = 1;
+    // ease-out instead of linear: used by the ease-back of a rejected step
+    bool ease = false;
 };
 
 struct lunge {
@@ -188,6 +192,87 @@ client_info &cinfo()
     return c;
 }
 
+// ---- camera lead -------------------------------------------------------------------------
+
+// The cursor of the last input frame of the local player, and the low-passed lead built from it.
+struct camera_lead_state {
+    bool cursor_valid = false;
+    double cursor_x = 0.0;
+    double cursor_y = 0.0;
+    int cursor_z = 0;
+    ms_t cursor_stamp = 0;
+    // the lead now, in tiles, and when it was updated
+    double x = 0.0;
+    double y = 0.0;
+    ms_t updated = 0;
+};
+
+camera_lead_state &lead_state()
+{
+    static camera_lead_state c;
+    return c;
+}
+
+void note_cursor( const input_frame &in, ms_t now )
+{
+    camera_lead_state &cs = lead_state();
+    cs.cursor_valid = in.cursor_valid;
+    cs.cursor_x = in.cursor_x;
+    cs.cursor_y = in.cursor_y;
+    cs.cursor_z = in.cursor_z;
+    cs.cursor_stamp = now;
+}
+
+// Where the camera wants to be, in tiles from the avatar: toward the cursor, by an amount that
+// grows with the distance of the cursor (so that the cursor, which is read through the shifted
+// camera, cannot run away from it) up to camera_lead_tiles.
+offset camera_lead_target( ms_t now )
+{
+    const camera_lead_state &cs = lead_state();
+    const tuning &tn = tune();
+    constexpr double full_lead_distance = 4.0;
+    // the frames are not polled while a menu is open: an old cursor is not a cursor
+    constexpr ms_t stale_ms = 150;
+    const avatar &u = get_avatar();
+    offset o;
+    if( tn.camera_lead_tiles > 0.0 && get_option<bool>( "FLUID_CAMERA_LEAD" ) && cs.cursor_valid &&
+        now - cs.cursor_stamp <= stale_ms && cs.cursor_z == u.posz() && !u.is_dead_state() ) {
+        const tripoint_abs_ms at = u.pos_abs();
+        const double vx = cs.cursor_x - ( at.x() + 0.5 );
+        const double vy = cs.cursor_y - ( at.y() + 0.5 );
+        const double dist = std::sqrt( vx * vx + vy * vy );
+        if( dist > 1e-6 ) {
+            const double mag = tn.camera_lead_tiles * std::min( 1.0, dist / full_lead_distance );
+            o.x = vx / dist * mag;
+            o.y = vy / dist * mag;
+        }
+    }
+    return o;
+}
+
+// The lead now: it follows the target by an exponential approach.
+offset camera_lead_at( ms_t now )
+{
+    camera_lead_state &cs = lead_state();
+    constexpr double approach_ms = 75.0;
+    const offset target = camera_lead_target( now );
+    const double dt = static_cast<double>( std::clamp<ms_t>( now - cs.updated, 0, 100 ) );
+    cs.updated = now;
+    const double k = 1.0 - std::exp( -dt / approach_ms );
+    cs.x += ( target.x - cs.x ) * k;
+    cs.y += ( target.y - cs.y ) * k;
+    offset o;
+    o.x = cs.x;
+    o.y = cs.y;
+    return o;
+}
+
+double ease_out( double t )
+{
+    t = std::clamp( t, 0.0, 1.0 );
+    return 1.0 - ( 1.0 - t ) * ( 1.0 - t );
+}
+
 offset slide_offset_at( const tripoint_abs_ms &p, ms_t now )
 {
     const auto iter = slides().find( p );
@@ -200,10 +285,12 @@ offset slide_offset_at( const tripoint_abs_ms &p, ms_t now )
     if( progress >= 1.0 ) {
         return offset();
     }
-    // linear on purpose: chained steps then look like one constant speed movement
+    // linear on purpose: chained steps then look like one constant speed movement; only the
+    // ease-back of a rejected step is eased
+    const double left = 1.0 - ( s.ease ? ease_out( progress ) : progress );
     offset o;
-    o.x = ( s.from_x - ( p.x() + 0.5 ) ) * ( 1.0 - progress );
-    o.y = ( s.from_y - ( p.y() + 0.5 ) ) * ( 1.0 - progress );
+    o.x = ( s.from_x - ( p.x() + 0.5 ) ) * left;
+    o.y = ( s.from_y - ( p.y() + 0.5 ) ) * left;
     return o;
 }
 
@@ -222,10 +309,31 @@ offset travel_offset_at( const tripoint_abs_ms &p, ms_t now )
     return slide_offset_at( p, now );
 }
 
-double ease_out( double t )
+// The own step was not allowed by the host: the sprite, drawn at (from_x, from_y) (absolute tile
+// coordinates), eases back to the tile it really stands on instead of snapping.
+void ease_back( const tripoint_abs_ms &real, double from_x, double from_y, ms_t now )
 {
-    t = std::clamp( t, 0.0, 1.0 );
-    return 1.0 - ( 1.0 - t ) * ( 1.0 - t );
+    const double ex = from_x - ( real.x() + 0.5 );
+    const double ey = from_y - ( real.y() + 0.5 );
+    const double d2 = ex * ex + ey * ey;
+    // nothing to ease, or too far for an animation to make sense
+    if( tune().ease_back_ms <= 0 || d2 < 0.0004 || d2 > 9.0 ) {
+        return;
+    }
+    slide s;
+    s.from_x = from_x;
+    s.from_y = from_y;
+    s.t0 = now;
+    s.dur = std::clamp( tune().ease_back_ms, 1, tune().slide_max_ms );
+    s.ease = true;
+    slides()[real] = s;
+}
+
+// true while an ease-back is running at @p
+bool easing_back_at( const tripoint_abs_ms &p, ms_t now )
+{
+    const auto iter = slides().find( p );
+    return iter != slides().end() && iter->second.ease && now < iter->second.t0 + iter->second.dur;
 }
 
 offset lunge_offset_at( const tripoint_abs_ms &p, ms_t now )
@@ -886,13 +994,61 @@ bool body_drag_step( npc &guy, const tripoint_abs_ms &dest, bool &blocked )
     return true;
 }
 
+// true if a plain step onto @p is possible: walkable, nobody there, nothing harmful
+bool step_is_free( const tripoint_abs_ms &p )
+{
+    map &here = get_map();
+    if( !here.inbounds( p ) ) {
+        return false;
+    }
+    const tripoint_bub_ms bub = here.get_bub( p );
+    return here.passable( bub ) && get_creature_tracker().creature_at( bub ) == nullptr &&
+           !g->is_dangerous_tile( bub );
+}
+
+/**
+ * The direction a step toward (@p dx, @p dy) really takes (corner sliding): a blocked diagonal
+ * slides along the cardinal component that is free, if exactly one is. Anything else (not a
+ * diagonal, an attack, a door to open, both or neither component free) is left as it is.
+ */
+std::pair<int, int> corner_slide_dir( const Character &who, int dx, int dy )
+{
+    if( !tune().corner_slide || dx == 0 || dy == 0 ) {
+        return { dx, dy };
+    }
+    map &here = get_map();
+    const tripoint_abs_ms from = who.pos_abs();
+    const tripoint_abs_ms dest = from + tripoint_rel_ms( dx, dy, 0 );
+    if( !here.inbounds( dest ) || target_at( who, dest ) != nullptr ) {
+        return { dx, dy };
+    }
+    const tripoint_bub_ms bub = here.get_bub( dest );
+    // doors and the like are opened by walking into them, not slid around
+    const bool openable = !here.ter( bub ).obj().open.is_null() || !here.furn( bub ).obj().open.is_null();
+    if( step_is_free( dest ) || openable ) {
+        return { dx, dy };
+    }
+    const bool free_x = step_is_free( from + tripoint_rel_ms( dx, 0, 0 ) );
+    const bool free_y = step_is_free( from + tripoint_rel_ms( 0, dy, 0 ) );
+    if( free_x == free_y ) {
+        return { dx, dy };
+    }
+    return free_x ? std::make_pair( dx, 0 ) : std::make_pair( 0, dy );
+}
+
+bool trace_enabled()
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    return on;
+}
+
 bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t t0,
                  std::vector<event> *out )
 {
     map &here = get_map();
     const tuning &tn = tune();
     const tripoint_abs_ms from = who.pos_abs();
-    const tripoint_abs_ms dest = from + tripoint_rel_ms( dx, dy, 0 );
+    tripoint_abs_ms dest = from + tripoint_rel_ms( dx, dy, 0 );
 
     st.face_dx = dx;
     st.face_dy = dy;
@@ -906,6 +1062,21 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     if( target_at( who, dest ) != nullptr ) {
         start_swing( who, st, t0, dx, dy, out );
         return true;
+    }
+
+    // a blocked diagonal slides along the free cardinal component
+    const int wanted_dx = dx;
+    const int wanted_dy = dy;
+    std::tie( dx, dy ) = corner_slide_dir( who, dx, dy );
+    if( dx != wanted_dx || dy != wanted_dy ) {
+        dest = from + tripoint_rel_ms( dx, dy, 0 );
+        st.face_dx = dx;
+        st.face_dy = dy;
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace slide id=" << who.getID().get_value() <<
+                                       " t=" << now << " wanted=" << wanted_dx << "," << wanted_dy <<
+                                       " took=" << dx << "," << dy;
+        }
     }
 
     const double recoil_before = who.recoil;
@@ -946,6 +1117,12 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         const int dur = std::clamp( std::max( 40, moves_to_ms( who, charged ) ), 40, tn.slide_max_ms );
         st.ready_at = t0 + dur;
         st.aim_move_carry = 0.0;
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace step id=" << who.getID().get_value() <<
+                                       " t=" << now << " from=" << from.x() << "," << from.y() <<
+                                       " to=" << now_pos.x() << "," << now_pos.y() << " dx=" << dx <<
+                                       " dy=" << dy << " dur=" << dur;
+        }
         const int dist = std::max( std::abs( now_pos.x() - from.x() ), std::abs( now_pos.y() - from.y() ) );
         if( dist == 1 && now_pos.z() == from.z() ) {
             begin_slide( from, now_pos, t0, dur );
@@ -969,6 +1146,10 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         return true;
     }
     // blocked: do not retry (and spam the message log) every frame
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace blocked id=" << who.getID().get_value() <<
+                                   " t=" << now << " dx=" << wanted_dx << " dy=" << wanted_dy;
+    }
     st.ready_at = now + 150;
     ( void )moved;
     return false;
@@ -1083,15 +1264,32 @@ offset sprite_offset( const tripoint_abs_ms &p )
 
 offset camera_offset()
 {
-    if( !smooth_camera() || !tune().camera_follows_slide ) {
+    if( !smooth_camera() ) {
         return offset();
     }
-    return travel_offset_at( get_avatar().pos_abs(), now_ms() );
+    const ms_t now = now_ms();
+    offset o;
+    if( tune().camera_follows_slide ) {
+        o = travel_offset_at( get_avatar().pos_abs(), now );
+    }
+    const offset lead = camera_lead_at( now );
+    o.x += lead.x;
+    o.y += lead.y;
+    return o;
 }
 
 bool animating()
 {
-    return !slides().empty() || !lunges().empty() || pred().active || aim_view_rw().active;
+    if( !slides().empty() || !lunges().empty() || pred().active || aim_view_rw().active ) {
+        return true;
+    }
+    // the camera is still catching up with the cursor
+    if( smooth_camera() ) {
+        const camera_lead_state &cs = lead_state();
+        const offset target = camera_lead_target( now_ms() );
+        return std::abs( target.x - cs.x ) > 0.003 || std::abs( target.y - cs.y ) > 0.003;
+    }
+    return false;
 }
 
 const aim_view &local_aim_view()
@@ -1456,6 +1654,7 @@ void host_frame()
     input_frame in;
     const bool device = poll_device( in );
     if( device ) {
+        note_cursor( in, now );
         // The classic input of vehicles, menus ... is left alone while they are in use.
         const bool fluid_owns_input = !u.controlling_vehicle && !u.is_dead_state() &&
                                       g->uquit != QUIT_WATCH;
@@ -1645,16 +1844,30 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             if( pr.active && pr.from == ev.from && pr.to == ev.to ) {
                 // the prediction was right: continue it, the sprite does not jump
                 t0 = pr.t0;
+                pr.active = false;
+                begin_slide( ev.from, ev.to, t0, ev.dur_ms );
+            } else if( pr.active ) {
+                // the host let us go elsewhere: the sprite goes on from where the prediction
+                // had put it, so it does not jump
+                const offset o = travel_offset_at( pr.from, arrival );
+                pr.active = false;
+                begin_slide( ev.to, pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, t0, ev.dur_ms );
+            } else {
+                begin_slide( ev.from, ev.to, t0, ev.dur_ms );
             }
-            pr.active = false;
             note_own_step_started();
-            begin_slide( ev.from, ev.to, t0, ev.dur_ms );
             ci.last_step_ms = ev.dur_ms;
             ci.confirmed_end = t0 + ev.dur_ms;
             break;
         }
         case fx_type::swing:
-            pred().active = false;
+            if( pred().active ) {
+                // the host did not let us go: the sprite eases back to where the actor really is
+                const prediction &pr = pred();
+                const offset o = travel_offset_at( pr.from, arrival );
+                ease_back( ev.from, pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, arrival );
+                pred().active = false;
+            }
             ci.busy_until = arrival + ev.dur_ms;
             apply_visual_event( ev, arrival );
             break;
@@ -1686,18 +1899,23 @@ void client_frame()
         return;
     }
     net::client_send_input( in );
+    note_cursor( in, now );
 
     // ---- prediction of the own step
     prediction &pr = pred();
     if( pr.active && now >= pr.t0 + pr.dur + 250 ) {
-        // never confirmed: the host did not let us go there
+        // never confirmed: the host did not let us go there, the sprite eases back
+        const offset o = travel_offset_at( pr.from, now );
         pr.active = false;
+        ease_back( u.pos_abs(), pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, now );
     }
     const bool wants_move = in.move_x != 0 || in.move_y != 0;
     if( wants_move && !pr.active && now >= ci.confirmed_end && now >= ci.busy_until &&
-        !u.controlling_vehicle && !in.primary && !in.secondary ) {
+        !u.controlling_vehicle && !in.primary && !in.secondary && !easing_back_at( u.pos_abs(), now ) ) {
         const tripoint_abs_ms from = u.pos_abs();
-        const tripoint_abs_ms to = from + tripoint_rel_ms( in.move_x, in.move_y, 0 );
+        // the host slides a blocked diagonal along a wall: predict the same
+        const std::pair<int, int> dir = corner_slide_dir( u, in.move_x, in.move_y );
+        const tripoint_abs_ms to = from + tripoint_rel_ms( dir.first, dir.second, 0 );
         if( here.inbounds( to ) ) {
             const tripoint_bub_ms bub = here.get_bub( to );
             if( here.passable( bub ) && get_creature_tracker().creature_at( bub ) == nullptr ) {

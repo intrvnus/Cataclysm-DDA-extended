@@ -1663,6 +1663,12 @@ void options_manager::add_options_general()
            );
         get_option( "FLUID_SMOOTH_CAMERA" ).setPrerequisite( "FLUID_MODE" );
 
+        add( "FLUID_CAMERA_LEAD", page_id, to_translation( "Fluid mode: camera leads toward the cursor" ),
+             to_translation( "If true, the view shifts a little toward the mouse cursor, smoothly, so that you see more of where you are aiming.  Needs the smooth camera." ),
+             true
+           );
+        get_option( "FLUID_CAMERA_LEAD" ).setPrerequisite( "FLUID_SMOOTH_CAMERA" );
+
         add( "FLUID_WASD_LAYOUT", page_id, to_translation( "Fluid mode: WASD keyboard layout" ),
              to_translation( "If true, the experimental keyboard layout is loaded: WASD moves, and the actions that used those keys moved (see doc/MULTIPLAYER_FLUID.md).  Takes effect when you return to the game." ),
              false
