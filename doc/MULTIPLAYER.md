@@ -53,7 +53,7 @@ you: when you come back, you are back in your own body where you left it.
 
 - Players must stay within about 60 tiles of each other (one simulated area); the dedicated
   server follows the middle of the group.
-- Grab/drag and spells are not available yet; the factions window is a read-only list.
+- Grab (`G`) works for furniture (push it by walking into it, pull it by walking away; stepping sideways lets go). Dragging vehicles and spells are not available yet; the factions window is a read-only list.
 - Classic (non-fluid) shooting and throwing are not available to clients: use fluid mode.
 - "Wait" is refused on purpose (the world does not stop).
 

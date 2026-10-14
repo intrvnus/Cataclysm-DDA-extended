@@ -15,6 +15,7 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - **Reconnect**: killing a client and starting it again puts it back into its saved body (`loaded body of ...`), the host keeps running, 0 errors.
 - **Car regression** on the newest build: velocity 800 -> 2400 -> 844, the car moved from x=7844 to x=7892, 6 drive actions replayed, 0 errors.
 
+- **Grab furniture** (`G` then a direction): the host log shows the table pushed 7836 -> 7837 -> 7838 with the player following; pulling backwards was blocked in the test (probably a wall behind the player), not verified. Vehicles cannot be dragged yet (a message says so). Works for steps in fluid mode and in classic input.
 - **Vanilla unit tests** (compiled in a separate copy) with my changes: vehicle (46 cases, 503825 assertions), monster, NPC, construction, item actions, missions, factions all pass. One melee test case ("Character attacking a zombie") crashes inside the test helper `full_attack_details` (`get_hit_weapon` on an empty wielded item); this is in test code I did not touch and is probably already present in the base. A full run of the whole suite was started afterwards.
 
 ## Built (compiles) but not run in game
@@ -27,7 +28,7 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - Test-environment bugs (not game bugs): missing UTF-8 locale crashed the client on "90°"; SDL only delivers keys to the focused window when two clients run; stale game processes held the port.
 
 ## Not done / decisions for you
-- Grab/drag: needs a rewrite of `game::walk_move` for any character (about 1000 lines tied to the host avatar). Not attempted on the main branch.
+- Grab for vehicles: needs the vehicle drag code of `game::walk_move` ported to any character; furniture grab was done with a small separate routine instead.
 - (Host chat: F2 say / F4 player list now exist for the host too.)
 -  dialogue side-column commands (look at / size up / yell), spells (not needed), the faction rework (C4), per-player bubbles (C2).
 - Zombie check is only partly verified: in one run it walked from 9 to 3 tiles toward a client with line of sight, in another it wandered off while out of sight. Monsters use the nearest player now; a cleaner test is still missing.
