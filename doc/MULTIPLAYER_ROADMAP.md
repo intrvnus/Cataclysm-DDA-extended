@@ -1,5 +1,31 @@
 # Multiplayer roadmap (to-do list for discussion)
 
+## STATUS (read this first; updated 2026-10-14 afternoon)
+Branches: `claude/fluid-proto` (stable line), `claude/fluid-bubbles` (per-player reality bubbles, stamina, movement rework: merges into fluid-proto once verified; no Windows build before the whole batch is done).
+
+| Topic | State |
+|---|---|
+| Client menus (record/replay), missions/zones/map/chat/F4 list, driving, passengers, grab (furniture and vehicles), construction, downed/respawn, dedicated server, reconnect, compression | **Done, run in game** (see `MULTIPLAYER_OVERNIGHT_REPORT.md`) |
+| Dialogue side commands (look at/size up/assess/opinion/yell) | Done, run in game |
+| Monsters/specials/turret friend-or-foe target the nearest player | Done (compiled, regression sweep passes) |
+| **C2 per-player reality bubbles** | **Built and regression-tested** on `claude/fluid-bubbles` (`MULTIPLAYER_BUBBLES_SPIKE.md`). Open: 3+ bubbles, vehicles crossing bubbles, perf with many players. |
+| **Multiplayer = fluid mode** | Done: every multiplayer session is fluid (the `FLUID_MODE` option is for solo play only). Fluid-only shooting/throwing is by design; classic targeting is not planned. |
+| **B2 stamina / B10 weariness** | **Stamina done and run in game** (walking free; sprint ~34 s / ~83 tiles; regen delay 1.5 s, full bar 20 s; load/hunger/thirst slow regen). Weariness: unchanged, "take a break" action still open. |
+| **Movement rework M-A..M-D** (WASD feel: held-key resolver, standstill chord window, release grace, corner sliding, ease-back, cursor-sector melee, camera lead) | **In progress** (spec below). |
+| Compiled-only, not yet run in game: factions view, pets/mounts, consoles, disarm/steal/use-item, sort armor for friends, repeat craft, workout, zones with a created zone, saved map memory | Open: needs test scripts |
+| C4 faction rework, C6 basecamps | Open: design talk with Noah first |
+| Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
+| Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
+| Phase 7 | Not started: consult Noah first |
+
+### Movement rework spec (Noah + Opus, reviewed by Claude)
+- M-A: client input resolver: held-key set (not raw keydowns), press order (last pressed wins for opposing keys), tap = one tile, hold = continuous; the host samples the held direction at the step boundary (next step starts the instant the last ends); from standstill a short chord window (default 40 ms, tunable, 0 = off) lets two-key diagonals form; release grace (default 60 ms) keeps a diagonal latched so a near-simultaneous release leaves no stray cardinal step.
+- M-B: host: corner sliding (blocked diagonal slides along the free cardinal component); rejected/lost steps ease back ~100 ms instead of snapping.
+- M-C: cursor-sector melee (8 x 45 degree sectors around the player; click hits the adjacent tile in the cursor's sector; bump-to-attack stays).
+- M-D: camera lead toward the cursor (small, toggle), smooth linear interpolation with easing only at start/stop, remote players keep per-step interpolation.
+- Not doing: mid-step retarget (risky: collides with committed steps/prediction) unless the chord window proves too laggy; "client sends intents at tick T" (state-based input is kept, with press order and timestamps added).
+
+
 Status markers: **[N]** = Noah's item, **[C]** = added by Claude. Each item has a short
 proposal and the decisions Noah needs to make. Nothing here is implemented yet unless noted.
 Rule from now on: big batches of changes, checked by the Linux build/CI; Windows builds only
