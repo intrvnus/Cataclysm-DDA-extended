@@ -77,6 +77,7 @@
 #include "player_activity.h"
 #include "point.h"
 #include "recipe.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "rng.h"
 #include "sounds.h"
@@ -1844,9 +1845,8 @@ void iexamine::chainfence( Character &you, const tripoint_bub_ms &examp )
             return;
         }
     }
-    Character &player_character = get_player_character();
     sfx::play_variant_sound( "plmove", "clear_obstacle",
-                             sfx::get_heard_volume( player_character.pos_bub() ) );
+                             sfx::get_heard_volume( you.pos_bub() ) );
     add_msg_debug( debugmode::DF_IEXAMINE,
                    "Move cost to vault: %d, limb score modifier %.1f", move_cost,
                    you.get_modifier( character_modifier_obstacle_climb_mod ) );
@@ -2855,7 +2855,7 @@ void iexamine::plant_seed( Character &you, const tripoint_bub_ms &examp, const i
 void iexamine::dirtmound( Character &you, const tripoint_bub_ms &examp )
 {
 
-    if( !warm_enough_to_plant( get_player_character().pos_bub() ) ) {
+    if( !warm_enough_to_plant( you.pos_bub() ) ) {
         add_msg( m_info, _( "It is too cold to plant anything now." ) );
         return;
     }
@@ -4527,9 +4527,8 @@ void iexamine::keg( Character &you, const tripoint_bub_ms &examp )
         drink.set_relative_rot( drink_rot[ drink_index ] );
         drink.charges = 0;
         bool keg_full = false;
-        Character &player_character = get_player_character();
         for( int i = 0; i < charges_held && !keg_full; i++ ) {
-            player_character.use_charges( drink.typeId(), 1 );
+            you.use_charges( drink.typeId(), 1 );
             drink.charges++;
             keg_full = drink.volume() >= keg_cap;
         }
@@ -4941,7 +4940,8 @@ void iexamine::shrub_wildveggies( Character &you, const tripoint_bub_ms &examp )
 
 void trap::examine( const tripoint_bub_ms &examp ) const
 {
-    avatar &player_character = get_avatar();
+    // multiplayer: the player whose action this is (a client's body while the host replays it)
+    Character &player_character = remote_ui::acting_player();
     map &here = get_map();
 
     // If the player can't see the trap, they can't interact with it.
@@ -7115,9 +7115,8 @@ static void mill_load_food( Character &you, const tripoint_bub_ms &examp,
     comps.clear();
     comps.emplace_back( what->typeId(), amount );
 
-    Character &player_character = get_player_character();
     // select from where to get the items from and place them
-    inv.form_from_map( player_character.pos_bub(), PICKUP_RANGE, &player_character );
+    inv.form_from_map( you.pos_bub(), PICKUP_RANGE, &you );
     inv.remove_items_with( []( const item & it ) {
         return it.rotten();
     } );
