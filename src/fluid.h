@@ -125,7 +125,7 @@ struct tuning {
     // longest piece of movement checked for collisions at once (tiles)
     double max_substep = 0.2;
     // a frame never moves the body for longer than this (ms), e.g. after a hitch
-    int max_move_frame_ms = 60;
+    int max_move_frame_ms = 120;
 };
 const tuning &tune();
 // the own character started a step (the input resolver then drops a latched tap)

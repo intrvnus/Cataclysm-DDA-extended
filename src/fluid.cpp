@@ -1415,9 +1415,8 @@ bool body_cross( Character &who, actor_state &st, const tripoint_abs_ms &dest, m
         constexpr double margin = 1e-4;
         st.body_x = std::clamp( st.body_x, from.x() + margin, from.x() + 1.0 - margin );
         st.body_y = std::clamp( st.body_y, from.y() + margin, from.y() + 1.0 - margin );
-        if( charged > 0 ) {
-            st.ready_at = now + std::max( 40, moves_to_ms( who, charged ) );
-        }
+        // do not ask the game again every frame
+        st.ready_at = now + ( charged > 0 ? std::max( 40, moves_to_ms( who, charged ) ) : 150 );
         if( trace_enabled() ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free refused id=" << who.getID().get_value() <<
                                        " t=" << now << " dx=" << dx << " dy=" << dy;
@@ -1465,6 +1464,29 @@ bool body_cross( Character &who, actor_state &st, const tripoint_abs_ms &dest, m
     return true;
 }
 
+// True if pushing into the tile in direction (dx, dy) can do something: a creature to attack or
+// talk to, a door (also of a vehicle), a harmful tile or a ledge to enter on purpose, a diagonal
+// gap to squeeze through.  A plain wall is not worth a try (that would only stall the body).
+bool body_bump_worthy( const Character &who, const actor_state &st, int dx, int dy )
+{
+    map &here = get_map();
+    const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( dx, dy, 0 );
+    if( !here.inbounds( ahead ) ) {
+        return false;
+    }
+    const tripoint_bub_ms b = here.get_bub( ahead );
+    const Creature *c = get_creature_tracker().creature_at( b );
+    if( c != nullptr && c != &who ) {
+        return true;
+    }
+    if( here.passable( b ) ) {
+        // harmful / no floor, or the diagonal squeeze between two blocked tiles
+        return true;
+    }
+    return !here.ter( b ).obj().open.is_null() || !here.furn( b ).obj().open.is_null() ||
+           static_cast<bool>( here.veh_at( b ) );
+}
+
 // One frame of free movement in the held direction for @p dt ms.  Returns true if the body
 // moved; if it could not move at all, pushing into the tile ahead does what a tile step into it
 // does (attack, open a door, talk, squeeze through a diagonal gap, enter a harmful tile).
@@ -1508,6 +1530,9 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     const bool moved = std::abs( st.body_x - start_x ) + std::abs( st.body_y - start_y ) > 1e-9;
     if( moved || dt <= 0 || now < st.ready_at ) {
         return moved;
+    }
+    if( !body_bump_worthy( who, st, in.move_x, in.move_y ) ) {
+        return false;
     }
     // stuck: push into the tile ahead like a tile step
     const double old_x = st.body_x;
