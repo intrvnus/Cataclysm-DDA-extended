@@ -592,6 +592,40 @@ void test_downed_cycle( remote_player &rp, npc &guy )
     }
 }
 
+// Test helper: a table next to the player (for the grab/drag check) and its position in the log.
+void test_furniture( npc &guy, bool place )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_FURN" ) != nullptr;
+    if( !on ) {
+        return;
+    }
+    map &here = get_map();
+    const tripoint_bub_ms at = guy.pos_bub( here );
+    if( place ) {
+        const tripoint_bub_ms spot = at + tripoint_rel_ms::east;
+        if( here.passable( spot ) && !here.veh_at( spot ) &&
+            get_creature_tracker().creature_at( spot ) == nullptr ) {
+            here.furn_set( spot, furn_str_id( "f_table" ) );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table placed east of the player";
+        } else {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no room for the test table";
+        }
+        return;
+    }
+    if( !calendar::once_every( 5_seconds ) ) {
+        return;
+    }
+    for( const tripoint_bub_ms &p : here.points_in_radius( at, 6 ) ) {
+        if( here.furn( p ) == furn_str_id( "f_table" ) ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table at " << here.get_abs( p ).to_string() <<
+                                       " body at " << guy.pos_abs().to_string() << " grab " <<
+                                       guy.grab_point.to_string();
+            return;
+        }
+    }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table not found near the body";
+}
+
 void report_test_armor( const npc &near )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_ARMOR" ) != nullptr;
@@ -2333,6 +2367,7 @@ void host_end_of_turn()
             rp.npc_id = guy->getID();
             place_on_test_stairs( *guy );
             place_test_vehicle( *guy );
+            test_furniture( *guy, true );
             spawn_test_npc( *guy );
             spawn_test_zombie( *guy );
             add_msg( m_good, _( "Multiplayer: %s joined." ), guy->get_name() );
@@ -2347,6 +2382,7 @@ void host_end_of_turn()
             report_test_zombie( *guy );
             report_test_vehicle( *guy );
             report_test_armor( *guy );
+            test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
