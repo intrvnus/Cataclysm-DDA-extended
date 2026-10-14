@@ -1553,6 +1553,41 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     return false;
 }
 
+// Autoattack in fluid mode: a swing at the weakest hostile creature on a neighbouring tile.
+bool autoattack( Character &who, actor_state &st, ms_t t0, std::vector<event> *out )
+{
+    if( who.has_flag( json_flag_CANNOT_ATTACK ) ) {
+        who.add_msg_if_player( m_info, _( "You are incapable of attacking!" ) );
+        return false;
+    }
+    const tripoint_abs_ms pos = who.pos_abs();
+    Creature *best = nullptr;
+    int best_dx = 0;
+    int best_dy = 0;
+    for( int dy = -1; dy <= 1; ++dy ) {
+        for( int dx = -1; dx <= 1; ++dx ) {
+            if( dx == 0 && dy == 0 ) {
+                continue;
+            }
+            Creature *c = target_at( who, pos + tripoint_rel_ms( dx, dy, 0 ) );
+            if( c == nullptr || who.attitude_to( *c ) != Creature::Attitude::HOSTILE ) {
+                continue;
+            }
+            if( best == nullptr || c->get_hp() < best->get_hp() ) {
+                best = c;
+                best_dx = dx;
+                best_dy = dy;
+            }
+        }
+    }
+    if( best == nullptr ) {
+        who.add_msg_if_player( m_info, _( "No hostile creature in reach." ) );
+        return false;
+    }
+    start_swing( who, st, t0, best_dx, best_dy, out );
+    return true;
+}
+
 bool can_act_now( const Character &who )
 {
     return !who.is_dead_state() && who.get_moves() > 0 && !who.activity && !who.in_sleep_state();
@@ -1753,6 +1788,11 @@ actor_state &state_of( int character_id )
     return remote_states()[character_id];
 }
 
+void request_autoattack( actor_state &st )
+{
+    st.autoattack_until = now_ms() + tune().buffer_ms;
+}
+
 void forget_state( int character_id )
 {
     remote_states().erase( character_id );
@@ -1868,8 +1908,13 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             }
         }
 
+        if( !started && st.autoattack_until > now ) {
+            st.autoattack_until = 0;
+            started = autoattack( who, st, t0, out );
+        }
+
         if( started ) {
-            // the throw is the action of this frame
+            // the throw / the autoattack is the action of this frame
         } else if( !armed_with_gun ) {
             const bool want_attack = primary_pressed || ( st.buffered_until > now && st.buffered_is_attack );
             const bool hold_attack = in.primary && !primary_pressed;

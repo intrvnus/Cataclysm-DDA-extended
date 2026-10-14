@@ -185,6 +185,8 @@ struct actor_state {
     bool prev_cancel = false;
     // the last action was a step and movement is still held: the next step chains on
     bool stepping = false;
+    // the autoattack key was pressed: swing at the best adjacent enemy once the actor is ready
+    ms_t autoattack_until = 0;
 
     // ---- free movement: where the body really is (absolute tile coordinates, 0.5 = centre
     // of the tile).  The game sees the character on body_tile, the tile under the centre.
@@ -284,6 +286,10 @@ struct event {
 /** Runs one frame for a character. New events are appended to @p out (may be null). */
 void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             std::vector<event> *out );
+
+/** The autoattack key (Tab): the actor swings at the weakest hostile creature next to it as soon
+ * as it is ready (fluid melee: wind-up and blow). */
+void request_autoattack( actor_state &st );
 
 /** State of the host's own avatar / of a remote player's NPC. */
 actor_state &avatar_state();

@@ -204,26 +204,32 @@ reloads stock keybindings, `fluid.json`, then the optional overlay `fluid_layout
 user's own `keybindings.json`, so the player's customisation still wins.
 The layout is independent of `FLUID_MODE`: you can test WASD in classic turn-based play.
 
-Rules used: WASD for movement, digits/numpad kept for movement and diagonals, arrows kept.
-Everything that lived on `w a s d` (and the shifted versions that would clash with Shift+WASD
-as sprint-style modifiers) was moved to keys with a similar mnemonic, and each moved key was
-checked against all other contexts (audited conflict-free).
+Rules used (Noah, 2026-10-14: "match vanilla as closely as possible"): every action keeps its
+vanilla key unless that key is needed for movement. WASD moves (Shift held = sprint, so the
+shifted W A S D are not used for actions either); arrows and numpad keep moving. Only the eight
+actions that lived on `w a s d` / `W A S D` move, onto keys that WASD freed (the old `h j k`
+movement keys) or next to WASD. The three movement modes vanilla has no key for get Ctrl keys.
 
-| Action | Classic | WASD layout |
+| Action | Vanilla | WASD layout |
 |---|---|---|
 | Move N / S / W / E | `k j h l`, arrows, numpad | `w s a d`, arrows, `8 2 4 6`, numpad |
 | Diagonals | `y u b n`, numpad | `7 9 1 3`, numpad |
-| Wield | `w` | `h` |
+| Wield | `w` | `h` (hold) |
 | Wear | `W` | `H` |
 | Apply / use item | `a` | `q` |
 | Use wielded | `A` | `Q` |
 | Drop | `d` | `j` |
 | Drop to adjacent | `D` | `J` |
-| Smash | `s` | `k` |
+| Smash | `s` | `k` (kick) |
 | Save and quit | `S` | `Ctrl+S` |
-| Autoattack | `TAB`, gamepad 1 | gamepad 1 only |
-| Toggle run | unbound | `TAB` |
+| Toggle run | - | `Ctrl+R` |
+| Toggle crouch | - | `Ctrl+C` |
+| Toggle prone | - | `Ctrl+Z` |
 | Cancel attack / drop aim (new) | - | `SPACE` (context `FLUID`, both layouts) |
+
+Everything else is vanilla: close `c`, loot `O`, zoom `z` / `Z`, fire mode `F`, autoattack `TAB`
+(in fluid mode a fluid swing at the weakest adjacent enemy), examine `e`, throw `t` (at the
+cursor), fire `f` (= left mouse button) ...
 
 The table shows only the actions the overlay changes (the Classic column was read from
 `data/raw/keybindings.json` of the base commit).

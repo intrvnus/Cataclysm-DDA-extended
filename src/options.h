@@ -74,7 +74,9 @@ class options_manager
             /** Hide this option in builds without sound support */
             COPT_NO_SOUND_HIDE,
             /** Hide this option always, it should not be changed by user directly through UI. **/
-            COPT_ALWAYS_HIDE
+            COPT_ALWAYS_HIDE,
+            /** Hide this option while the world runs in real time (multiplayer / fluid mode) */
+            COPT_REALTIME_HIDE
         };
 
         class cOpt

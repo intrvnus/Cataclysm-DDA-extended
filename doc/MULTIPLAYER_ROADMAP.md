@@ -65,6 +65,24 @@ it says so; Noah asked for **no more fixes before the handoff to Opus**, only fo
   timed actions run that many times faster than the world clock. Measured (60 min day, 300 ms
   turns, x4): pulping a zombie corpse 3.65 s; waiting 60 game minutes 38.5 s; both for the host
   and the client's body. Noah to judge the value by playing.
+- **Actions without a purpose in multiplayer (Noah's decisions, 2026-10-14):** removed in
+  multiplayer: wait (`|`, the whole wait/rest menu), pause (`.`/`5` now only stops a timed action),
+  turn duration option (hidden while realtime), quickload (host too), abandon character, safe mode
+  toggle (danger warnings always on), debug menu for clients (the host keeps it). Classic
+  fire/throw targeting was already mouse-only for clients. Autoattack (`TAB`) works in fluid mode:
+  a fluid swing at the weakest adjacent hostile creature (host and clients). Run in game: client
+  `TAB` -> host `trace swing id=6 dx=1 dy=1 hit=1` against the test zombie; client `|` -> "Waiting
+  is not possible in multiplayer". (There is no separate "rest-only sleep" in this version: resting
+  is part of the wait menu.)
+- **WASD layout redone to match vanilla** (Noah): only the eight actions on `w a s d`/`W A S D`
+  move (wield `h`, wear `H`, apply `q`, use wielded `Q`, drop `j`, drop adjacent `J`, smash `k`,
+  save `Ctrl+S`); close `c`, loot `O`, zoom `z`/`Z`, fire mode `F`, autoattack `TAB` are vanilla
+  again; the new movement modes: run `Ctrl+R`, crouch `Ctrl+C`, prone `Ctrl+Z`. Table in
+  `MULTIPLAYER_FLUID.md`.
+- **Found: the host's death freezes the session.** When the host's own character dies, the host
+  shows the end screen ("The End", last words) and the world stops for every client. Clients'
+  bodies have downed/respawn; the host avatar has not. Needs a decision (host respawn like
+  clients, or the dedicated server only).
 - **5 Mouse view (fixed, compile-only):** in fluid mode the mouse is the aiming cursor and always
   over the map, and fluid input never reached the code that hides the box. The mouse-view box is
   no longer shown in fluid mode (`game::handle_mouseview`); look (`x`) still works.
@@ -270,7 +288,7 @@ when a batch is worth playing.
 ### B4 [N5] Movement modes in the fluid system
 * Shift held = sprint (drains stamina, B2), C = toggle crouch, Z = toggle prone (keys
   configurable). Walk/crouch/prone change speed, noise and visibility like now.
-* Fits the fluid prototype's WASD layout (TAB is "toggle run" there; would become free).
+* Fits the fluid prototype's WASD layout (toggle run is Ctrl+R there; TAB is autoattack as in vanilla).
 
 ### B5 [N6] Reading and martial arts training
 * Reading: progress bar in world time (A1) plus a focus minigame (e.g. keep a marker in a

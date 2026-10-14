@@ -1037,9 +1037,22 @@ bool handle_input()
             } );
             break;
         case ACTION_PAUSE:
-            // also stops a timed action (B7)
+            // the world never waits in multiplayer: the key only stops a timed action (B7)
             send_action( "stop" );
-            send_action( "wait" );
+            break;
+        case ACTION_AUTOATTACK:
+            // fluid melee: the host swings at the weakest enemy next to the body
+            send_action( "autoattack" );
+            break;
+        case ACTION_SUICIDE:
+        case ACTION_QUICKLOAD:
+        case ACTION_QUICKSAVE:
+        case ACTION_DEBUG:
+        case ACTION_TOGGLE_DEBUG_MODE:
+            add_msg( m_info, _( "Not available in multiplayer." ) );
+            break;
+        case ACTION_TOGGLE_SAFEMODE:
+            add_msg( m_info, _( "Danger warnings are always on in multiplayer." ) );
             break;
         case ACTION_PICKUP:
             // choose the tile and what to take on the own character, the host does the same

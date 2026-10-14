@@ -1391,6 +1391,8 @@ void execute( npc &guy, const command &cmd )
             guy.fall_asleep( std::min( wake - now, 10_hours ) );
             alerts::warn( string_format( _( "%s went to sleep." ), guy.get_name() ), alerts::level::notice );
         }
+    } else if( cmd.action == "autoattack" ) {
+        fluid::request_autoattack( fluid::state_of( guy.getID().get_value() ) );
     } else if( cmd.action == "stop" ) {
         // handled before the action runs, see host_drive_npc()
     } else if( cmd.action == "wake" ) {

@@ -2353,6 +2353,13 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_PAUSE:
+            if( net::active() ) {
+                // multiplayer: the world never waits; the key only stops a timed action
+                if( player_character.activity ) {
+                    player_character.cancel_activity();
+                }
+                break;
+            }
             if( check_safe_mode_allowed() ) {
                 player_character.pause();
             }
@@ -2791,6 +2798,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_WAIT:
+            if( net::active() ) {
+                add_msg( m_info, _( "Waiting is not possible in multiplayer: the world does not stop for you." ) );
+                break;
+            }
             wait();
             break;
 
@@ -2842,6 +2853,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_TOGGLE_SAFEMODE:
+            if( net::active() ) {
+                add_msg( m_info, _( "Danger warnings are always on in multiplayer." ) );
+                break;
+            }
             if( safe_mode == SAFE_MODE_OFF ) {
                 set_safe_mode( SAFE_MODE_ON );
                 mostseen = 0;
@@ -2900,6 +2915,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_SUICIDE:
+            if( net::active() ) {
+                add_msg( m_info, _( "Not available in multiplayer." ) );
+                break;
+            }
             if( query_yn( _( "Abandon this character?" ) ) ) {
                 if( query_yn( _( "This will kill your character.  Continue?" ) ) ) {
                     player_character.set_moves( 0 );
@@ -2923,6 +2942,11 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             return false;
 
         case ACTION_QUICKLOAD:
+            if( net::active() ) {
+                // it would load the world back under everybody's feet
+                add_msg( m_info, _( "Not available in multiplayer." ) );
+                return false;
+            }
             quickload();
             return false;
 
@@ -3113,6 +3137,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             break;
 
         case ACTION_AUTOATTACK:
+            if( fluid::enabled() ) {
+                fluid::request_autoattack( fluid::avatar_state() );
+                break;
+            }
             avatar_action::autoattack( player_character, here );
             break;
 

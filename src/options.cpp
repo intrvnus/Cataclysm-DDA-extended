@@ -16,6 +16,7 @@
 #include "cursesport.h" // IWYU pragma: keep
 #include "debug.h"
 #include "filesystem.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "generic_factory.h"
@@ -690,6 +691,9 @@ bool options_manager::cOpt::is_hidden() const
 
         case COPT_ALWAYS_HIDE:
             return true;
+
+        case COPT_REALTIME_HIDE:
+            return fluid::enabled();
     }
     // Make compiler happy, this is unreachable.
     return false;
@@ -1637,8 +1641,8 @@ void options_manager::add_options_general()
     add_empty_line();
 
     add( "TURN_DURATION", "general", to_translation( "Realtime turn progression" ),
-         to_translation( "If higher than 0, monsters will take periodic gameplay turns.  This value is the delay between each turn, in seconds.  Works best with Safe Mode disabled.  0 = disabled." ),
-         0.0, 10.0, 0.0, 0.05
+         to_translation( "If higher than 0, monsters will take periodic gameplay turns.  This value is the delay between each turn, in seconds.  Works best with Safe Mode disabled.  0 = disabled.  Not used in multiplayer and fluid mode (they have their own clock)." ),
+         0.0, 10.0, 0.0, 0.05, COPT_REALTIME_HIDE
        );
 
     add_empty_line();

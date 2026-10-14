@@ -100,7 +100,7 @@ targeting in multiplayer).
   `FLUID_CAMERA_LEAD`), cursor-sector melee (`sector_dir`, 12 degrees neighbour tolerance, 0.3 tile
   dead zone). Walking into an NPC opens the NPC menu through `net::bump_npc` (throttled 1.5 s).
   WASD layout is the default in fluid mode (`FLUID_WASD_LAYOUT`; overlay
-  `data/raw/keybindings/fluid_layout.json`: q apply, h wield, j drop, k smash, O close, c crouch, z prone).
+  `data/raw/keybindings/fluid_layout.json`, vanilla keys wherever possible: q apply, h wield, j drop, k smash, Ctrl+S save, Ctrl+R run, Ctrl+C crouch, Ctrl+Z prone; see the table in `MULTIPLAYER_FLUID.md`).
 - **Reality bubbles** (`src/bubbles.*`, `src/current_map.*`): an extra `map` per remote body over
   the shared `MAPBUFFER`; `swap_map` makes `get_map()` return the bubble; ownership by nearest
   centre (`owns_submap/owns/owner`, exact `holds`); `bubbles::view` RAII for client actions;
