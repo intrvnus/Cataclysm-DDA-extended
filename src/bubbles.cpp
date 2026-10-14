@@ -1,17 +1,26 @@
 #include "bubbles.h"
 
+#include <map>
 #include <memory>
 
 #include "current_map.h"
 #include "debug.h"
 #include "game.h"
 #include "map.h"
+#include "scent_map.h"
 
 namespace
 {
 std::vector<std::unique_ptr<map>> &storage()
 {
     static std::vector<std::unique_ptr<map>> s;
+    return s;
+}
+
+// the scent grid of each extra bubble
+std::map<const map *, std::unique_ptr<scent_map>> &scents()
+{
+    static std::map<const map *, std::unique_ptr<scent_map>> s;
     return s;
 }
 
@@ -39,6 +48,8 @@ map &open( const tripoint_abs_sm &origin )
         ref.load( origin, true );
     }
     storage().push_back( std::move( m ) );
+    scents()[&ref] = std::make_unique<scent_map>( *g );
+    scents()[&ref]->reset();
     list().push_back( &ref );
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: opened an extra bubble at " << origin.to_string();
     return ref;
@@ -138,6 +149,24 @@ map &owner( const tripoint_abs_ms &p )
     return reality_bubble();
 }
 
+scent_map &scent_of( const map &m )
+{
+    if( &m == &reality_bubble() ) {
+        return g->scent;
+    }
+    const auto it = scents().find( &m );
+    if( it == scents().end() ) {
+        // not a bubble we know (e.g. a map used for mapgen): fall back to the main grid
+        return g->scent;
+    }
+    return *it->second;
+}
+
+void shift_scent( const map &m, const point_rel_ms &shift )
+{
+    scent_of( m ).shift( shift );
+}
+
 void tick()
 {
     for( map *m : list() ) {
@@ -154,6 +183,7 @@ void tick()
 void close_all()
 {
     list().clear();
+    scents().clear();
     storage().clear();
 }
 } // namespace bubbles

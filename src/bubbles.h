@@ -7,6 +7,7 @@
 #include "coordinates.h"
 
 class map;
+class scent_map;
 
 // Experimental multiplayer: extra reality bubbles.
 // The game's own map ("the main bubble", game::m) follows the host's avatar.  Every other
@@ -35,6 +36,18 @@ bool owns_submap( const map &m, const tripoint_abs_sm &sm );
 bool owns( const map &m, const tripoint_abs_ms &p );
 /** The map that owns the position @p p: an extra bubble or the main one. */
 map &owner( const tripoint_abs_ms &p );
+/**
+ * The scent grid of the bubble @p m: game::scent for the main bubble, otherwise the one owned
+ * by that extra bubble (created in open(), freed in close_all()).  Its coordinates are the
+ * bubble-local ones of @p m.  get_scent() returns this for get_map().
+ */
+scent_map &scent_of( const map &m );
+/**
+ * Shifts the scent grid of the bubble @p m by @p shift (in map squares, as game::shift_map
+ * passes it to scent_map::shift).  The code that moves an extra bubble (bubbles::follow) must call this, the way
+ * game::shift_map shifts game::scent for the main bubble.
+ */
+void shift_scent( const map &m, const point_rel_ms &shift );
 /** Per-turn upkeep of the extra bubbles (what do_turn does for the main one). */
 void tick();
 void close_all();

@@ -757,20 +757,43 @@ bool do_turn()
         g->calc_driving_offset( veh );
     }
 
-    scent_map &scent = get_scent();
-    // No-scent debug mutation has to be processed here or else it takes time to start working
-    if( !u.has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
-        scent.set( u.pos_bub(), u.scent, u.get_type_of_scent() );
-        overmap_buffer.set_scent( u.pos_abs_omt(),  u.scent );
-    }
     // Multiplayer: every player leaves a trail that monsters can follow, not only the host.
+    // Each reality bubble has its own scent grid; a player marks the one that simulates him.
+    std::vector<Character *> scent_bodies = { &u };
     for( npc *other : net::remote_player_npcs() ) {
-        if( !other->has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
-            scent.set( other->pos_bub(), other->scent, other->get_type_of_scent() );
-            overmap_buffer.set_scent( other->pos_abs_omt(), other->scent );
+        scent_bodies.push_back( other );
+    }
+    // No-scent debug mutation has to be processed here or else it takes time to start working
+    for( Character *body : scent_bodies ) {
+        if( !body->has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
+            overmap_buffer.set_scent( body->pos_abs_omt(), body->scent );
         }
     }
-    scent.update( u.pos_bub(), m );
+    for( map *bm : bubbles::all() ) {
+        swap_map sw( *bm );
+        scent_map &scent = get_scent();
+        const bool is_main = bm == &reality_bubble();
+        std::optional<tripoint_bub_ms> centre;
+        for( Character *body : scent_bodies ) {
+            const tripoint_abs_ms body_abs = body->pos_abs();
+            if( !bm->inbounds( body_abs ) || !bubbles::owns( *bm, body_abs ) ) {
+                continue;
+            }
+            const tripoint_bub_ms body_pos = bm->get_bub( body_abs );
+            if( !centre ) {
+                centre = body_pos;
+            }
+            if( !body->has_flag( STATIC( json_character_flag( "NO_SCENT" ) ) ) ) {
+                scent.set( body_pos, body->scent, body->get_type_of_scent() );
+            }
+        }
+        if( is_main ) {
+            centre = u.pos_bub();
+        } else if( !centre ) {
+            centre = tripoint_bub_ms( MAPSIZE_X / 2, MAPSIZE_Y / 2, bm->get_abs_sub().z() );
+        }
+        scent.update( *centre, *bm );
+    }
 
     // We need floor cache before checking falling 'n stuff
     m.build_floor_caches();
