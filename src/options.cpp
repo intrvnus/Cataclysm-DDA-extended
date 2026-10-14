@@ -1653,7 +1653,7 @@ void options_manager::add_options_general()
 
         add( "FLUID_TURN_MS", page_id, to_translation( "Fluid mode: milliseconds per turn" ),
              to_translation( "Length of one game turn (100 move points at normal speed) in real time.  A step on flat ground takes one turn at normal speed.  Lower is faster; everything scales with it, so this changes the pace, not the balance.  Hosts decide for the whole session." ),
-             100, 3000, 600
+             100, 3000, 300
            );
         get_option( "FLUID_TURN_MS" ).setPrerequisite( "FLUID_MODE" );
 

@@ -17,7 +17,7 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | C4 faction rework, C6 basecamps | Options paper written (`MULTIPLAYER_FACTIONS_OPTIONS.md`): waiting for Noah's decisions |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
-| **Noah's test findings (build #1)** | 1 timed actions, 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **plan written, waiting for Noah's yes** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Details in the section below. |
+| **Noah's test findings (build #1)** | 1 timed actions, 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **approved by Noah, in progress** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Speed: `FLUID_TURN_MS` default now 300 ms (was 600; pace only, day length unchanged). Details in the section below. |
 | Phase 7 | Not started: consult Noah first |
 
 ## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
@@ -74,7 +74,7 @@ it says so; Noah asked for **no more fixes before the handoff to Opus**, only fo
   north reaches into the row below and that row's terrain painted over it until the step ended.
   Such sprites are now drawn after that row (`cata_tiles.cpp` `fluid_deferred`). Also fixed: the
   two extra rows built for the moving camera were never drawn (blank strip at the screen edge).
-- **4 Grid-free movement:** plan in `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`, waiting for Noah.
+- **4 Grid-free movement:** approved by Noah; decisions recorded at the top of `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`. Default turn 300 ms (walk 3.3 tiles/s at speed 100).
 - Found on the way, not fixed: the "You struggle to continue. Keep trying?" menu when stamina runs
   low during an activity (`player_activity.cpp`) is a blocking menu; in multiplayer it would
   freeze the host. Pulping a corpse that takes over 10 minutes asks "do it again to confirm".

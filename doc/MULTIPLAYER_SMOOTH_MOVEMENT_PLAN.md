@@ -1,6 +1,18 @@
 # Grid-free smooth movement: plan for Noah's approval (2026-10-14)
 
-Status: **proposal, not started.** Nothing below is implemented until Noah says yes.
+Status: **approved by Noah (2026-10-14), in progress.**
+
+Noah's answers: the plan is a yes; speed: "whatever you think is better, I'll try it out";
+the other decisions follow Claude's suggestions. Chosen:
+1. Speed: option (b): `FLUID_TURN_MS` default 600 -> 300 ms. Day length is unchanged (the world
+   clock compensates), monsters speed up by the same factor, so the balance between players and
+   monsters stays vanilla. Speed-100 walk 3.3 tiles/s, run 6.7 tiles/s. Existing option files
+   keep their saved 600: set "Fluid mode: milliseconds per turn" to 300 by hand.
+2. Diagonal speed: the same speed in every direction.
+3. Diagonal squeeze between two walls: allowed as a forced squeeze when pushing straight at the
+   gap (monsters can pass such gaps, so blocking players only would be unfair and could cut off
+   places the map generator expects to be reachable).
+4. Soft-wall time 0.4 s and body size 0.6 tile as starting values, tuned by playing.
 Answers Noah's build #1 finding 4 ("separate movement from the grid").
 
 ## Recommendation: players move freely, the game still sees them on one tile
