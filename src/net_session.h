@@ -61,6 +61,11 @@ void shutdown();
 /** Handles network traffic. Cheap, call often (game loop, input wait loops). */
 void poll();
 
+/** Bytes of JSON handed to the network so far (before compression), for the traffic log. */
+extern uint64_t raw_bytes_sent;
+/** Bytes the host has put on the wire so far (after compression), 0 when not hosting. */
+uint64_t wire_bytes_sent();
+
 role current_role();
 inline bool is_host()
 {

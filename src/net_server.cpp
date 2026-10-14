@@ -639,6 +639,32 @@ void report_test_armor( const npc &near )
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test worn order: " << order;
 }
 
+void report_traffic()
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_BEAT" ) != nullptr;
+    static fluid::ms_t last = 0;
+    static uint64_t last_raw = 0;
+    static uint64_t last_wire = 0;
+    if( !on ) {
+        return;
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    if( last == 0 ) {
+        last = now;
+        return;
+    }
+    if( now - last < 10000 ) {
+        return;
+    }
+    const uint64_t raw = raw_bytes_sent;
+    const uint64_t wire = wire_bytes_sent();
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: traffic in " << ( now - last ) / 1000 << " s: raw " <<
+                               ( raw - last_raw ) / 1024 << " KB, wire " << ( wire - last_wire ) / 1024 << " KB";
+    last = now;
+    last_raw = raw;
+    last_wire = wire;
+}
+
 void report_test_vehicle( const npc &near )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_VEHICLE" ) != nullptr;
@@ -2378,6 +2404,7 @@ void host_end_of_turn()
                 jo.member( "fluid", fluid::enabled() );
             } ) );
         }
+        report_traffic();
         if( guy != nullptr ) {
             report_test_zombie( *guy );
             report_test_vehicle( *guy );

@@ -25,6 +25,8 @@
 
 namespace net
 {
+uint64_t raw_bytes_sent = 0;
+
 namespace impl
 {
 
@@ -39,6 +41,7 @@ void send_json( ENetPeer *peer, const std::string &json )
     if( peer == nullptr ) {
         return;
     }
+    net::raw_bytes_sent += json.size();
     ENetPacket *packet = enet_packet_create( json.data(), json.size(), ENET_PACKET_FLAG_RELIABLE );
     if( enet_peer_send( peer, 0, packet ) != 0 ) {
         enet_packet_destroy( packet );
@@ -50,10 +53,16 @@ void send_json_fast( ENetPeer *peer, const std::string &json )
     if( peer == nullptr ) {
         return;
     }
+    net::raw_bytes_sent += json.size();
     ENetPacket *packet = enet_packet_create( json.data(), json.size(), 0 );
     if( enet_peer_send( peer, 1, packet ) != 0 ) {
         enet_packet_destroy( packet );
     }
+}
+
+uint64_t wire_bytes_sent()
+{
+    return impl::state().host != nullptr ? impl::state().host->totalSentData : 0;
 }
 
 static bool enet_ready()
@@ -146,6 +155,10 @@ void start_pending()
             add_msg( m_bad, _( "Multiplayer: could not host on port %d." ), s.pending_port );
             return;
         }
+        // C17: the messages are JSON text: both ends compress (ENet's range coder)
+        if( std::getenv( "CATA_MP_NO_COMPRESS" ) == nullptr ) {
+            enet_host_compress_with_range_coder( s.host );
+        }
         s.current = role::host;
         server_on_start();
         add_msg( m_good, _( "Multiplayer: hosting on port %d.  Waiting for players…" ),
@@ -155,6 +168,9 @@ void start_pending()
         if( s.host == nullptr ) {
             add_msg( m_bad, _( "Multiplayer: could not create a network connection." ) );
             return;
+        }
+        if( std::getenv( "CATA_MP_NO_COMPRESS" ) == nullptr ) {
+            enet_host_compress_with_range_coder( s.host );
         }
         ENetAddress address;
         if( enet_address_set_host( &address, s.pending_address.c_str() ) != 0 ) {
