@@ -49,6 +49,34 @@ targeting in multiplayer).
 - Debug log lines of the feature start with `Multiplayer:` (`config/debug.log`).
 - Commit small, descriptive messages; end with the attribution lines the session asks for.
 
+### Sub-agents in detail (how Noah wants them used)
+- Default: if work can run in parallel, use agents instead of doing it serially. Noah said "dont spare"
+  when he had free usage; do not hold back on agents for research, reviews and test writing.
+- Read-only agents (Explore/general-purpose) for research and code review. Brief them like a peer:
+  goal, what is ruled out, files to read. For a review give the code, not your conclusion.
+- Code packages: one agent per independent package in `isolation: "worktree"`, each builds and tests
+  in its own tree; you merge the result back into `claude/fluid-proto`, resolve conflicts, rebuild,
+  re-run the affected tests. Their first report is not proof: check it against the logs.
+- Test-script agents write scripts into `tools/mp_tests/` style, quoting exact log lines as evidence.
+- Tell Noah what the agents are doing in the regular progress updates.
+
+### Pushing fixes and delivery
+- Everything goes on `claude/fluid-proto`: small commits, `git push -u origin claude/fluid-proto`
+  (retry up to 4 times with 2/4/8/16 s backoff only on network errors). No PR, no push to
+  `intrvnus-mod`, no force pushes.
+- Before a commit: it compiles (`bld.sh` build copy); for behaviour changes run the matching
+  script from `tools/mp_tests/` and quote the log lines. State in the commit/report whether it was
+  compile-only, run in game, or CI.
+- Fixes for plain bugs (crashes, compile errors, typos, doc mistakes) can be made without asking and
+  mentioned afterwards in one line. Anything that changes gameplay or balance, or is a big new
+  feature, is a short plan or suggestion for Noah first (roadmap entry, wait for his yes).
+- A fix reaches Noah only through a Windows build, so a fix list for him is collected in the
+  roadmap and a build is made only when he asks for one. After a build, tell him the run link, which
+  commit it contains, and what to test.
+- When Noah says "no more fixes, only the roadmap", write findings into `MULTIPLAYER_ROADMAP.md`
+  and do not touch code.
+- Update the STATUS table in the roadmap with every relevant change and say which entries changed.
+
 ### Pitfalls
 - Never `pkill -f <pattern>` matching your own command line (kills your shell, exit 144).
 - Start long jobs with `(setsid nohup ... < /dev/null > log 2>&1 &)`.
