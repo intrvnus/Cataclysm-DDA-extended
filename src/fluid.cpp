@@ -2493,6 +2493,14 @@ void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now 
     if( std::abs( ex ) + std::abs( ey ) < 0.02 ) {
         return;
     }
+    // for play tests: big corrections are worth knowing about (rubber banding)
+    static ms_t last_log = 0;
+    const double err = std::sqrt( ex * ex + ey * ey );
+    if( err > 0.3 && now - last_log > 1000 ) {
+        last_log = now;
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: free movement correction " << err <<
+                                   " tiles (input " << seq << ", " << fc.history.size() << " frames unconfirmed)";
+    }
     if( std::abs( ex ) > 2.0 || std::abs( ey ) > 2.0 ) {
         // far off (stairs, a fall, a teleport): jump there
         body_place( st, st.body_x + ex, st.body_y + ey, b.z );
