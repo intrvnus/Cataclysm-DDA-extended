@@ -315,7 +315,8 @@ void monmove()
     swap_map swap_to_bubble( *bubble_map );
     map &m = *bubble_map;
     for( monster &critter : g->all_monsters() ) {
-        if( !m.inbounds( critter.pos_abs() ) ) {
+        // each creature is simulated once: by the extra bubble it is in, else by the main one
+        if( !m.inbounds( critter.pos_abs() ) || &bubbles::owner( critter.pos_abs() ) != &m ) {
             continue;
         }
         const tripoint_bub_ms critter_pos = critter.pos_bub( m );

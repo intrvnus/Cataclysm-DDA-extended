@@ -1178,7 +1178,7 @@ void send_state( remote_player &rp, const npc &guy )
         // Everybody else who is playing: the host and the other clients.
         jo.member( "others" );
         jo.start_array();
-        if( !dedicated() ) {
+        if( !dedicated() && here.inbounds( u.pos_abs() ) ) {
             jo.start_object();
             jo.member( "id", u.getID().get_value() );
             jo.member( "name", u.get_name() );
@@ -2581,13 +2581,24 @@ void host_end_of_turn()
             continue;
         }
 
-        const std::set<int> z_levels{ guy->posz(), get_avatar().posz() };
+        // a player in an extra reality bubble is sent that bubble
+        map *own_bubble = bubbles::extra_containing( guy->pos_abs() );
+        std::optional<swap_map> view;
+        if( own_bubble != nullptr ) {
+            view.emplace( *own_bubble );
+        }
+        std::set<int> z_levels{ guy->posz() };
+        if( own_bubble == nullptr ) {
+            z_levels.insert( get_avatar().posz() );
+        }
         if( rp.sent_submaps.empty() || calendar::once_every( 10_turns ) ) {
             send_submaps( rp, bubble_submaps( z_levels ) );
         } else {
             std::vector<tripoint_abs_sm> nearby = submaps_around( guy->pos_abs(), 1 );
-            const std::vector<tripoint_abs_sm> near_host = submaps_around( get_avatar().pos_abs(), 1 );
-            nearby.insert( nearby.end(), near_host.begin(), near_host.end() );
+            if( own_bubble == nullptr ) {
+                const std::vector<tripoint_abs_sm> near_host = submaps_around( get_avatar().pos_abs(), 1 );
+                nearby.insert( nearby.end(), near_host.begin(), near_host.end() );
+            }
             send_submaps( rp, nearby );
         }
         send_state( rp, *guy );
