@@ -1014,7 +1014,15 @@ npc *spawn_remote_npc( remote_player &rp )
             break;
         }
     }
-    if( spot == u.pos_bub( here ) ) {
+    // new players start next to somebody who is already playing (in that player's bubble)
+    npc *buddy = nullptr;
+    if( bubbles::enabled() ) {
+        const std::vector<npc *> others = remote_player_npcs();
+        if( !others.empty() ) {
+            buddy = others.front();
+        }
+    }
+    if( spot == u.pos_bub( here ) && buddy == nullptr ) {
         return nullptr;
     }
 
@@ -1054,6 +1062,16 @@ npc *spawn_remote_npc( remote_player &rp )
             }
         }
         start_at = own_bubble->get_abs( best );
+    } else if( buddy != nullptr && !returning ) {
+        map &bm = bubbles::map_for( *buddy );
+        swap_map swap( bm );
+        const tripoint_bub_ms at = buddy->pos_bub( bm );
+        for( const tripoint_bub_ms &p : bm.points_in_radius( at, 2 ) ) {
+            if( p != at && bm.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
+                start_at = bm.get_abs( p );
+                break;
+            }
+        }
     } else if( returning ) {
         // back where they left, if that place is loaded and free (else next to the host)
         if( here.inbounds( left_at ) ) {
@@ -2367,7 +2385,7 @@ void dedicated_turn()
     }
     // stay with the players, so the reality bubble is where they are
     std::vector<npc *> bodies = remote_player_npcs();
-    if( !bodies.empty() ) {
+    if( !bodies.empty() && !bubbles::enabled() ) {
         int64_t sx = 0;
         int64_t sy = 0;
         for( const npc *guy : bodies ) {
