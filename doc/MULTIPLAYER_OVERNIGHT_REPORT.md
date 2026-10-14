@@ -11,6 +11,10 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - **Chat**: F2 on a client; the host logs `chat William Reece: hello friends`.
 - Earlier rounds: map (shared reveal), missions list (group), zones window, haul menu, item action menu, peek prompt, construction menu opens, NPC menu entries (talk, examine, steal, disarm, use item).
 
+- **Host chat** (F2 on the host): log `chat ...: hi from the host`.
+- **Reconnect**: killing a client and starting it again puts it back into its saved body (`loaded body of ...`), the host keeps running, 0 errors.
+- **Car regression** on the newest build: velocity 800 -> 2400 -> 844, the car moved from x=7844 to x=7892, 6 drive actions replayed, 0 errors.
+
 ## Built (compiles) but not run in game
 - Factions read-only view, pets/mounts/friendly monsters examine, computers/consoles, disarm/steal/use-item replay (the confirmation prompts reach the host), sort armor for friends, repeat last craft, construction placement on the host, workout.
 
@@ -27,4 +31,4 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - Zombie check is only partly verified: in one run it walked from 9 to 3 tiles toward a client with line of sight, in another it wandered off while out of sight. Monsters use the nearest player now; a cleaner test is still missing.
 - Balance/gameplay: nothing changed.
 
-(Last update 00:30: regression sweep re-run: downed/bleed-out cycle and dedicated server pass again; the car part of that run failed because of a test-script focus bug (fixed), re-run queued together with host chat and reconnect tests.)
+(Last update 00:55: host chat, reconnect and the car re-checked OK on the newest build. Now compiling the unit tests in a separate copy to run the vanilla vehicle/monster/NPC tests against my changes. Earlier note 00:30: regression sweep re-run: downed/bleed-out cycle and dedicated server pass again; the car part of that run failed because of a test-script focus bug (fixed), re-run queued together with host chat and reconnect tests.)
