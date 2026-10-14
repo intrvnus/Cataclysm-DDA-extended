@@ -1740,6 +1740,8 @@ bool client_do_turn()
         }
     }
     if( handle_input() ) {
+        // what this player has seen stays with them for the next visit (the world itself is not saved)
+        get_avatar().save_map_memory();
         shutdown();
         // The next do_turn() ends the game without saving.
         g->uquit = QUIT_NOSAVED;
