@@ -11,7 +11,7 @@ Host + clients over ENet (messages compressed). The host simulates the world. Ea
 - Downed players: go down, are helped up, or bleed out and respawn.
 - Dedicated server: runs without a player and keeps the world ticking.
 - Chat (F2) and player list (F4), for clients and the host.
-- Sort armor (the host's worn order really changes), grab and push furniture, haul, item action menu, zones window, map (what any player has seen), missions list (group), peek, NPC menu entries, dialogue and trade, stairs, local views.
+- Sort armor (the host's worn order really changes), grab and push furniture and vehicles (a cart was pushed 2 tiles), haul, item action menu, zones window, map (what any player has seen), missions list (group), peek, NPC menu entries, dialogue and trade, stairs, local views.
 - Earlier: apply, examine, pickup, advanced inventory, bionics, mutations, unload, disassemble, smash, inventory item menu, fluid throw.
 - Vanilla unit tests that touch my changes pass (vehicle, monster, NPC, construction, item actions, missions, factions); in a full-suite run 5 assertions failed in a monster-spawning test helper (they pass when those test files run alone: probably leftover state between tests); one melee test case crashes inside the test's own helper (not my code).
 
@@ -23,7 +23,7 @@ World clock (`REALTIME_DAY_MINUTES`), dedicated server, scent for every player, 
 
 ## Not done
 - Separate reality bubbles (C2): players far apart are not simulated (the dedicated server follows the group's middle).
-- Dragging vehicles, spells (not needed), dialogue side commands (look at / size up / yell), classic (non-fluid) shooting for clients.
+- Spells (not needed), dialogue side commands (look at / size up / yell), classic (non-fluid) shooting for clients.
 - Faction rework (C4), basecamps (C6), stamina/weariness (B2/B10) and other balance work.
 - Sending only changed map parts (more network savings).
 - Windows build: none until the whole batch is done.

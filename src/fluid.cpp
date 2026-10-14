@@ -773,6 +773,12 @@ bool body_drag_step( npc &guy, const tripoint_abs_ms &dest, bool &blocked )
     if( here.veh_at( fpos ) ) {
         // dragging a vehicle: the same code the avatar uses
         const tripoint_bub_ms step_to = here.get_bub( dest );
+        // the body has to be able to take its step, else the vehicle must not move either
+        if( step_to != fpos && ( !here.passable( step_to ) ||
+                                 get_creature_tracker().creature_at( step_to ) != nullptr ) ) {
+            blocked = true;
+            return true;
+        }
         if( g->grabbed_veh_move( tripoint_rel_ms( step_to.x() - pos.x(), step_to.y() - pos.y(), 0 ), guy ) ) {
             blocked = true;
             return true;
