@@ -110,7 +110,15 @@ bool soft_wall_confirmed()
 
 const tuning &tune()
 {
-    static const tuning t;
+    // compile-time values, except the knobs that are options (read at most once a millisecond)
+    static tuning t;
+    static ms_t refreshed = -1;
+    const ms_t now = now_ms();
+    if( now != refreshed && has_option( "FLUID_SOFT_WALL_MS" ) && has_option( "FLUID_BODY_WIDTH" ) ) {
+        refreshed = now;
+        t.soft_wall_ms = get_option<int>( "FLUID_SOFT_WALL_MS" );
+        t.body_half = get_option<int>( "FLUID_BODY_WIDTH" ) / 200.0;
+    }
     return t;
 }
 
@@ -2389,7 +2397,10 @@ event read_event( const JsonObject &jo )
 
 namespace
 {
-constexpr int interp_delay_ms = 100;
+int interp_delay_ms()
+{
+    return has_option( "FLUID_INTERP_MS" ) ? get_option<int>( "FLUID_INTERP_MS" ) : 100;
+}
 
 struct remote_body {
     // arrival time, x, y, z
@@ -2538,7 +2549,7 @@ void client_free_frame( const input_frame &in, int seq, ms_t now )
         d.moving = true;
         d.stamp = now;
     }
-    const ms_t render_t = now - interp_delay_ms;
+    const ms_t render_t = now - interp_delay_ms();
     for( std::pair<const int, remote_body> &e : fc.others ) {
         std::deque<std::tuple<ms_t, double, double, int>> &q = e.second.samples;
         if( q.empty() || now - std::get<0>( q.back() ) > 1000 ) {

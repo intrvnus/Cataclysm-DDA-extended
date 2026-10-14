@@ -1673,6 +1673,24 @@ void options_manager::add_options_general()
            );
         get_option( "FLUID_FREE_MOVEMENT" ).setPrerequisite( "FLUID_MODE" );
 
+        add( "FLUID_SOFT_WALL_MS", page_id, to_translation( "Free movement: push time into danger" ),
+             to_translation( "Fire, known traps and ledges stop you at their edge.  Keep pushing for this many milliseconds to go in anyway (ledges: the climb-down menu opens).  This replaces the \"Really step into…?\" question.  Hosts decide for the whole session." ),
+             0, 2000, 400
+           );
+        get_option( "FLUID_SOFT_WALL_MS" ).setPrerequisite( "FLUID_FREE_MOVEMENT" );
+
+        add( "FLUID_BODY_WIDTH", page_id, to_translation( "Free movement: body width (% of a tile)" ),
+             to_translation( "How wide a player's body is when moving freely.  Smaller bodies slip past corners and through door frames more easily.  Hosts decide for the whole session." ),
+             30, 95, 60
+           );
+        get_option( "FLUID_BODY_WIDTH" ).setPrerequisite( "FLUID_FREE_MOVEMENT" );
+
+        add( "FLUID_INTERP_MS", page_id, to_translation( "Free movement: other players' delay (ms)" ),
+             to_translation( "Multiplayer clients draw the other players this many milliseconds in the past, gliding between the positions the host sends.  Higher is smoother on a bad connection, lower is more current.  Only affects your own screen." ),
+             50, 400, 100
+           );
+        get_option( "FLUID_INTERP_MS" ).setPrerequisite( "FLUID_FREE_MOVEMENT" );
+
         add( "FLUID_SMOOTH_CAMERA", page_id, to_translation( "Fluid mode: smooth camera" ),
              to_translation( "If true, the view follows the sliding player instead of jumping from tile to tile.  Tiles only; not available with isometric tilesets." ),
              true
