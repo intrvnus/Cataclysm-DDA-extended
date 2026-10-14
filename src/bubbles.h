@@ -24,7 +24,16 @@ bool in_extra( const tripoint_abs_ms &p );
 bool keeps( const tripoint_abs_sm &p );
 bool keeps( const tripoint_abs_omt &p );
 const std::vector<map *> &extras();
-/** The map that owns the creature at @p p: an extra bubble or the main one. */
+/** The main bubble first, then every extra bubble. */
+std::vector<map *> all();
+/**
+ * Every creature, submap, field, item and vehicle is simulated by exactly ONE bubble even where
+ * bubbles overlap: the bubble (of those that contain it) whose centre is nearest, the main
+ * bubble winning ties.  Per-bubble processing loops must skip what they do not own.
+ */
+bool owns_submap( const map &m, const tripoint_abs_sm &sm );
+bool owns( const map &m, const tripoint_abs_ms &p );
+/** The map that owns the position @p p: an extra bubble or the main one. */
 map &owner( const tripoint_abs_ms &p );
 /** Per-turn upkeep of the extra bubbles (what do_turn does for the main one). */
 void tick();

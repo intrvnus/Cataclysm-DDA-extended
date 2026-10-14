@@ -84,10 +84,56 @@ const std::vector<map *> &extras()
     return list();
 }
 
+std::vector<map *> all()
+{
+    std::vector<map *> v = { &reality_bubble() };
+    v.insert( v.end(), list().begin(), list().end() );
+    return v;
+}
+
+namespace
+{
+// squared distance (in submaps) from sm to the centre of m
+int centre_distance( const map &m, const tripoint_abs_sm &sm )
+{
+    const tripoint_abs_sm o = m.get_abs_sub();
+    const int dx = 2 * ( sm.x() - o.x() ) - ( m.getmapsize() - 1 );
+    const int dy = 2 * ( sm.y() - o.y() ) - ( m.getmapsize() - 1 );
+    return dx * dx + dy * dy;
+}
+} // namespace
+
+bool owns_submap( const map &m, const tripoint_abs_sm &sm )
+{
+    if( list().empty() ) {
+        return true;
+    }
+    const map *best = nullptr;
+    int best_d = 0;
+    for( const map *c : all() ) {
+        if( !c->inbounds( sm ) ) {
+            continue;
+        }
+        const int d = centre_distance( *c, sm );
+        if( best == nullptr || d < best_d ) {
+            best = c;
+            best_d = d;
+        }
+    }
+    return best == &m;
+}
+
+bool owns( const map &m, const tripoint_abs_ms &p )
+{
+    return owns_submap( m, project_to<coords::sm>( p ) );
+}
+
 map &owner( const tripoint_abs_ms &p )
 {
-    if( map *m = extra_containing( p ) ) {
-        return *m;
+    for( map *c : all() ) {
+        if( owns( *c, p ) ) {
+            return *c;
+        }
     }
     return reality_bubble();
 }
