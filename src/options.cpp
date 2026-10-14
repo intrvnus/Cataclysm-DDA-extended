@@ -1671,7 +1671,7 @@ void options_manager::add_options_general()
 
         add( "FLUID_WASD_LAYOUT", page_id, to_translation( "Fluid mode: WASD keyboard layout" ),
              to_translation( "If true, the experimental keyboard layout is loaded: WASD moves, and the actions that used those keys moved (see doc/MULTIPLAYER_FLUID.md).  Takes effect when you return to the game." ),
-             false
+             true
            );
     } );
 
