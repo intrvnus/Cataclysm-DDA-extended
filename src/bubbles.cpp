@@ -328,6 +328,19 @@ bool overlaps_other( const map &m )
 }
 } // namespace
 
+void sync_vehicle_caches()
+{
+    if( list().empty() ) {
+        return;
+    }
+    for( map *m : all() ) {
+        if( overlaps_other( *m ) ) {
+            swap_map swap( *m );
+            m->rebuild_vehicle_level_caches();
+        }
+    }
+}
+
 void sync_caches()
 {
     if( list().empty() ) {
@@ -360,6 +373,7 @@ void tick()
         m->process_items();
         m->build_map_cache( m->get_abs_sub().z(), true );
     }
+    sync_vehicle_caches();
     tick_ms += sw.ms();
     report_timing();
 }

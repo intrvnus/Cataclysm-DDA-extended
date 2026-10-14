@@ -783,14 +783,14 @@ void test_build( remote_player &rp, npc &guy )
     }
 }
 
-void report_test_armor( const npc &near )
+void report_test_armor( const npc &test_body )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_ARMOR" ) != nullptr;
     if( !on || !calendar::once_every( 5_seconds ) ) {
         return;
     }
     std::string order;
-    for( const item *it : near.worn_item_order() ) {
+    for( const item *it : test_body.worn_item_order() ) {
         order += it->tname() + " | ";
     }
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test worn order: " << order;
@@ -822,33 +822,34 @@ void report_traffic()
     last_wire = wire;
 }
 
-void report_test_vehicle( const npc &near )
+void report_test_vehicle( const npc &test_body )
 {
+    bubbles::view in_bubble( test_body );
     static const bool on = std::getenv( "CATA_MP_TEST_VEHICLE" ) != nullptr;
     if( !on || !calendar::once_every( 5_seconds ) ) {
         return;
     }
     map &here = get_map();
     for( const npc *other : remote_player_npcs() ) {
-        if( other != &near ) {
+        if( other != &test_body ) {
             const optional_vpart_position ovp = here.veh_at( other->pos_bub( here ) );
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test other player " << other->getID().get_value() <<
                                        " at " << other->pos_abs().to_string() << " in car " << static_cast<bool>( ovp );
         }
     }
-    if( const optional_vpart_position vp = here.veh_at( near.pos_bub( here ) ) ) {
+    if( const optional_vpart_position vp = here.veh_at( test_body.pos_bub( here ) ) ) {
         const vehicle &veh = vp->vehicle();
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test car at " << veh.pos_abs().to_string() <<
                                    " velocity " << veh.velocity << " engine " << veh.engine_on <<
-                                   " body at " << near.pos_abs().to_string() << " controlling " <<
-                                   near.controlling_vehicle;
+                                   " body at " << test_body.pos_abs().to_string() << " controlling " <<
+                                   test_body.controlling_vehicle;
     } else {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test body is not in a car, at " <<
-                                   near.pos_abs().to_string();
+                                   test_body.pos_abs().to_string();
     }
 }
 
-void report_test_zombie( const npc &near )
+void report_test_zombie( const npc &test_body )
 {
     static const bool on = std::getenv( "CATA_MP_TEST_ZOMBIE" ) != nullptr;
     if( !on || !calendar::once_every( 5_seconds ) ) {
@@ -857,25 +858,25 @@ void report_test_zombie( const npc &near )
     for( monster &z : g->all_monsters() ) {
         if( z.unique_name == "TESTZED" ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test zombie at distance " <<
-                                       rl_dist( z.pos_abs(), near.pos_abs() ) << " hp " << z.get_hp() <<
-                                       " body hp " << near.get_hp() << " target " <<
-                                       ( z.get_dest() == near.pos_abs() ? "client" : "other" ) <<
-                                       " attitude " << static_cast<int>( z.attitude( &near ) ) <<
+                                       rl_dist( z.pos_abs(), test_body.pos_abs() ) << " hp " << z.get_hp() <<
+                                       " body hp " << test_body.get_hp() << " target " <<
+                                       ( z.get_dest() == test_body.pos_abs() ? "client" : "other" ) <<
+                                       " attitude " << static_cast<int>( z.attitude( &test_body ) ) <<
                                        " aggro " << z.aggro_character << " anger " << z.anger <<
                                        " morale " << z.morale << " sees " <<
-                                       z.sees( get_map(), near ) << " fac " << near.get_faction()->id.str();
+                                       z.sees( get_map(), test_body ) << " fac " << test_body.get_faction()->id.str();
             return;
         }
     }
 }
 
-void spawn_test_zombie( const npc &near )
+void spawn_test_zombie( const npc &test_body )
 {
     if( std::getenv( "CATA_MP_TEST_ZOMBIE" ) == nullptr ) {
         return;
     }
     map &here = get_map();
-    const tripoint_bub_ms at = near.pos_bub( here );
+    const tripoint_bub_ms at = test_body.pos_bub( here );
     // first a spot the player can see, else any free spot close by
     for( const bool need_sight : { true, false } ) {
         for( const tripoint_bub_ms &p : here.points_in_radius( at, 5 ) ) {
@@ -894,19 +895,19 @@ void spawn_test_zombie( const npc &near )
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: no place for a test zombie";
 }
 
-void spawn_test_npc( const npc &near )
+void spawn_test_npc( const npc &test_body )
 {
     if( std::getenv( "CATA_MP_TEST_NPC" ) == nullptr ) {
         return;
     }
     map &here = get_map();
     // right above the player when that is free (so that a test can walk into it), else near
-    const tripoint_bub_ms north = near.pos_bub( here ) + tripoint_rel_ms::north;
-    for( const tripoint_bub_ms &p : here.points_in_radius( near.pos_bub( here ), 3 ) ) {
+    const tripoint_bub_ms north = test_body.pos_bub( here ) + tripoint_rel_ms::north;
+    for( const tripoint_bub_ms &p : here.points_in_radius( test_body.pos_bub( here ), 3 ) ) {
         const bool is_north = p == north;
-        if( ( !is_north && ( rl_dist( p, near.pos_bub( here ) ) < 2 ||
+        if( ( !is_north && ( rl_dist( p, test_body.pos_bub( here ) ) < 2 ||
                              here.passable( north ) ) ) || !here.passable( p ) ||
-            here.veh_at( p ) || !here.sees( near.pos_bub( here ), p, 10 ) ||
+            here.veh_at( p ) || !here.sees( test_body.pos_bub( here ), p, 10 ) ||
             get_creature_tracker().creature_at( p ) != nullptr ) {
             continue;
         }

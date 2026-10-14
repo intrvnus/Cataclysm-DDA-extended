@@ -9,7 +9,9 @@
 #include "cata_assert.h"
 #include "cata_imgui.h"
 #include "cata_scope_helpers.h"
+#include "current_map.h"
 #include "cursesdef.h"
+#include "map.h"
 #include "point.h"
 
 #if defined(EMSCRIPTEN)
@@ -513,13 +515,29 @@ void invalidate( const rectangle<point> &rect, const bool reenable_uis_below )
     ui_adaptor::invalidate( rect, reenable_uis_below );
 }
 
+namespace
+{
+// Multiplayer: the screen always shows the main reality bubble.  A redraw that happens while the
+// game simulates another player's bubble (get_map() swapped) must not draw that one.
+std::optional<swap_map> main_map_for_drawing()
+{
+    std::optional<swap_map> swapped;
+    if( &get_map() != &reality_bubble() ) {
+        swapped.emplace( reality_bubble() );
+    }
+    return swapped;
+}
+} // namespace
+
 void redraw()
 {
+    const std::optional<swap_map> swapped = main_map_for_drawing();
     ui_adaptor::redraw();
 }
 
 void redraw_invalidated()
 {
+    const std::optional<swap_map> swapped = main_map_for_drawing();
     ui_adaptor::redraw_invalidated();
 }
 

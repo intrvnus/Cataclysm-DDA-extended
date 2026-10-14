@@ -829,6 +829,7 @@ bool do_turn()
 
     m.process_falling();
     m.vehmove();
+    bubbles::sync_vehicle_caches();
     m.process_fields();
     m.process_items();
     explosion_handler::process_explosions();

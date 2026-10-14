@@ -87,6 +87,8 @@ void shift_scent( const map &m, const point_rel_ms &shift );
  * Called once a turn before the simulation.
  */
 void sync_caches();
+/** Rebuilds the vehicle caches of every bubble that shares submaps with another (after vehicles moved). */
+void sync_vehicle_caches();
 /** Per-turn upkeep of the extra bubbles (what do_turn does for the main one). */
 void tick();
 void close_all();
