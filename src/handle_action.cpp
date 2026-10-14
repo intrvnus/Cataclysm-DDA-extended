@@ -838,7 +838,8 @@ static void grab()
 
 void haul_menu()
 {
-    Character &player_character = get_player_character();
+    // multiplayer: the player whose action this is (a client's body while the host replays it)
+    Character &player_character = remote_ui::acting_player();
 
     uilist menu;
 
