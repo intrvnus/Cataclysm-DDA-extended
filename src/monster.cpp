@@ -62,6 +62,7 @@
 #include "mongroup.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -2127,7 +2128,8 @@ bool monster::melee_attack( Creature &target, float accuracy )
 
     Character &player_character = get_player_character();
     if( target.is_avatar() ||
-        ( target.is_npc() && player_character.attitude_to( target ) == Attitude::FRIENDLY ) ) {
+        ( target.is_npc() && ( net::is_remote_player( *target.as_npc() ) ||
+                               player_character.attitude_to( target ) == Attitude::FRIENDLY ) ) ) {
         // Make us a valid target for a few turns
         add_effect( effect_hit_by_player, 3_turns );
     }
@@ -3405,7 +3407,7 @@ void monster::process_one_effect( effect &it, bool is_new )
                            "cough" );
         }
 
-        avatar &you = get_avatar(); // No NPCs for now.
+        Character &you = net::nearest_player( pos_abs() ); // No NPCs for now.
         if( rl_dist( pos_bub(), you.pos_bub() ) <= 1 ) {
             you.get_sick( false );
         }
@@ -3416,7 +3418,7 @@ void monster::process_one_effect( effect &it, bool is_new )
                            "cough" );
         }
 
-        avatar &you = get_avatar(); // No NPCs for now.
+        Character &you = net::nearest_player( pos_abs() ); // No NPCs for now.
         if( rl_dist( pos_bub(), you.pos_bub() ) <= 1 ) {
             you.get_sick( true );
         }
@@ -3963,7 +3965,7 @@ void monster::hear_sound( const tripoint_bub_ms &source, const int vol, const in
         return;
     }
     // only trigger this if the monster is not friendly or the source isn't the player
-    if( friendly == 0 || source != get_player_character().pos_bub() ) {
+    if( friendly == 0 || source != net::nearest_player( pos_abs() ).pos_bub() ) {
         process_trigger( mon_trigger::SOUND, volume );
     }
     provocative_sound = tmp_provocative;

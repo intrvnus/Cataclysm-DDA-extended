@@ -697,31 +697,48 @@ Creature *Creature::auto_find_hostile_target( int range, int &boo_hoo, int area 
 
     Creature *target = nullptr;
     Character &player_character = get_player_character();
-    tripoint_bub_ms player_pos = player_character.pos_bub();
     constexpr int hostile_adj = 2; // Priority bonus for hostile targets
     const int iff_dist = ( range + area ) * 3 / 2 + 6; // iff check triggers at this distance
-    // iff safety margin (degrees). less accuracy, more paranoia
-    units::angle iff_hangle = units::from_degrees( 15 + area );
     float best_target_rating = -1.0f; // bigger is better
-    units::angle u_angle = {};         // player angle relative to turret
     boo_hoo = 0;         // how many targets were passed due to IFF. Tragically.
     bool self_area_iff = false; // Need to check if the target is near the vehicle we're a part of
-    bool area_iff = false;      // Need to check distance from target to player
-    bool angle_iff = sees( here, player_character ); // Need to check if player is in cone to target
-    int pldist = rl_dist( pos_bub( here ), player_pos );
     vehicle *in_veh = is_fake() ? veh_pointer_or_null( here.veh_at( pos_bub( here ) ) ) : nullptr;
-    if( pldist < iff_dist && angle_iff ) {
-        area_iff = area > 0;
-        // Player inside vehicle won't be hit by shots from the roof,
-        // so we can fire "through" them just fine.
-        const optional_vpart_position vp = here.veh_at( player_pos );
-        if( in_veh && veh_pointer_or_null( vp ) == in_veh && vp->is_inside() ) {
-            angle_iff = false; // No angle IFF, but possibly area IFF
-        } else if( pldist < 3 ) {
-            // granularity increases with proximity
-            iff_hangle = ( pldist == 2 ? 30_degrees : 60_degrees );
+
+    // The players who must not be hit: the host's avatar and the bodies of the clients.
+    struct iff_guard {
+        tripoint_bub_ms pos;
+        int dist = 0;
+        bool area_iff = false;  // Need to check distance from target to player
+        bool angle_iff = false; // Need to check if player is in cone to target
+        units::angle u_angle = {}; // player angle relative to turret
+        // iff safety margin (degrees). less accuracy, more paranoia
+        units::angle hangle;
+    };
+    std::vector<Character *> protected_players = { &player_character };
+    for( npc *remote : net::remote_player_npcs() ) {
+        protected_players.push_back( remote );
+    }
+    std::vector<iff_guard> guards;
+    for( Character *protectee : protected_players ) {
+        iff_guard guard;
+        guard.pos = protectee->pos_bub();
+        guard.hangle = units::from_degrees( 15 + area );
+        guard.angle_iff = sees( here, *protectee );
+        guard.dist = rl_dist( pos_bub( here ), guard.pos );
+        if( guard.dist < iff_dist && guard.angle_iff ) {
+            guard.area_iff = area > 0;
+            // Player inside vehicle won't be hit by shots from the roof,
+            // so we can fire "through" them just fine.
+            const optional_vpart_position vp = here.veh_at( guard.pos );
+            if( in_veh && veh_pointer_or_null( vp ) == in_veh && vp->is_inside() ) {
+                guard.angle_iff = false; // No angle IFF, but possibly area IFF
+            } else if( guard.dist < 3 ) {
+                // granularity increases with proximity
+                guard.hangle = ( guard.dist == 2 ? 30_degrees : 60_degrees );
+            }
+            guard.u_angle = coord_to_angle( pos_bub( here ), guard.pos );
         }
-        u_angle = coord_to_angle( pos_bub( here ), player_pos );
+        guards.push_back( guard );
     }
 
     if( area > 0 && in_veh != nullptr ) {
@@ -791,7 +808,11 @@ Creature *Creature::auto_find_hostile_target( int range, int &boo_hoo, int area 
             // No shooting stuff on vehicle we're a part of
             continue;
         }
-        if( area_iff && rl_dist( player_pos, m->pos_bub( here ) ) <= area ) {
+        const bool player_in_aoe = std::any_of( guards.begin(), guards.end(),
+        [&]( const iff_guard & guard ) {
+            return guard.area_iff && rl_dist( guard.pos, m->pos_bub( here ) ) <= area;
+        } );
+        if( player_in_aoe ) {
             // Player in AoE
             boo_hoo++;
             continue;
@@ -799,13 +820,17 @@ Creature *Creature::auto_find_hostile_target( int range, int &boo_hoo, int area 
         // Hostility check can be expensive, but we need to inform the player of boo_hoo
         // only when the target is actually "hostile enough"
         bool maybe_boo = false;
-        if( angle_iff ) {
+        for( const iff_guard &guard : guards ) {
+            if( !guard.angle_iff ) {
+                continue;
+            }
             units::angle tangle = coord_to_angle( pos_abs(), m->pos_abs() );
-            units::angle diff = units::fabs( u_angle - tangle );
+            units::angle diff = units::fabs( guard.u_angle - tangle );
             // Player is in the angle and not too far behind the target
-            if( ( diff + iff_hangle > 360_degrees || diff < iff_hangle ) &&
-                ( dist * 3 / 2 + 6 > pldist ) ) {
+            if( ( diff + guard.hangle > 360_degrees || diff < guard.hangle ) &&
+                ( dist * 3 / 2 + 6 > guard.dist ) ) {
                 maybe_boo = true;
+                break;
             }
         }
         if( !maybe_boo && ( ( mon_rating + hostile_adj ) / dist <= best_target_rating ) ) {
