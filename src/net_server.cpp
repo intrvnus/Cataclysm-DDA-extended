@@ -61,6 +61,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "mission.h"
+#include "mp_test_npc.h"
 #include "monster.h"
 #include "mp_test_corner.h"
 #include "mp_test_monster.h"
@@ -1652,13 +1653,22 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
 // screen are made here first, and the player hears why it does not work.
 void start_craft( remote_player &rp, npc &guy, const JsonObject &msg )
 {
-    const recipe_id id( msg.get_string( "r", "" ) );
+    recipe_id id( msg.get_string( "r", "" ) );
+    int batch = std::clamp( msg.get_int( "b", 1 ), 1, 1000 );
+    if( msg.get_bool( "re", false ) ) {
+        // "repeat last craft": what the body made last, as many as it made
+        if( guy.lastrecipe.str().empty() ) {
+            send_text( rp, _( "Craft something first." ) );
+            return;
+        }
+        id = guy.lastrecipe;
+        batch = std::max( 1, guy.last_batch );
+    }
     if( !id.is_valid() || !id.obj() ) {
         send_text( rp, _( "You don't know how to make that." ) );
         return;
     }
     const recipe &rec = id.obj();
-    const int batch = std::clamp( msg.get_int( "b", 1 ), 1, 1000 );
     if( guy.activity ) {
         send_text( rp, _( "You are busy." ) );
         return;
@@ -1680,6 +1690,8 @@ void start_craft( remote_player &rp, npc &guy, const JsonObject &msg )
                                       rec.simple_requirements().list_missing() ) );
         return;
     }
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: craft of " << rec.ident().str() << " x" << batch <<
+                               " for " << rp.name << ( msg.get_bool( "re", false ) ? " (repeat)" : "" );
     if( msg.get_bool( "long", false ) ) {
         guy.make_all_craft( rec.ident(), batch, std::nullopt );
     } else {
@@ -2696,6 +2708,7 @@ void host_end_of_turn()
             mp_test_zone( *guy );
             mp_test_pet( *guy );
             mp_test_factions( *guy );
+            mp_test_scenes( *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }

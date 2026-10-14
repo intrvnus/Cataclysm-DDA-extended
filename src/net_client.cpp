@@ -36,6 +36,7 @@
 #include "panels.h"
 #include "safemode_ui.h"
 #include "worldfactory.h"
+#include "activity_actor_definitions.h"
 #include "avatar.h"
 #include "string_input_popup.h"
 #include "input.h"
@@ -1157,7 +1158,11 @@ bool handle_input()
             } );
             break;
         case ACTION_WORKOUT:
-            send_ui( "workout", [] {} );
+            // the intensity and the minutes are asked here, on the copy; the host replays them
+            send_ui( "workout", [] {
+                avatar &you = get_avatar();
+                you.assign_activity( workout_activity_actor( you.pos_bub() ) );
+            } );
             break;
         case ACTION_PEEK:
             g->peek();
@@ -1313,24 +1318,18 @@ bool handle_input()
         case ACTION_LONGCRAFT:
             send_craft( true );
             break;
-        case ACTION_RECRAFT: {
-            // the last recipe again (the host has the same "last recipe" for this player)
-            const avatar &you = get_avatar();
-            if( you.lastrecipe.str().empty() ) {
-                add_msg( m_info, _( "Craft something first." ) );
-                break;
-            }
-            const recipe_id last = you.lastrecipe;
-            const int batch = std::max( 1, you.last_batch );
-            impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        case ACTION_RECRAFT:
+            // the last recipe again: the host knows what this player's body crafted last (the
+            // client's copy of the character does not keep that)
+            impl::send_json( impl::state().server_peer, message( []( JsonOut & jo ) {
                 jo.member( "t", "use" );
                 jo.member( "a", "craft" );
-                jo.member( "r", last.str() );
-                jo.member( "b", batch );
+                jo.member( "re", true );
+                jo.member( "r", "" );
+                jo.member( "b", 1 );
                 jo.member( "long", false );
             } ) );
             break;
-        }
         case ACTION_OPEN:
             send_door( "open" );
             break;
