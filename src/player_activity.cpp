@@ -6,6 +6,7 @@
 #include "activity_actor_definitions.h"
 #include "activity_handlers.h"
 #include "activity_type.h"
+#include "alerts.h"
 #include "avatar.h"
 #include "bodypart.h"
 #include "calendar.h"
@@ -347,7 +348,13 @@ void player_activity::do_turn( Character &you )
         }
 
         auto_resume = true;
-        if( you.is_avatar() && !ignoreQuery ) {
+        if( you.is_avatar() && !ignoreQuery && alerts::nonblocking() ) {
+            // realtime: no menu (it would stop the world for everybody); the default answer,
+            // a break and then the action goes on
+            alerts::warn( _( "You are out of breath and take a break before you go on." ),
+                          alerts::level::notice );
+            canceled( you );
+        } else if( you.is_avatar() && !ignoreQuery ) {
             uilist tired_query;
             tired_query.text = _( "You struggle to continue.  Keep trying?" );
             tired_query.addentry( 1, true, 'c', _( "Continue after a break." ) );

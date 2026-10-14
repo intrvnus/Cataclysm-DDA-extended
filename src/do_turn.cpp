@@ -665,7 +665,9 @@ bool do_turn()
     const double focus = focus_minigame::multiplier( u );
     int bonus_turns = 0;
     if( u.activity && alerts::nonblocking() ) {
-        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
+        // timed actions run faster than the world clock (option, B7)
+        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus *
+                                        get_option<int>( "FLUID_ACTIVITY_SPEED" ) ) - 1;
     }
     // Most activities spend all moves in one do_turn call (and rooted ones pause), so the
     // extra world turns are handed out one turn of moves at a time: one activity turn per
@@ -677,7 +679,9 @@ bool do_turn()
         if( extra >= bonus_turns || !u.activity ) {
             break;
         }
+        // the next world turn: its moves and its stamina recovery
         u.mod_moves( u.get_speed() );
+        u.update_stamina( 1 );
     }
     if( ( world_step_turns > 1 || focus > 1.0 ) && !u.activity && u.get_moves() > u.get_speed() ) {
         // no burst of free actions after the activity ended

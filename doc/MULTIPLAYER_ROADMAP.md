@@ -17,7 +17,7 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | C4 faction rework, C6 basecamps | Options paper written (`MULTIPLAYER_FACTIONS_OPTIONS.md`): waiting for Noah's decisions |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
-| **Noah's test findings (build #1)** | 1 timed actions, 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **approved by Noah, in progress** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Speed: `FLUID_TURN_MS` default now 300 ms (was 600; pace only, day length unchanged). Details in the section below. |
+| **Noah's test findings (build #1)** | 1 timed actions: **fixed and run in game** (stamina freeze fixed, new option timed action speed x4). 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **approved by Noah, in progress** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Speed: `FLUID_TURN_MS` default now 300 ms (was 600; pace only, day length unchanged). Details in the section below. |
 | Phase 7 | Not started: consult Noah first |
 
 ## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
@@ -54,6 +54,17 @@ it says so; Noah asked for **no more fixes before the handoff to Opus**, only fo
   (`do_turn.cpp`) and for clients' bodies (`net_server.cpp` `run_activity`). Same fix helps every
   activity that does a fixed amount per call (wait, pulp, ...). Pulp got a real progress text
   (corpse damage %, corpses left).
+- **1, continued (Noah: "all timed actions", "they need to become faster"):** run in game with
+  the new hook `CATA_MP_TEST_ACTIVITY=pulp|wait|meditate` (host avatar and a client's body at the
+  same time). Found and fixed: after ~11 s of pulping the blocking "You struggle to continue"
+  menu froze the host: in realtime play the world-time activity drained stamina every world turn
+  while stamina only came back in real seconds. Now, while a timed action runs, stamina uses the
+  classic per-world-turn rules (drain and rest both in world time), and the menu is never shown
+  in realtime (its default answer: a break, then the action goes on, with a message).
+  New host option **"Realtime: timed action speed"** (`FLUID_ACTIVITY_SPEED`, default x4, 1-20):
+  timed actions run that many times faster than the world clock. Measured (60 min day, 300 ms
+  turns, x4): pulping a zombie corpse 3.65 s; waiting 60 game minutes 38.5 s; both for the host
+  and the client's body. Noah to judge the value by playing.
 - **5 Mouse view (fixed, compile-only):** in fluid mode the mouse is the aiming cursor and always
   over the map, and fluid input never reached the code that hides the box. The mouse-view box is
   no longer shown in fluid mode (`game::handle_mouseview`); look (`x`) still works.

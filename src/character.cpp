@@ -7045,10 +7045,13 @@ void Character::burn_move_stamina( int moves )
 
 void Character::update_stamina( int turns )
 {
-    if( alerts::nonblocking() ) {
+    if( alerts::nonblocking() && !activity ) {
         update_stamina_realtime();
         return;
     }
+    // (Realtime play with a timed action going on: the action runs in world time, see
+    // do_turn.cpp, so its effort and the rest that balances it both count per world turn, as in
+    // the classic game.  The real time regeneration would never catch up with it.)
     static const std::string player_base_stamina_regen_rate( "PLAYER_BASE_STAMINA_REGEN_RATE" );
     const float base_regen_rate = get_option<float>( player_base_stamina_regen_rate );
     // Your stamina regen rate works as a function of how fit you are compared to your body size.

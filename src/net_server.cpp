@@ -71,6 +71,7 @@
 #include "net_protocol.h"
 #include "net_session.h"
 #include "npc.h"
+#include "options.h"
 #include "overmapbuffer.h"
 #include "path_info.h"
 #include "player_activity.h"
@@ -1818,13 +1819,16 @@ bool run_activity( remote_player &rp, npc &guy )
     int bonus_turns = 0;
     if( alerts::nonblocking() ) {
         const double focus = focus_minigame::multiplier( guy );
-        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
+        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus *
+                                        get_option<int>( "FLUID_ACTIVITY_SPEED" ) ) - 1;
     }
     const size_t messages_before = Messages::size();
     // One activity turn per world turn (see do_turn.cpp): the extra moves are given one turn
     // at a time, because most activities spend all moves in a single call.
     int guard = 0;
     for( int extra = 0; ; ++extra ) {
+        // stamina recovery of this world turn (bodies get none from update_body)
+        guy.update_stamina( 1 );
         for( ; guard < 1000 && guy.get_moves() > 0 && guy.activity; ++guard ) {
             guy.activity.do_turn( guy );
         }
@@ -2738,6 +2742,7 @@ void host_end_of_turn()
             test_monster( *guy );
             mp_test_zone( *guy );
             mp_test_pet( *guy );
+            mp_test_activity( *guy );
             mp_test_factions( *guy );
             mp_test_scenes( *guy );
             test_furniture( *guy, false );

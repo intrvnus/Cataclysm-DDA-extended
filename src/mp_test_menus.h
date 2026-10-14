@@ -19,6 +19,9 @@ void mp_test_pet( npc &guy );
 /** Host, CATA_MP_TEST_FACTIONS: makes two factions known to the group, so the factions window
  * has something to show. */
 void mp_test_factions( npc &guy );
+/** Host, CATA_MP_TEST_ACTIVITY=wait|meditate|pulp: starts that timed action on @p guy (a
+ * client's body) and on the host's avatar once, then logs their progress every second. */
+void mp_test_activity( npc &guy );
 /** Client, CATA_MP_TEST_MAPMEM: logs how much map memory the avatar has around it. */
 void mp_test_mapmem_client();
 

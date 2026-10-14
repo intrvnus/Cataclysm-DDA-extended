@@ -1657,6 +1657,12 @@ void options_manager::add_options_general()
            );
         get_option( "FLUID_TURN_MS" ).setPrerequisite( "FLUID_MODE" );
 
+        add( "FLUID_ACTIVITY_SPEED", page_id, to_translation( "Realtime: timed action speed" ),
+             to_translation( "In multiplayer and fluid mode, timed actions (crafting, reading, butchering, smashing, disassembling ...) run this many times faster than the world clock, so they take seconds instead of minutes of real time.  The character also spends less game time on them.  1 = as fast as the world clock.  Hosts decide for the whole session." ),
+             1, 20, 4
+           );
+        get_option( "FLUID_ACTIVITY_SPEED" ).setPrerequisite( "FLUID_MODE" );
+
         add( "FLUID_FREE_MOVEMENT", page_id, to_translation( "Fluid mode: free movement" ),
              to_translation( "If true, players move freely and smoothly instead of in steps from tile to tile.  The game still counts each player on the tile under them, and move cost (terrain, speed, encumbrance, running) decides how fast they go.  Off: the older tile steps.  Hosts decide for the whole session." ),
              true
