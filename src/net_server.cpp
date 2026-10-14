@@ -667,6 +667,7 @@ void test_bubble( remote_player &rp, npc &guy )
         // overlap test: BUBBLE=near puts the second bubble only 3 submaps (36 tiles) away
         const char *mode = std::getenv( "CATA_MP_TEST_BUBBLE" );
         const int dist_sm = std::string( mode ) == "near" ? 3 : 24;
+        const bool zombies = std::string( mode ) != "quiet";
         const tripoint_abs_sm home = guy.pos_abs_sm();
         const tripoint_abs_ms far_centre = guy.pos_abs() + tripoint_rel_ms( dist_sm * SEEX, 0, 0 );
         map &bm = bubbles::open_for( far_centre, guy.getID().get_value() );
@@ -683,6 +684,9 @@ void test_bubble( remote_player &rp, npc &guy )
                                        guy.pos_abs().to_string() << " host avatar at " <<
                                        get_avatar().pos_abs().to_string();
             for( const tripoint_bub_ms &q : bm.points_in_radius( p, 8 ) ) {
+                if( !zombies ) {
+                    break;
+                }
                 if( rl_dist( p, q ) >= 2 && rl_dist( p, q ) <= 3 && bm.passable( q ) && bm.sees( q, p, 20 ) &&
                     get_creature_tracker().creature_at( q ) == nullptr ) {
                     if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), q ) ) {
@@ -696,6 +700,9 @@ void test_bubble( remote_player &rp, npc &guy )
             break;
         }
         // and one in the host's own bubble
+        if( !zombies ) {
+            return;
+        }
         map &here = reality_bubble();
         swap_map swap_main( here );
         const tripoint_bub_ms at = get_avatar().pos_bub( here );
