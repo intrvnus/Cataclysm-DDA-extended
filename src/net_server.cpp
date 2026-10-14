@@ -765,8 +765,8 @@ void spawn_test_zombie( const npc &near )
     const tripoint_bub_ms at = near.pos_bub( here );
     // first a spot the player can see, else any free spot close by
     for( const bool need_sight : { true, false } ) {
-        for( const tripoint_bub_ms &p : here.points_in_radius( at, 7 ) ) {
-            if( rl_dist( p, at ) >= 2 && here.passable( p ) &&
+        for( const tripoint_bub_ms &p : here.points_in_radius( at, 5 ) ) {
+            if( rl_dist( p, at ) >= 4 && here.passable( p ) &&
                 ( !need_sight || here.sees( at, p, 20 ) ) &&
                 get_creature_tracker().creature_at( p ) == nullptr ) {
                 if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), p ) ) {
