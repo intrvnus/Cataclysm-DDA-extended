@@ -1,17 +1,17 @@
 # Multiplayer roadmap (to-do list for discussion)
 
 ## STATUS (read this first; updated 2026-10-14 afternoon)
-Branches: `claude/fluid-proto` (stable line), `claude/fluid-bubbles` (per-player reality bubbles, stamina, movement rework: merges into fluid-proto once verified; no Windows build before the whole batch is done).
+Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
 | Topic | State |
 |---|---|
 | Client menus (record/replay), missions/zones/map/chat/F4 list, driving, passengers, grab (furniture and vehicles), construction, downed/respawn, dedicated server, reconnect, compression | **Done, run in game** (see `MULTIPLAYER_OVERNIGHT_REPORT.md`) |
 | Dialogue side commands (look at/size up/assess/opinion/yell) | Done, run in game |
 | Monsters/specials/turret friend-or-foe target the nearest player | Done (compiled, regression sweep passes) |
-| **C2 per-player reality bubbles** | **Built and regression-tested** on `claude/fluid-bubbles` (`MULTIPLAYER_BUBBLES_SPIKE.md`). Open: 3+ bubbles, vehicles crossing bubbles, perf with many players. |
+| **C2 per-player reality bubbles** | **Done, merged, regression-tested** (`MULTIPLAYER_BUBBLES_SPIKE.md`): two clients, cars, stairs, reconnect far away, review fixes. Open: 3+ bubbles, perf with many players. |
 | **Multiplayer = fluid mode** | Done: every multiplayer session is fluid (the `FLUID_MODE` option is for solo play only). Fluid-only shooting/throwing is by design; classic targeting is not planned. |
 | **B2 stamina / B10 weariness** | **Stamina done and run in game** (walking free; sprint ~34 s / ~83 tiles; regen delay 1.5 s, full bar 20 s; load/hunger/thirst slow regen). Weariness: unchanged, "take a break" action still open. |
-| **Movement rework M-A..M-D** (WASD feel: held-key resolver, standstill chord window, release grace, corner sliding, ease-back, cursor-sector melee, camera lead) | **In progress** (spec below). |
+| **Movement rework M-A..M-D** (WASD feel) | **Implemented and merged.** Run in game (scripted keys): hold, tap = one tile, chord from rest, release grace, opposing keys, direction change, no stutter. Compile-only (needs Noah's hands-on test): corner sliding, ease-back, camera lead, cursor-sector melee. WASD is the default layout in fluid mode. |
 | Compiled-only, not yet run in game: factions view, pets/mounts, consoles, disarm/steal/use-item, sort armor for friends, repeat craft, workout, zones with a created zone, saved map memory | Open: needs test scripts |
 | C4 faction rework, C6 basecamps | Open: design talk with Noah first |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
