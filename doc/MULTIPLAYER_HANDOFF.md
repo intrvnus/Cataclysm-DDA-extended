@@ -31,7 +31,7 @@ targeting in multiplayer).
   sub-agents by default, keep roadmap current, regular updates.
 
 ## 3. How we work
-- **Sub-agents by default** for anything parallelizable: research (read-only agents), code reviews
+- **No sub-agents** (Noah, 2026-10-14 evening: they eat his usage; this replaces the older rule below). Older rule, kept for history: sub-agents by default for anything parallelizable: research (read-only agents), code reviews
   (give the reviewer the code, not your conclusion), independent code packages in
   `isolation: "worktree"` (each agent builds/tests in its own tree and returns a branch/commit that
   is merged back; merge conflicts in `net_server.cpp` and `fluid.cpp` have happened and are
