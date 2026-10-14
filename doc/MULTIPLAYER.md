@@ -34,7 +34,7 @@ you: when you come back, you are back in your own body where you left it.
 - Days are short in multiplayer: the option `REALTIME_DAY_MINUTES` sets the real-time length of
   one day (needs, healing, plants, weather follow the calendar; fights and walking follow
   action time).
-- Fluid mode (the host's `FLUID_MODE` option) gives real-time movement and combat: walk, swing
+- Multiplayer is always fluid mode (real-time movement and combat; the `FLUID_MODE` option only matters for solo play): walk, swing
   at enemies, aim and fire with the mouse, throw with the throw key. See
   `MULTIPLAYER_FLUID.md`.
 - Menus run on your own computer and only their result is sent to the host: inventory and item
@@ -77,3 +77,8 @@ you: when you come back, you are back in your own body where you left it.
 `CATA_MP_TEST_NPC`, `CATA_MP_TEST_STAIRS`, `CATA_MP_TEST_ZOMBIE`, `CATA_MP_TEST_VEHICLE`,
 `CATA_MP_TEST_BEAT`: spawn an NPC / put a joining player on stairs / spawn a zombie / place a car
 and seat the player / log a heartbeat of the dedicated server. Used by the automated checks.
+
+## Stamina (multiplayer)
+- Walking, crouching and crawling never cost stamina. Running (sprint), swimming, melee, throwing and the like do, with the usual modifiers: your maximum comes from cardio fitness and traits, encumbrance and load raise the cost, bionics and enchantments apply.
+- Regeneration starts 1.5 s after the last spending; a full bar takes about 20 s standing, about 15 s crouched, about 13 s lying down. A heavy load slows it (full speed up to half your carrying capacity, half speed at full load); hunger and thirst slow it too (x0.75 hungry/thirsty, x0.5 very hungry/very thirsty).
+- At 0 you are exhausted: no sprinting until 30% is back. A default character sprints about 34 s (about 80 tiles) from full.

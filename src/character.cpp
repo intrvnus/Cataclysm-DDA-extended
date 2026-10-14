@@ -6810,7 +6810,7 @@ void Character::invalidate_leak_level_cache()
 
 int Character::get_stamina() const
 {
-    if( is_npc() ) {
+    if( is_npc() && !net::is_remote_player( *this ) ) {
         // No point in doing a bunch of checks on NPCs for now since they can't use stamina.
         return get_stamina_max();
     }
@@ -6819,7 +6819,7 @@ int Character::get_stamina() const
 
 int Character::get_stamina_max() const
 {
-    if( is_npc() ) {
+    if( is_npc() && !net::is_remote_player( *this ) ) {
         // No point in doing a bunch of checks on NPCs for now since they can't use stamina.
         return 10000;
     }
@@ -6944,8 +6944,8 @@ void Character::burn_energy_all( int mod )
 
 void Character::mod_stamina( int mod )
 {
-    // TODO: Make NPCs smart enough to use stamina
-    if( is_npc() || has_trait( trait_DEBUG_STAMINA ) ) {
+    // TODO: Make NPCs smart enough to use stamina (a player's body in multiplayer does use it)
+    if( ( is_npc() && !net::is_remote_player( *this ) ) || has_trait( trait_DEBUG_STAMINA ) ) {
         return;
     }
     if( mod < 0 ) {
@@ -6996,6 +6996,17 @@ void Character::burn_move_stamina( int moves )
         overburden_percentage = ( current_weight - max_weight ) * 100 / max_weight;
     }
 
+    // Multiplayer / fluid mode: walking, crouching and crawling never cost stamina (running,
+    // swimming, fighting and the like still do).
+    const bool swimming = here.has_flag( ter_furn_flag::TFLAG_DEEP_WATER, pos_bub( here ) ) &&
+                          !has_flag( json_flag_WATERWALKING ) &&
+                          ( !has_flag( json_flag_WALK_UNDERWATER ) ||
+                            here.has_flag( ter_furn_flag::TFLAG_GOES_DOWN, pos_bub( here ) ) ) &&
+                          !here.has_flag_furn( "BRIDGE", pos_bub( here ) ) &&
+                          !( in_vehicle && here.veh_at( pos_bub( here ) )->vehicle().can_float( here ) );
+    if( alerts::nonblocking() && !swimming && move_mode->stamina_mult() <= 1.0f ) {
+        return;
+    }
     int burn_ratio = get_option<int>( "PLAYER_BASE_STAMINA_BURN_RATE" );
     for( const bionic_id &bid : get_bionic_fueled_with_muscle() ) {
         if( has_active_bionic( bid ) ) {
@@ -7105,10 +7116,10 @@ void Character::update_stamina_realtime()
 {
     // Realtime / multiplayer (doc/MULTIPLAYER_ROADMAP.md B2): stamina comes back in real
     // seconds, independent of how fast the world clock runs.  After spending some there is a
-    // short pause, then a full bar takes about 25 s standing (faster crouched or lying down).
+    // short pause, then a full bar takes about 20 s standing (faster crouched or lying down).
     // Cardio, mutations, stims and breathing still scale it like in the classic formula.
-    constexpr int64_t regen_delay_ms = 2000;
-    constexpr double full_regen_seconds = 25.0;
+    constexpr int64_t regen_delay_ms = 1500;
+    constexpr double full_regen_seconds = 20.0;
     const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now().time_since_epoch() ).count();
     const int64_t since_last = stamina_regen_ms == 0 ? 0 : std::min<int64_t>( now - stamina_regen_ms,
@@ -7125,9 +7136,27 @@ void Character::update_stamina_realtime()
     multiplier *= get_modifier( character_modifier_stamina_recovery_breathing_mod );
     multiplier *= std::clamp( fitness, 0.5f, 2.0f );
     if( is_prone() ) {
-        multiplier *= 1.4f;
+        multiplier *= 1.55f;
     } else if( is_crouching() ) {
-        multiplier *= 1.2f;
+        multiplier *= 1.33f;
+    }
+    // a heavy load slows it: full speed up to half the carrying capacity, half speed at full load
+    const float load = static_cast<float>( units::to_gram( weight_carried() ) ) /
+                       static_cast<float>( std::max<int64_t>( 1, units::to_gram( weight_capacity() ) ) );
+    if( load > 0.5f ) {
+        multiplier *= std::clamp( 1.0f - ( load - 0.5f ), 0.5f, 1.0f );
+    }
+    // so do hunger and thirst
+    static const efftype_id effect_hunger_very_hungry_st( "hunger_very_hungry" );
+    static const efftype_id effect_hunger_near_starving_st( "hunger_near_starving" );
+    static const efftype_id effect_hunger_starving_st( "hunger_starving" );
+    static const efftype_id effect_hunger_famished_st( "hunger_famished" );
+    const int thirst = get_instant_thirst();
+    if( thirst > 80 || has_effect( effect_hunger_near_starving_st ) ||
+        has_effect( effect_hunger_starving_st ) || has_effect( effect_hunger_famished_st ) ) {
+        multiplier *= 0.5f;
+    } else if( thirst > 40 || has_effect( effect_hunger_very_hungry_st ) ) {
+        multiplier *= 0.75f;
     }
     const int current_stim = get_stim();
     if( current_stim != 0 ) {
@@ -7143,7 +7172,7 @@ void Character::update_stamina_realtime()
 
 int Character::get_cardiofit() const
 {
-    if( is_npc() ) {
+    if( is_npc() && !net::is_remote_player( *this ) ) {
         // No point in doing a bunch of checks on NPCs for now since they can't use cardio.
         return 2 * get_cardio_acc_base();
     }

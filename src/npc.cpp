@@ -3365,7 +3365,8 @@ void npc::process_turn()
 
     // NPCs shouldn't be using stamina, but if they have, set it back to max
     // If the stamina is higher than the max (Languorous), set it back to max
-    if( calendar::once_every( 1_minutes ) && get_stamina() != get_stamina_max() ) {
+    if( calendar::once_every( 1_minutes ) && get_stamina() != get_stamina_max() &&
+        !net::is_remote_player( *this ) ) {
         set_stamina( get_stamina_max() );
     }
 

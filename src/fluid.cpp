@@ -61,7 +61,8 @@ namespace fluid
 bool enabled()
 {
 #if defined(TILES)
-    return get_option<bool>( "FLUID_MODE" );
+    // multiplayer and fluid mode are one thing: every multiplayer session is fluid
+    return net::active() || get_option<bool>( "FLUID_MODE" );
 #else
     return false;
 #endif
@@ -880,6 +881,15 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     const bool changed = now_pos != from;
 
     if( changed ) {
+        if( !who.is_avatar() ) {
+            // a player's body spends stamina like the host's avatar (running costs, walking is free)
+            const int stam_before = who.get_stamina();
+            who.burn_move_stamina( charged );
+            static const bool burn_log = std::getenv( "CATA_MP_TEST_STAMINA" ) != nullptr;
+            if( burn_log && who.is_running() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: burn charged " << charged << " stamina " << stam_before << " -> " << who.get_stamina();
+            }
+        }
         // a step keeps part of the steadiness unless the character runs
         const double loss = who.is_running() ? tn.aim_run_loss : tn.aim_step_loss;
         who.recoil = std::min( MAX_RECOIL, recoil_before + ( MAX_RECOIL - recoil_before ) * loss );
@@ -926,7 +936,10 @@ bool body_step( npc &guy, const tripoint_bub_ms &dest )
     map &here = get_map();
     bool blocked = false;
     if( !body_drag_step( guy, here.get_abs( dest ), blocked ) ) {
+        const int moves_before = guy.get_moves();
         guy.move_to( dest );
+        // a player's body spends stamina like the host's avatar (running costs, walking is free)
+        guy.burn_move_stamina( std::max( 0, moves_before - guy.get_moves() ) );
     }
     return !blocked;
 }

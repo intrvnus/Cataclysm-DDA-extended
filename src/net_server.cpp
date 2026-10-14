@@ -2324,10 +2324,42 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             frame.cancel = false;
         }
         bubbles::view in_bubble( *guy );
+        // test: stand, sprint east, walk east, stand (CATA_MP_TEST_STAMINA); logs stamina each second
+        static const bool stamina_test = std::getenv( "CATA_MP_TEST_STAMINA" ) != nullptr;
+        if( stamina_test ) {
+            static fluid::ms_t t_start = now;
+            static fluid::ms_t last_log = 0;
+            static tripoint_abs_ms start_pos = guy->pos_abs();
+            const fluid::ms_t t = now - t_start;
+            if( t < 30000 ) {
+                start_pos = guy->pos_abs();
+            }
+            const char *phase = "stand";
+            if( t > 30000 && t < 100000 ) {
+                phase = "sprint";
+                frame.move_x = 1;
+                frame.sprint = true;
+            } else if( t >= 100000 && t < 130000 ) {
+                phase = "walk";
+                frame.move_x = 1;
+                frame.sprint = false;
+            } else if( t >= 130000 ) {
+                frame.move_x = 0;
+                frame.sprint = false;
+            }
+            if( now - last_log >= 1000 ) {
+                last_log = now;
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: stamina test " << phase << " stamina " <<
+                                           guy->get_stamina() << "/" << guy->get_stamina_max() << " run " << guy->is_running() <<
+                                           " tiles " << rl_dist( start_pos, guy->pos_abs() ) << " t " << t / 1000;
+            }
+        }
         fluid::actor_state &st = fluid::state_of( guy->getID().get_value() );
         // the host's message log is forwarded to the owner, like in the classic protocol
         const size_t messages_before = Messages::size();
         fluid::drive( *guy, st, frame, now, events );
+        // stamina comes back in real time for the player's body
+        guy->update_stamina( 0 );
         const size_t messages_after = Messages::size();
         if( messages_after > messages_before ) {
             for( const std::pair<std::string, std::string> &m :
