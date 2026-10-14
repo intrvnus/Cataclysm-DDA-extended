@@ -81,7 +81,7 @@ item_location tack_loc()
         return it.has_flag( json_flag_TACK );
     };
 
-    return game_menus::inv::titled_filter_menu( filter, get_player_character(), _( "Tack" ) );
+    return game_menus::inv::titled_filter_menu( filter, remote_ui::acting_player(), _( "Tack" ) );
 }
 
 void attach_saddle_to( monster &z )
@@ -104,7 +104,7 @@ void bandage_animal( monster &z )
     if( !z.has_effect( effect_bleed ) ) {
         return;
     }
-    item_location wieldede_item = get_player_character().get_wielded_item();
+    item_location wieldede_item = remote_ui::acting_player().get_wielded_item();
     if( !wieldede_item ) {
         add_msg( _( "I need to have in hand something to stop the bleeding of %s" ), z.name() );
         return;
@@ -133,19 +133,19 @@ void remove_saddle_from( monster &z )
         return;
     }
     z.remove_effect( effect_monster_saddled );
-    get_player_character().i_add( *z.tack_item );
+    remote_ui::acting_player().i_add( *z.tack_item );
     z.tack_item.reset();
 }
 
 void mount_pet( monster &z )
 {
-    get_player_character().mount_creature( z );
+    remote_ui::acting_player().mount_creature( z );
 }
 
 void swap( monster &z )
 {
     std::string pet_name = z.get_name();
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     player_character.mod_moves( -to_moves<int>( 1_seconds ) * 1.5 );
 
     ///\EFFECT_STR increases chance to successfully swap positions with your pet
@@ -170,7 +170,7 @@ void swap( monster &z )
 void push( monster &z )
 {
     std::string pet_name = z.get_name();
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     player_character.mod_moves( -to_moves<int>( 1_seconds ) * 0.3 );
 
     ///\EFFECT_STR increases chance to successfully push your pet
@@ -208,7 +208,7 @@ void attach_bag_to( monster &z )
         return it.is_armor() && it.get_total_capacity() > 0_ml && !it.has_flag( flag_INTEGRATED );
     };
 
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     item_location loc = game_menus::inv::titled_filter_menu( filter, player_character,
                         _( "Bag item" ) );
 
@@ -241,7 +241,7 @@ void attach_bag_to( monster &z )
 void dump_items( monster &z )
 {
     std::string pet_name = z.get_name();
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     map &here = get_map();
     for( item &it : z.inv ) {
         if( it.has_var( "DESTROY_ITEM_ON_MON_DEATH" ) ) {
@@ -261,7 +261,7 @@ void remove_bag_from( monster &z )
         if( !z.inv.empty() ) {
             dump_items( z );
         }
-        Character &player_character = get_player_character();
+        Character &player_character = remote_ui::acting_player();
         get_map().add_item_or_charges( player_character.pos_bub(), *z.storage_item );
         add_msg( _( "You remove the %1$s from %2$s." ), z.storage_item->display_name(), pet_name );
         z.storage_item.reset();
@@ -284,7 +284,7 @@ bool give_items_to( monster &z )
     units::mass max_weight = z.weight_capacity() - z.get_carried_weight();
     units::volume max_volume = storage.get_total_capacity() - z.get_carried_volume();
     units::length max_length = storage.max_containable_length();
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     drop_locations items = game_menus::inv::multidrop( player_character );
     drop_locations to_move;
     for( const drop_location &itq : items ) {
@@ -336,7 +336,7 @@ item_location pet_armor_loc( monster &z )
                z.get_volume() <= it.get_pet_armor_max_vol();
     };
 
-    return game_menus::inv::titled_filter_menu( filter, get_player_character(), _( "Pet armor" ) );
+    return game_menus::inv::titled_filter_menu( filter, remote_ui::acting_player(), _( "Pet armor" ) );
 }
 
 bool add_armor( monster &z )
@@ -364,7 +364,7 @@ bool add_armor( monster &z )
     loc.remove_item();
     z.add_effect( effect_monster_armor, 1_turns, true );
     // TODO: armoring a horse takes a lot longer than 2 seconds. This should be a long action.
-    get_player_character().mod_moves( -to_moves<int>( 2_seconds ) );
+    remote_ui::acting_player().mod_moves( -to_moves<int>( 2_seconds ) );
     return true;
 }
 
@@ -384,7 +384,7 @@ void remove_armor( monster &z )
                  pet_name );
         z.armor_item.reset();
         // TODO: removing armor from a horse takes a lot longer than 2 seconds. This should be a long action.
-        get_player_character().mod_moves( -to_moves<int>( 2_seconds ) );
+        remote_ui::acting_player().mod_moves( -to_moves<int>( 2_seconds ) );
     } else {
         add_msg( m_bad, _( "Your %1$s isn't wearing armor!" ), pet_name );
     }
@@ -394,14 +394,14 @@ void remove_armor( monster &z )
 void play_with( monster &z )
 {
     std::string pet_name = z.get_name();
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     const std::string &petstr = z.type->petfood.pet;
     player_character.assign_activity( play_with_pet_activity_actor( pet_name, petstr ) );
 }
 
 void cull( monster &z )
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     if( !player_character.has_quality( qual_CUT ) ) {
         add_msg( _( "You don't have a cutting tool." ) );
         return;
@@ -414,7 +414,7 @@ void add_leash( monster &z )
     if( z.has_effect( effect_leashed ) ) {
         return;
     }
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     std::vector<item *> rope_inv = player_character.cache_get_items_with( json_flag_TIE_UP );
     if( rope_inv.empty() ) {
         return;
@@ -448,7 +448,7 @@ void remove_leash( monster &z )
     z.remove_effect( effect_led_by_leash );
     z.remove_effect( effect_leashed );
     if( z.tied_item ) {
-        get_player_character().i_add( *z.tied_item );
+        remote_ui::acting_player().i_add( *z.tied_item );
         z.tied_item.reset();
     }
     add_msg( _( "You remove the leash from your %s." ), z.get_name() );
@@ -520,7 +520,7 @@ void milk_source( monster &source_mon )
         const int moves_per_unit = to_moves<int>( time_duration::from_minutes( 1.0 / 2 ) );
         int moves = milkable_ammo->second * moves_per_unit;
         tripoint_abs_ms coords;
-        Character &player_character = get_player_character();
+        Character &player_character = remote_ui::acting_player();
         coords = source_mon.pos_abs();
         // pin the cow in place if it isn't already
         bool temp_tie = !source_mon.has_effect( effect_tied );
@@ -578,7 +578,7 @@ void milk_source( monster &source_mon )
 
 void shear_animal( monster &z )
 {
-    Character &guy = get_player_character();
+    Character &guy = remote_ui::acting_player();
     if( !guy.has_quality( qual_SHEAR ) ) {
         add_msg( _( "You don't have a shearing tool." ) );
     }
@@ -596,7 +596,7 @@ void shear_animal( monster &z )
 
 void remove_battery( monster &z )
 {
-    get_map().add_item_or_charges( get_player_character().pos_bub(), *z.battery_item );
+    get_map().add_item_or_charges( remote_ui::acting_player().pos_bub(), *z.battery_item );
     z.battery_item.reset();
 }
 
@@ -606,7 +606,7 @@ void insert_battery( monster &z )
         // already has a battery, shouldn't be called with one, but just in case.
         return;
     }
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     std::vector<item *> bat_inv = player_character.cache_get_items_with( json_flag_MECH_BAT );
     if( bat_inv.empty() ) {
         return;
@@ -699,7 +699,7 @@ bool monexamine::pet_menu( monster &z )
     }
     amenu.addentry( rename, true, 'e', _( "Rename" ) );
     amenu.addentry( attack, true, 'A', _( "Attack" ) );
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     if( z.has_effect( effect_has_bag ) ) {
         amenu.addentry( give_items, true, 'g', _( "Place items into bag" ) );
         amenu.addentry( remove_bag, true, 'b', _( "Remove a bag from the %s" ), pet_name );
@@ -910,7 +910,7 @@ bool monexamine::pet_menu( monster &z )
             break;
         case attack:
             if( query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-                get_player_character().melee_attack( z, true );
+                remote_ui::acting_player().melee_attack( z, true );
             }
             break;
         case talk_to:
@@ -931,7 +931,7 @@ bool monexamine::pet_menu( monster &z )
 
 bool monexamine::mech_hack( monster &z )
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     itype_id card_type = itype_id_military;
     if( player_character.has_amount( card_type, 1 ) ) {
         if( query_yn( _( "Swipe your ID card into the mech's security port?" ) ) ) {
@@ -958,7 +958,7 @@ static int prompt_for_amount( const char *const msg, const int max )
 
 bool monexamine::pay_bot( monster &z )
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     time_duration friend_time = z.get_effect_dur( effect_pet );
     const int charge_count = player_character.charges_of( itype_cash_card );
 
@@ -1037,7 +1037,7 @@ bool monexamine::mfriend_menu( monster &z )
             break;
         case attack:
             if( query_yn( _( "You may be attacked!  Proceed?" ) ) ) {
-                get_player_character().melee_attack( z, true );
+                remote_ui::acting_player().melee_attack( z, true );
             }
             break;
         case talk_to:
