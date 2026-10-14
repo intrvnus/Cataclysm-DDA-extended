@@ -27,7 +27,9 @@
 #include "avatar.h"
 #include "construction.h"
 #include "calendar.h"
+#include "bubbles.h"
 #include "clzones.h"
+#include "current_map.h"
 #include "cata_path.h"
 #include "cata_utility.h"
 #include "character.h"
@@ -120,6 +122,8 @@ struct remote_player {
     int test_stage = 0;
     fluid::ms_t test_at = 0;
     int build_stage = 0;
+    int bubble_stage = 0;
+    fluid::ms_t bubble_at = 0;
     fluid::ms_t build_at = 0;
     fluid::ms_t bleed_out_at = 0;
     int revive_progress = 0;
@@ -641,6 +645,87 @@ void test_furniture( npc &guy, bool place )
         }
     }
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test table not found near the body";
+}
+
+// Spike test: the player's body moves into an extra reality bubble far away from the host's.  A
+// zombie is placed next to the body there and one next to the host's avatar; both must chase
+// their player at the same time.
+void test_bubble( remote_player &rp, npc &guy )
+{
+    static const bool on = std::getenv( "CATA_MP_TEST_BUBBLE" ) != nullptr;
+    if( !on ) {
+        return;
+    }
+    const fluid::ms_t now = fluid::now_ms();
+    if( rp.bubble_stage == 0 ) {
+        rp.bubble_at = now + 20000;
+        rp.bubble_stage = 1;
+        return;
+    }
+    if( rp.bubble_stage == 1 && now >= rp.bubble_at ) {
+        rp.bubble_stage = 2;
+        // overlap test: BUBBLE=near puts the second bubble only 3 submaps (36 tiles) away
+        const char *mode = std::getenv( "CATA_MP_TEST_BUBBLE" );
+        const int dist_sm = std::string( mode ) == "near" ? 3 : 24;
+        const tripoint_abs_sm home = guy.pos_abs_sm();
+        const tripoint_abs_sm origin( home.x() + dist_sm - MAPSIZE / 2, home.y() - MAPSIZE / 2, home.z() );
+        map &bm = bubbles::open( origin );
+        swap_map swap( bm );
+        const tripoint_bub_ms centre( MAPSIZE_X / 2, MAPSIZE_Y / 2, home.z() );
+        for( const tripoint_bub_ms &p : bm.points_in_radius( centre, 20 ) ) {
+            if( !bm.passable( p ) || get_creature_tracker().creature_at( p ) != nullptr ||
+                bm.veh_at( p ) ) {
+                continue;
+            }
+            guy.setpos( bm, p );
+            bm.build_map_cache( home.z(), true );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test bubble: body moved to " <<
+                                       guy.pos_abs().to_string() << " host avatar at " <<
+                                       get_avatar().pos_abs().to_string();
+            for( const tripoint_bub_ms &q : bm.points_in_radius( p, 8 ) ) {
+                if( rl_dist( p, q ) >= 5 && bm.passable( q ) && bm.sees( q, p, 20 ) &&
+                    get_creature_tracker().creature_at( q ) == nullptr ) {
+                    if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), q ) ) {
+                        z->unique_name = "TESTBZ";
+                        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test bubble: zombie B at " <<
+                                                   z->pos_abs().to_string();
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+        // and one in the host's own bubble
+        map &here = reality_bubble();
+        swap_map swap_main( here );
+        const tripoint_bub_ms at = get_avatar().pos_bub( here );
+        for( const tripoint_bub_ms &q : here.points_in_radius( at, 8 ) ) {
+            if( rl_dist( at, q ) >= 5 && here.passable( q ) && here.sees( q, at, 20 ) &&
+                get_creature_tracker().creature_at( q ) == nullptr ) {
+                if( monster *z = g->place_critter_at( mtype_id( "mon_zombie" ), q ) ) {
+                    z->unique_name = "TESTAZ";
+                    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test bubble: zombie A at " <<
+                                               z->pos_abs().to_string();
+                }
+                break;
+            }
+        }
+        return;
+    }
+    if( rp.bubble_stage == 2 && calendar::once_every( 5_seconds ) ) {
+        std::string line = "Multiplayer: test bubble: ";
+        for( monster &z : g->all_monsters() ) {
+            if( z.unique_name == "TESTBZ" ) {
+                line += "B dist " + std::to_string( rl_dist( z.pos_abs(), guy.pos_abs() ) ) + " hp " +
+                        std::to_string( z.get_hp() ) + " ";
+            } else if( z.unique_name == "TESTAZ" ) {
+                line += "A dist " + std::to_string( rl_dist( z.pos_abs(), get_avatar().pos_abs() ) ) +
+                        " hp " + std::to_string( z.get_hp() ) + " ";
+            }
+        }
+        DebugLog( D_INFO, D_MAIN ) << line << "body at " << guy.pos_abs().to_string() << " hp " <<
+                                   guy.get_hp();
+    }
 }
 
 // Test helper: the player builds a battery appliance beside them (checks that the host does a
@@ -2469,6 +2554,7 @@ void host_end_of_turn()
             report_test_vehicle( *guy );
             report_test_armor( *guy );
             test_build( rp, *guy );
+            test_bubble( rp, *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }

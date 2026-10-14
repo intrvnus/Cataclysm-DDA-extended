@@ -23,6 +23,8 @@
 #include "avatar.h"
 #include "bionics.h"
 #include "cached_options.h"
+#include "bubbles.h"
+#include "current_map.h"
 #include "calendar.h"
 #include "cata_variant.h"
 #include "clzones.h"
@@ -304,9 +306,14 @@ namespace
 void monmove()
 {
     g->cleanup_dead();
-    map &m = get_map();
     avatar &u = get_avatar();
 
+    // Experimental multiplayer: the main bubble and every extra bubble run their own monsters.
+    std::vector<map *> bubble_maps = { &get_map() };
+    bubble_maps.insert( bubble_maps.end(), bubbles::extras().begin(), bubbles::extras().end() );
+    for( map *bubble_map : bubble_maps ) {
+    swap_map swap_to_bubble( *bubble_map );
+    map &m = *bubble_map;
     for( monster &critter : g->all_monsters() ) {
         if( !m.inbounds( critter.pos_abs() ) ) {
             continue;
@@ -384,6 +391,8 @@ void monmove()
         }
     }
 
+    }
+
     g->cleanup_dead();
 
     // The remaining monsters are all alive, but may be outside of the reality bubble.
@@ -393,13 +402,19 @@ void monmove()
 
     // Now, do active NPCs.
     for( npc &guy : g->all_npcs() ) {
+        // a player's body in an extra bubble is simulated there
+        map *guy_bubble = bubbles::extra_containing( guy.pos_abs() );
+        std::optional<swap_map> swap_guy;
+        if( guy_bubble != nullptr ) {
+            swap_guy.emplace( *guy_bubble );
+        }
         int turns = 0;
         int real_count = 0;
         const int count_limit = std::max( 10, guy.get_moves() / 64 );
         if( guy.is_mounted() ) {
             guy.check_mount_is_spooked();
         }
-        m.creature_in_field( guy );
+        get_map().creature_in_field( guy );
         if( !guy.has_effect( effect_npc_suspend ) ) {
             guy.process_turn();
         }
@@ -772,6 +787,7 @@ bool do_turn()
     // Update vision caches for monsters. If this turns out to be expensive,
     // consider a stripped down cache just for monsters.
     m.build_map_cache( levz, true );
+    bubbles::tick();
     fluid::snapshot_before_monsters();
     monmove();
     fluid::snapshot_after_monsters();

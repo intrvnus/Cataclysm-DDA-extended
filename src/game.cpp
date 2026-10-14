@@ -49,6 +49,7 @@
 #include "avatar_action.h"
 #include "basecamp.h"
 #include "bionics.h"
+#include "bubbles.h"
 #include "body_part_set.h"
 #include "bodygraph.h"
 #include "bodypart.h"
@@ -13268,8 +13269,8 @@ point_rel_sm game::update_map( int &x, int &y, bool z_level_changed )
         const tripoint_bub_ms pos = ( *it )->pos_bub( here );
 
         // TODO: This could probably be replaced by an inbounds check.
-        if( pos.x() < 0 || pos.x() >= MAPSIZE_X ||
-            pos.y() < 0 || pos.y() >= MAPSIZE_Y ) {
+        if( ( pos.x() < 0 || pos.x() >= MAPSIZE_X ||
+              pos.y() < 0 || pos.y() >= MAPSIZE_Y ) && !bubbles::in_extra( ( *it )->pos_abs() ) ) {
             //Remove the npc from the active list. It remains in the overmap list.
             ( *it )->on_unload();
             it = critter_tracker->active_npc.erase( it );
@@ -13378,6 +13379,10 @@ void game::despawn_nonlocal_monsters()
     map &here = get_map();
 
     for( monster &critter : g->all_monsters() ) {
+        if( bubbles::in_extra( critter.pos_abs() ) ) {
+            // it belongs to another player's bubble
+            continue;
+        }
         const tripoint_bub_ms pos = critter.pos_bub( here );
 
         if( pos.x() < 0 - MAPSIZE_X / 6 ||
@@ -13399,7 +13404,7 @@ void game::shift_monsters( const tripoint_rel_sm &shift )
             critter.shift( shift.xy() );
         }
 
-        if( reality_bubble().inbounds( critter.pos_bub() ) ) {
+        if( reality_bubble().inbounds( critter.pos_bub() ) || bubbles::in_extra( critter.pos_abs() ) ) {
             // We're inbounds, so don't despawn after all.
             continue;
         }

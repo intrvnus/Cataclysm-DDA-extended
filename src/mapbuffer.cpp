@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "cata_path.h"
+#include "bubbles.h"
 #include "cata_utility.h"
 #include "debug.h"
 #include "filesystem.h"
@@ -75,7 +76,7 @@ void mapbuffer::clear_outside_reality_bubble()
     map &here = get_map();
     auto it = submaps.begin();
     while( it != submaps.end() ) {
-        if( here.inbounds( it->first ) ) {
+        if( here.inbounds( it->first ) || bubbles::keeps( it->first ) ) {
             ++it;
         } else {
             it = submaps.erase( it );
@@ -224,7 +225,7 @@ void mapbuffer::save( bool delete_after_save )
         const cata_path dirname = find_dirname( om_addr );
         const cata_path quad_path = dirname / quad_file_name( om_addr );
 
-        bool inside_reality_bubble = here.inbounds( om_addr );
+        bool inside_reality_bubble = here.inbounds( om_addr ) || bubbles::keeps( om_addr );
         // delete_on_save deletes everything, otherwise delete submaps
         // outside the current map.
         save_quad( dirname, quad_path, om_addr, submaps_to_delete,
