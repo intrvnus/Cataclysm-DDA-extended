@@ -332,6 +332,8 @@ void make_new_character( avatar &u )
     u.setID( own_id, true );
     u.setpos( here, pos );
     u.add_profession_items();
+    // like a new game: the starting items go from the raw inventory into worn containers
+    u.migrate_items_to_storage( true );
     u.set_all_parts_hp_to_max();
     // a new character gets the lives of the difficulty
     u.remove_value( "mp_lives_init" );
