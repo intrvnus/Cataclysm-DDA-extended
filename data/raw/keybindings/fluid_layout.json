@@ -107,10 +107,7 @@
     "id": "apply_wielded",
     "name": "Use wielded item",
     "category": "DEFAULTMODE",
-    "bindings": [
-      { "input_method": "keyboard_char", "key": "Q" },
-      { "input_method": "keyboard_code", "key": "q", "mod": ["shift"] }
-    ]
+    "bindings": [ { "input_method": "keyboard_char", "key": "Q" }, { "input_method": "keyboard_code", "key": "q", "mod": [ "shift" ] } ]
   },
   {
     "type": "keybinding",
@@ -124,10 +121,7 @@
     "id": "wear",
     "name": "Wear item",
     "category": "DEFAULTMODE",
-    "bindings": [
-      { "input_method": "keyboard_char", "key": "H" },
-      { "input_method": "keyboard_code", "key": "h", "mod": ["shift"] }
-    ]
+    "bindings": [ { "input_method": "keyboard_char", "key": "H" }, { "input_method": "keyboard_code", "key": "h", "mod": [ "shift" ] } ]
   },
   {
     "type": "keybinding",
@@ -141,10 +135,7 @@
     "id": "drop_adj",
     "name": "Drop item to adjacent tile",
     "category": "DEFAULTMODE",
-    "bindings": [
-      { "input_method": "keyboard_char", "key": "J" },
-      { "input_method": "keyboard_code", "key": "j", "mod": ["shift"] }
-    ]
+    "bindings": [ { "input_method": "keyboard_char", "key": "J" }, { "input_method": "keyboard_code", "key": "j", "mod": [ "shift" ] } ]
   },
   {
     "type": "keybinding",
@@ -160,7 +151,7 @@
     "category": "DEFAULTMODE",
     "bindings": [
       { "input_method": "keyboard_char", "key": "CTRL+S" },
-      { "input_method": "keyboard_code", "key": "s", "mod": ["ctrl"] }
+      { "input_method": "keyboard_code", "key": "s", "mod": [ "ctrl" ] }
     ]
   },
   {
@@ -168,20 +159,29 @@
     "id": "toggle_run",
     "name": "Toggle run",
     "category": "DEFAULTMODE",
-    "bindings": [ { "input_method": "keyboard_any", "key": "CTRL+R" }, { "input_method": "keyboard_code", "key": "r", "mod": [ "ctrl" ] } ]
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "CTRL+R" },
+      { "input_method": "keyboard_code", "key": "r", "mod": [ "ctrl" ] }
+    ]
   },
   {
     "type": "keybinding",
     "id": "toggle_crouch",
     "name": "Toggle crouch",
     "category": "DEFAULTMODE",
-    "bindings": [ { "input_method": "keyboard_any", "key": "CTRL+C" }, { "input_method": "keyboard_code", "key": "c", "mod": [ "ctrl" ] } ]
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "CTRL+C" },
+      { "input_method": "keyboard_code", "key": "c", "mod": [ "ctrl" ] }
+    ]
   },
   {
     "type": "keybinding",
     "id": "toggle_prone",
     "name": "Toggle prone",
     "category": "DEFAULTMODE",
-    "bindings": [ { "input_method": "keyboard_any", "key": "CTRL+Z" }, { "input_method": "keyboard_code", "key": "z", "mod": [ "ctrl" ] } ]
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "CTRL+Z" },
+      { "input_method": "keyboard_code", "key": "z", "mod": [ "ctrl" ] }
+    ]
   }
 ]
