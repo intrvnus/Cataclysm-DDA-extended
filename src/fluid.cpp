@@ -92,6 +92,11 @@ bool smooth_camera()
     return enabled() && get_option<bool>( "FLUID_SMOOTH_CAMERA" );
 }
 
+bool free_movement()
+{
+    return enabled() && get_option<bool>( "FLUID_FREE_MOVEMENT" );
+}
+
 const tuning &tune()
 {
     static const tuning t;
@@ -1166,6 +1171,363 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     return false;
 }
 
+// ---- free movement -----------------------------------------------------------------------
+// (doc/MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md) A player's body is a square of 2 * body_half tiles
+// that moves continuously.  The game keeps the character on the tile under the body's centre;
+// crossing into another tile runs the native move once (traps, fields, items, dragging ...),
+// whose charged moves are refunded: the time was already spent walking.
+
+// What cata_tiles draws for a body: the tile it stands on and where the sprite is from there.
+struct body_draw {
+    tripoint_abs_ms tile;
+    offset off;
+    bool moving = false;
+    ms_t stamp = 0;
+};
+
+std::map<int, body_draw> &body_draws()
+{
+    static std::map<int, body_draw> m;
+    return m;
+}
+
+// The native cost (moves) of moving from @p from toward its neighbour @p to, as the game charges
+// a step: terrain and furniture of both tiles, run/crouch/prone, encumbrance, load, mount,
+// swimming.  Always a straight step: free movement is equally fast in every direction.
+int body_step_cost( const Character &who, const tripoint_abs_ms &from, const tripoint_abs_ms &to )
+{
+    map &here = get_map();
+    if( !here.inbounds( from ) ) {
+        return 100;
+    }
+    const tripoint_bub_ms f = here.get_bub( from );
+    tripoint_bub_ms t = f;
+    if( here.inbounds( to ) && here.passable( here.get_bub( to ) ) ) {
+        t = here.get_bub( to );
+    }
+    if( !who.in_vehicle && here.has_flag( ter_furn_flag::TFLAG_DEEP_WATER, t ) &&
+        here.has_flag( ter_furn_flag::TFLAG_SWIMMABLE, t ) && !here.veh_at( t ) ) {
+        return std::max( 1, who.swim_speed() );
+    }
+    int mc = here.combined_movecost( f, t );
+    if( mc <= 0 ) {
+        // standing somewhere odd (the own tile is not passable): plain ground
+        mc = 100;
+    }
+    int cost = who.run_cost( mc, false );
+    if( who.is_mounted() && who.mounted_creature ) {
+        cost = cost * 100 / std::max( 1, who.mounted_creature->get_speed() );
+    }
+    return std::max( 1, cost );
+}
+
+// True if the body may not overlap tile @p: walls, closed doors, solid furniture and vehicle
+// parts, other creatures, harmful tiles and ledges.  Those are entered (or opened, attacked,
+// talked to) by pushing into them, which goes through the native move like a tile step.
+bool body_blocked( const Character &who, const tripoint_abs_ms &p )
+{
+    map &here = get_map();
+    if( !here.inbounds( p ) ) {
+        return true;
+    }
+    const tripoint_bub_ms b = here.get_bub( p );
+    if( !here.passable( b ) ) {
+        return true;
+    }
+    const Creature *c = get_creature_tracker().creature_at( b );
+    if( c != nullptr && c != &who && c != who.mounted_creature.get() ) {
+        return true;
+    }
+    return g->is_dangerous_tile( b ) || here.has_flag( ter_furn_flag::TFLAG_NO_FLOOR, b );
+}
+
+int floor_int( double v )
+{
+    return static_cast<int>( std::floor( v ) );
+}
+
+// Moves the body by @p d tiles along @p axis (0 = x, 1 = y).  Stops it before a blocked tile;
+// then @p blocked_cells holds the coordinates (on the other axis) of the blocked tiles and the
+// result is false.
+bool body_move_axis( const Character &who, actor_state &st, int axis, double d,
+                     std::vector<int> &blocked_cells )
+{
+    constexpr double eps = 1e-7;
+    const double h = tune().body_half;
+    double &a = axis == 0 ? st.body_x : st.body_y;
+    const double b = axis == 0 ? st.body_y : st.body_x;
+    const int z = st.body_tile.z();
+    blocked_cells.clear();
+    if( std::abs( d ) < 1e-12 ) {
+        return true;
+    }
+    const double na = a + d;
+    // the tile column (row) the leading edge is in, before and after
+    const int cur_edge = d > 0 ? floor_int( a + h ) : floor_int( a - h );
+    const int new_edge = d > 0 ? floor_int( na + h ) : floor_int( na - h );
+    if( new_edge != cur_edge ) {
+        const int lo = floor_int( b - h + eps );
+        const int hi = floor_int( b + h - eps );
+        for( int o = lo; o <= hi; ++o ) {
+            const tripoint_abs_ms t = axis == 0 ? tripoint_abs_ms( new_edge, o, z ) :
+                                      tripoint_abs_ms( o, new_edge, z );
+            if( t != st.body_tile && body_blocked( who, t ) ) {
+                blocked_cells.push_back( o );
+            }
+        }
+    }
+    if( blocked_cells.empty() ) {
+        a = na;
+        return true;
+    }
+    // stop with the leading edge on the boundary of the blocked tiles
+    a = d > 0 ? new_edge - h - eps : new_edge + 1 + h + eps;
+    return false;
+}
+
+// Walking straight into a corner that only overlaps the edge of the body: slide around it.
+// Returns true if the body was nudged.
+bool body_corner_nudge( const Character &who, actor_state &st, int axis,
+                        const std::vector<int> &blocked_cells, double amount )
+{
+    const tuning &tn = tune();
+    if( blocked_cells.size() != 1 ) {
+        return false;
+    }
+    const double h = tn.body_half;
+    const double b = axis == 0 ? st.body_y : st.body_x;
+    const int cell = blocked_cells.front();
+    // how far the body reaches into the blocked tile's row (column), and which way is free
+    double overlap = 0.0;
+    double dir = 0.0;
+    if( cell == floor_int( b - h + 1e-7 ) && cell != floor_int( b ) ) {
+        overlap = ( cell + 1 ) - ( b - h );
+        dir = 1.0;
+    } else if( cell == floor_int( b + h - 1e-7 ) && cell != floor_int( b ) ) {
+        overlap = ( b + h ) - cell;
+        dir = -1.0;
+    }
+    if( dir == 0.0 || overlap <= 0.0 || overlap > tn.corner_nudge ) {
+        return false;
+    }
+    std::vector<int> unused;
+    const double before = b;
+    body_move_axis( who, st, 1 - axis, dir * std::min( amount, overlap + 1e-6 ), unused );
+    const double after = axis == 0 ? st.body_y : st.body_x;
+    return std::abs( after - before ) > 1e-9;
+}
+
+void body_set_correction( actor_state &st, double from_x, double from_y, ms_t now, int dur )
+{
+    st.corr_x = from_x - st.body_x;
+    st.corr_y = from_y - st.body_y;
+    st.corr_t0 = now;
+    st.corr_ms = std::max( 1, dur );
+}
+
+offset body_correction_at( const actor_state &st, ms_t now )
+{
+    offset o;
+    if( st.corr_ms <= 0 || now >= st.corr_t0 + st.corr_ms ) {
+        return o;
+    }
+    const double left = 1.0 - static_cast<double>( now - st.corr_t0 ) / st.corr_ms;
+    o.x = st.corr_x * left;
+    o.y = st.corr_y * left;
+    return o;
+}
+
+// Keeps the body on the character's tile: a move the game made itself (stairs, knockback,
+// vehicles, teleports, loading) puts the body on the centre of the new tile.  Returns the time
+// since the last frame (ms) the body may move for.
+int body_sync( Character &who, actor_state &st, ms_t now )
+{
+    const tripoint_abs_ms pos = who.pos_abs();
+    if( !st.body_valid ) {
+        st.body_valid = true;
+        st.body_x = pos.x() + 0.5;
+        st.body_y = pos.y() + 0.5;
+        st.body_tile = pos;
+        st.body_last = now;
+        st.corr_ms = 0;
+        return 0;
+    }
+    if( pos != st.body_tile ) {
+        const offset drawn = body_correction_at( st, now );
+        const double old_x = st.body_x + drawn.x;
+        const double old_y = st.body_y + drawn.y;
+        const bool next_door = pos.z() == st.body_tile.z() &&
+                               std::max( std::abs( pos.x() - st.body_tile.x() ), std::abs( pos.y() - st.body_tile.y() ) ) == 1;
+        st.body_x = pos.x() + 0.5;
+        st.body_y = pos.y() + 0.5;
+        st.body_tile = pos;
+        st.corr_ms = 0;
+        if( next_door ) {
+            // pushed / pulled one tile: a short slide instead of a jump
+            body_set_correction( st, old_x, old_y, now, 120 );
+        }
+    }
+    const int dt = static_cast<int>( std::clamp<ms_t>( now - st.body_last, 0,
+                                     tune().max_move_frame_ms ) );
+    st.body_last = now;
+    return dt;
+}
+
+// What the renderer gets for this body.
+void body_publish( const Character &who, const actor_state &st, ms_t now )
+{
+    body_draw &d = body_draws()[who.getID().get_value()];
+    d.tile = st.body_tile;
+    const offset c = body_correction_at( st, now );
+    d.off.x = st.body_x - ( st.body_tile.x() + 0.5 ) + c.x;
+    d.off.y = st.body_y - ( st.body_tile.y() + 0.5 ) + c.y;
+    d.moving = st.body_moving || c.x != 0.0 || c.y != 0.0;
+    d.stamp = now;
+}
+
+// The body's centre entered @p dest: the native move takes the character there.  False if the
+// game refused (the body is then kept on its tile).
+bool body_cross( Character &who, actor_state &st, const tripoint_abs_ms &dest, ms_t now,
+                 std::vector<event> *out )
+{
+    map &here = get_map();
+    const tuning &tn = tune();
+    const tripoint_abs_ms from = who.pos_abs();
+    const int dx = std::clamp( dest.x() - from.x(), -1, 1 );
+    const int dy = std::clamp( dest.y() - from.y(), -1, 1 );
+    const double recoil_before = who.recoil;
+    int charged = 0;
+    {
+        native_scope scope( who );
+        if( who.is_avatar() ) {
+            avatar_action::move( get_avatar(), here, tripoint_rel_ms( dx, dy, 0 ) );
+        } else if( npc *guy = dynamic_cast<npc *>( &who ) ) {
+            bool blocked = false;
+            if( !body_drag_step( *guy, dest, blocked ) ) {
+                guy->move_to( here.get_bub( dest ) );
+            }
+        }
+        charged = scope.finish();
+    }
+    const tripoint_abs_ms now_pos = who.pos_abs();
+    if( now_pos == from ) {
+        who.recoil = recoil_before;
+        constexpr double margin = 1e-4;
+        st.body_x = std::clamp( st.body_x, from.x() + margin, from.x() + 1.0 - margin );
+        st.body_y = std::clamp( st.body_y, from.y() + margin, from.y() + 1.0 - margin );
+        if( charged > 0 ) {
+            st.ready_at = now + std::max( 40, moves_to_ms( who, charged ) );
+        }
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free refused id=" << who.getID().get_value() <<
+                                       " t=" << now << " dx=" << dx << " dy=" << dy;
+        }
+        return false;
+    }
+    if( !who.is_avatar() ) {
+        // a player's body spends stamina like the host's avatar (running costs, walking is free)
+        who.burn_move_stamina( charged );
+    }
+    // a step keeps part of the steadiness unless the character runs
+    const double loss = who.is_running() ? tn.aim_run_loss : tn.aim_step_loss;
+    who.recoil = std::min( MAX_RECOIL, recoil_before + ( MAX_RECOIL - recoil_before ) * loss );
+    st.aim_move_carry = 0.0;
+    st.face_dx = dx;
+    st.face_dy = dy;
+    st.body_tile = now_pos;
+    if( now_pos != dest ) {
+        // the game put the character elsewhere (a ramp, a fall ...): the body follows
+        st.body_x = now_pos.x() + 0.5;
+        st.body_y = now_pos.y() + 0.5;
+        st.corr_ms = 0;
+    }
+    // straight step time: what the others see as this player's tile slide
+    const bool diag = dx != 0 && dy != 0;
+    const int straight = diag && trigdist ? charged * 50 / 71 : charged;
+    const int dur = std::clamp( moves_to_ms( who, straight ), 40, tn.slide_max_ms );
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free cross id=" << who.getID().get_value() <<
+                                   " t=" << now << " from=" << from.x() << "," << from.y() << " to=" << now_pos.x() << "," <<
+                                   now_pos.y() << " charged=" << charged << " tile_ms=" << dur;
+    }
+    const int dist = std::max( std::abs( now_pos.x() - from.x() ), std::abs( now_pos.y() - from.y() ) );
+    if( dist == 1 && now_pos.z() == from.z() ) {
+        event ev;
+        ev.type = fx_type::step;
+        ev.actor = who.getID().get_value();
+        ev.from = from;
+        ev.to = now_pos;
+        ev.dur_ms = dur;
+        ev.dx = dx;
+        ev.dy = dy;
+        emit( out, ev );
+    }
+    return true;
+}
+
+// One frame of free movement in the held direction for @p dt ms.  Returns true if the body
+// moved; if it could not move at all, pushing into the tile ahead does what a tile step into it
+// does (attack, open a door, talk, squeeze through a diagonal gap, enter a harmful tile).
+bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, ms_t now,
+                std::vector<event> *out )
+{
+    const tuning &tn = tune();
+    const double len = std::sqrt( static_cast<double>( in.move_x * in.move_x + in.move_y * in.move_y ) );
+    if( len < 0.5 ) {
+        return false;
+    }
+    const double ux = in.move_x / len;
+    const double uy = in.move_y / len;
+    st.face_dx = in.move_x;
+    st.face_dy = in.move_y;
+    const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
+    const int ms_per_tile = std::max( 1, moves_to_ms( who, body_step_cost( who, st.body_tile, ahead ) ) );
+    double left = static_cast<double>( dt ) / ms_per_tile;
+    const double start_x = st.body_x;
+    const double start_y = st.body_y;
+    std::vector<int> cells;
+    while( left > 1e-9 && who.pos_abs() == st.body_tile ) {
+        const double step = std::min( left, tn.max_substep );
+        left -= step;
+        const double bx = st.body_x;
+        const double by = st.body_y;
+        if( ux != 0.0 && !body_move_axis( who, st, 0, ux * step, cells ) && uy == 0.0 ) {
+            body_corner_nudge( who, st, 0, cells, step );
+        }
+        if( uy != 0.0 && !body_move_axis( who, st, 1, uy * step, cells ) && ux == 0.0 ) {
+            body_corner_nudge( who, st, 1, cells, step );
+        }
+        const tripoint_abs_ms under( floor_int( st.body_x ), floor_int( st.body_y ), st.body_tile.z() );
+        if( under != st.body_tile && !body_cross( who, st, under, now, out ) ) {
+            break;
+        }
+        if( std::abs( st.body_x - bx ) + std::abs( st.body_y - by ) < 1e-9 ) {
+            break;
+        }
+    }
+    const bool moved = std::abs( st.body_x - start_x ) + std::abs( st.body_y - start_y ) > 1e-9;
+    if( moved || dt <= 0 || now < st.ready_at ) {
+        return moved;
+    }
+    // stuck: push into the tile ahead like a tile step
+    const double old_x = st.body_x;
+    const double old_y = st.body_y;
+    const tripoint_abs_ms before = who.pos_abs();
+    start_step( who, st, in.move_x, in.move_y, now, now, out );
+    const tripoint_abs_ms after = who.pos_abs();
+    if( after != before ) {
+        // e.g. squeezed through a diagonal gap or stepped into a harmful tile: the body slides
+        // there for the time the native step took
+        slides().erase( after );
+        st.body_x = after.x() + 0.5;
+        st.body_y = after.y() + 0.5;
+        st.body_tile = after;
+        body_set_correction( st, old_x, old_y, now, std::max( 40, static_cast<int>( st.ready_at - now ) ) );
+        return true;
+    }
+    return false;
+}
+
 bool can_act_now( const Character &who )
 {
     return !who.is_dead_state() && who.get_moves() > 0 && !who.activity && !who.in_sleep_state();
@@ -1260,13 +1622,32 @@ void end_lunge( const tripoint_abs_ms &at )
     lunges().erase( at );
 }
 
+namespace
+{
+// The draw offset of a player's body standing on @p p, if there is a fresh one.
+const body_draw *body_draw_at( const tripoint_abs_ms &p, ms_t now )
+{
+    for( const std::pair<const int, body_draw> &e : body_draws() ) {
+        if( e.second.tile == p && now - e.second.stamp < 250 ) {
+            return &e.second;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
 offset sprite_offset( const tripoint_abs_ms &p )
 {
-    if( slides().empty() && lunges().empty() && !pred().active ) {
+    if( slides().empty() && lunges().empty() && !pred().active && body_draws().empty() ) {
         return offset();
     }
     const ms_t now = now_ms();
-    offset a = travel_offset_at( p, now );
+    offset a;
+    if( const body_draw *b = body_draw_at( p, now ) ) {
+        a = b->off;
+    } else {
+        a = travel_offset_at( p, now );
+    }
     const offset b = lunge_offset_at( p, now );
     a.x += b.x;
     a.y += b.y;
@@ -1281,7 +1662,12 @@ offset camera_offset()
     const ms_t now = now_ms();
     offset o;
     if( tune().camera_follows_slide ) {
-        o = travel_offset_at( get_avatar().pos_abs(), now );
+        const tripoint_abs_ms at = get_avatar().pos_abs();
+        if( const body_draw *b = body_draw_at( at, now ) ) {
+            o = b->off;
+        } else {
+            o = travel_offset_at( at, now );
+        }
     }
     const offset lead = camera_lead_at( now );
     o.x += lead.x;
@@ -1293,6 +1679,12 @@ bool animating()
 {
     if( !slides().empty() || !lunges().empty() || pred().active || aim_view_rw().active ) {
         return true;
+    }
+    const ms_t now = now_ms();
+    for( const std::pair<const int, body_draw> &e : body_draws() ) {
+        if( e.second.moving && now - e.second.stamp < 250 ) {
+            return true;
+        }
     }
     // the camera is still catching up with the cursor
     if( smooth_camera() ) {
@@ -1339,6 +1731,7 @@ actor_state &state_of( int character_id )
 void forget_state( int character_id )
 {
     remote_states().erase( character_id );
+    body_draws().erase( character_id );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1368,6 +1761,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         who.cancel_activity();
     }
     const tuning &tn = tune();
+    const bool free = free_movement();
+    const int body_dt = free ? body_sync( who, st, now ) : 0;
+    st.body_moving = false;
     if( !st.initialised ) {
         st.initialised = true;
         st.seen_primary_presses = in.primary_presses;
@@ -1399,8 +1795,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
 
     const tripoint_abs_ms pos = who.pos_abs();
     const bool have_cursor = in.cursor_valid && in.cursor_z == pos.z();
-    const double cdx = have_cursor ? in.cursor_x - ( pos.x() + 0.5 ) : 0.0;
-    const double cdy = have_cursor ? in.cursor_y - ( pos.y() + 0.5 ) : 0.0;
+    // aim from where the body really is
+    const double origin_x = free ? st.body_x : pos.x() + 0.5;
+    const double origin_y = free ? st.body_y : pos.y() + 0.5;
+    const double cdx = have_cursor ? in.cursor_x - origin_x : 0.0;
+    const double cdy = have_cursor ? in.cursor_y - origin_y : 0.0;
     const bool have_dir = have_cursor && std::abs( cdx ) + std::abs( cdy ) > 0.25;
     const bool acting = can_act_now( who );
     const bool armed_with_gun = wielded_gun( who ) != nullptr;
@@ -1496,7 +1895,13 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             }
         }
 
-        if( !started && ( in.move_x != 0 || in.move_y != 0 ) ) {
+        if( !started && free && ( in.move_x != 0 || in.move_y != 0 ) ) {
+            st.body_moving = free_move( who, st, in, body_dt, now, out );
+            if( st.body_moving && who.is_avatar() ) {
+                // a tap has been used: the input resolver lets go of it
+                note_own_step_started();
+            }
+        } else if( !started && ( in.move_x != 0 || in.move_y != 0 ) ) {
             // While walking continuously the next step starts exactly when the last one ended,
             // even if the world turn in between took longer than a frame: no lost time (and
             // no pause on the tile) after a hitch.
@@ -1512,6 +1917,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.stepping = false;
     }
 
+    if( free ) {
+        body_publish( who, st, now );
+    }
     // ---- what the overlays show (local avatar only; set by host_frame)
 }
 
@@ -1688,6 +2096,10 @@ void host_frame()
                                       g->uquit != QUIT_WATCH;
         if( fluid_owns_input && !net::dedicated() ) {
             drive( u, avatar_state(), in, now, &events );
+        } else {
+            // driving a vehicle, dead ...: drawn on its tile; the body starts afresh later
+            body_draws().erase( u.getID().get_value() );
+            avatar_state().body_valid = false;
         }
         // the overlays of the local avatar
         const actor_state &st = avatar_state();

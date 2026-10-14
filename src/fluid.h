@@ -53,6 +53,8 @@ ms_t now_ms();
 int turn_ms();
 /** Smooth camera on? */
 bool smooth_camera();
+/** Players move freely inside the tiles instead of in tile steps (option FLUID_FREE_MOVEMENT). */
+bool free_movement();
 
 struct tuning {
     // length of one frame of the input wait loops
@@ -114,6 +116,16 @@ struct tuning {
     bool melee_sectors = true;
     // camera leads toward the cursor by this many tiles (0 = off)
     double camera_lead_tiles = 0.7;
+    // ---- free (grid-free) movement, see doc/MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md
+    // half the width of a player's body, in tiles (0.3 = a body 0.6 tiles wide)
+    double body_half = 0.3;
+    // walking straight past a corner that overlaps the body by less than this (tiles) nudges
+    // the body around it instead of stopping it (door frames, gaps between cars)
+    double corner_nudge = 0.4;
+    // longest piece of movement checked for collisions at once (tiles)
+    double max_substep = 0.2;
+    // a frame never moves the body for longer than this (ms), e.g. after a hitch
+    int max_move_frame_ms = 60;
 };
 const tuning &tune();
 // the own character started a step (the input resolver then drops a latched tap)
@@ -173,6 +185,21 @@ struct actor_state {
     bool prev_cancel = false;
     // the last action was a step and movement is still held: the next step chains on
     bool stepping = false;
+
+    // ---- free movement: where the body really is (absolute tile coordinates, 0.5 = centre
+    // of the tile).  The game sees the character on body_tile, the tile under the centre.
+    bool body_valid = false;
+    double body_x = 0.0;
+    double body_y = 0.0;
+    tripoint_abs_ms body_tile;
+    ms_t body_last = 0;
+    bool body_moving = false;
+    // a visual correction that fades out over corr_ms (moves the game made itself: a bump into
+    // a squeeze, stairs next door ...), in tiles relative to the body
+    double corr_x = 0.0;
+    double corr_y = 0.0;
+    ms_t corr_t0 = 0;
+    int corr_ms = 0;
 
     // ---- melee
     phase melee = phase::idle;

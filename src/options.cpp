@@ -1657,6 +1657,12 @@ void options_manager::add_options_general()
            );
         get_option( "FLUID_TURN_MS" ).setPrerequisite( "FLUID_MODE" );
 
+        add( "FLUID_FREE_MOVEMENT", page_id, to_translation( "Fluid mode: free movement" ),
+             to_translation( "If true, players move freely and smoothly instead of in steps from tile to tile.  The game still counts each player on the tile under them, and move cost (terrain, speed, encumbrance, running) decides how fast they go.  Off: the older tile steps.  Hosts decide for the whole session." ),
+             true
+           );
+        get_option( "FLUID_FREE_MOVEMENT" ).setPrerequisite( "FLUID_MODE" );
+
         add( "FLUID_SMOOTH_CAMERA", page_id, to_translation( "Fluid mode: smooth camera" ),
              to_translation( "If true, the view follows the sliding player instead of jumping from tile to tile.  Tiles only; not available with isometric tilesets." ),
              true

@@ -210,7 +210,9 @@ struct move_resolver {
                 ny = ry;
                 grace_until = 0;
             }
-        } else if( out_x == 0 && out_y == 0 && ( rx == 0 || ry == 0 ) && tn.chord_ms > 0 ) {
+        } else if( out_x == 0 && out_y == 0 && ( rx == 0 || ry == 0 ) && tn.chord_ms > 0 &&
+                   !free_movement() ) {
+            // (free movement needs no chord window: a diagonal can start at any moment)
             // from standstill: give a second key the chance to join
             if( chord_until == 0 ) {
                 chord_until = now + tn.chord_ms;
