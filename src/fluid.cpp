@@ -900,6 +900,16 @@ bool can_act_now( const Character &who )
 
 } // namespace
 
+bool body_step( npc &guy, const tripoint_bub_ms &dest )
+{
+    map &here = get_map();
+    bool blocked = false;
+    if( !body_drag_step( guy, here.get_abs( dest ), blocked ) ) {
+        guy.move_to( dest );
+    }
+    return !blocked;
+}
+
 bool body_grab( Character &who, const tripoint_rel_ms &dir )
 {
     map &here = get_map();

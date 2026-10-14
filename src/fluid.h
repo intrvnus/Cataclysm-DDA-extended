@@ -33,6 +33,8 @@ class JsonOut;
  * The same driver (fluid::drive) moves the host's avatar and the NPCs that stand for remote
  * players, so there is a single code path for everybody.
  */
+class npc;
+
 namespace fluid
 {
 
@@ -241,6 +243,8 @@ void forget_state( int character_id );
 /** The body of a multiplayer player takes hold of the furniture in direction @p dir (or lets go
  * for the zero direction); dragging happens in the steps.  False if nothing was grabbed. */
 bool body_grab( Character &who, const tripoint_rel_ms &dir );
+/** One step of a player's body (classic input): takes held furniture along. */
+bool body_step( npc &guy, const tripoint_bub_ms &dest );
 
 // ---------------------------------------------------------------------------------------
 // the loop

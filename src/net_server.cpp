@@ -1098,7 +1098,7 @@ void execute( npc &guy, const command &cmd )
             // Never attack other players by walking into them.
             guy.pause();
         } else {
-            guy.move_to( dest );
+            fluid::body_step( guy, dest );
         }
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
