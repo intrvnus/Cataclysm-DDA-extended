@@ -283,8 +283,13 @@ If you rebase onto newer m1 work, conflicts are expected in `net_server.cpp`, `n
 | Option | Default | Meaning |
 |---|---|---|
 | `FLUID_MODE` | off | Master switch (host decides in MP) |
-| `FLUID_TURN_MS` | 600 | Real-time length of a turn at speed 100. Changes pace, not balance. 100-3000 |
+| `FLUID_TURN_MS` | 300 | Real-time length of a turn at speed 100. Changes pace, not balance. 100-3000 |
 | `FLUID_SMOOTH_CAMERA` | on | Camera follows the sliding avatar |
+| `FLUID_ACTIVITY_SPEED` | 4 | Timed actions run this many times faster than the world clock (multiplayer and fluid mode). 1-20 |
+| `FLUID_FREE_MOVEMENT` | on | Players move freely inside tiles instead of tile steps (host decides) |
+| `FLUID_SOFT_WALL_MS` | 400 | Free movement: push time into fire, known traps or ledges before going in. 0-2000 |
+| `FLUID_BODY_WIDTH` | 60 | Free movement: body width in % of a tile. 30-95 |
+| `FLUID_INTERP_MS` | 100 | Free movement, client only: other players are drawn this far in the past. 50-400 |
 | `FLUID_WASD_LAYOUT` | off | Experimental keyboard layout |
 
 ## Tuning knobs (`fluid::tuning`, compile time for now)
