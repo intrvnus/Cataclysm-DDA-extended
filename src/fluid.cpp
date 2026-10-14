@@ -881,6 +881,9 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     const bool changed = now_pos != from;
 
     if( changed ) {
+        if( who.is_avatar() ) {
+            note_own_step_started();
+        }
         if( !who.is_avatar() ) {
             // a player's body spends stamina like the host's avatar (running costs, walking is free)
             const int stam_before = who.get_stamina();
@@ -1594,6 +1597,7 @@ void client_event( const event &ev, ms_t arrival, bool mine )
                 t0 = pr.t0;
             }
             pr.active = false;
+            note_own_step_started();
             begin_slide( ev.from, ev.to, t0, ev.dur_ms );
             ci.last_step_ms = ev.dur_ms;
             ci.confirmed_end = t0 + ev.dur_ms;

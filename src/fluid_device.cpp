@@ -104,6 +104,154 @@ const action_id move_actions[8] = {
     ACTION_MOVE_BACK, ACTION_MOVE_BACK_LEFT, ACTION_MOVE_LEFT, ACTION_MOVE_FORTH_LEFT
 };
 
+// Turns the held movement keys into the direction the driver gets (the WASD feel, see the
+// movement rework spec in doc/MULTIPLAYER_ROADMAP.md):
+// - opposing keys: the one pressed last wins, never zero;
+// - from standstill a short chord window lets a two-key diagonal form before the first step;
+// - when one key of a held diagonal is released the diagonal stays latched for a moment, so
+//   releasing both keys almost together leaves no stray cardinal step;
+// - a tap is sent for a minimum time and kept until the game has started the step, so a short
+//   press is never lost.
+struct move_resolver {
+    ms_t press_seq_at[8] = {};
+    unsigned seq[8] = {};
+    unsigned counter = 0;
+    unsigned prev_bits = 0;
+    int out_x = 0;
+    int out_y = 0;
+    ms_t out_since = 0;
+    ms_t grace_until = 0;
+    ms_t chord_until = 0;
+    int chord_x = 0;
+    int chord_y = 0;
+    ms_t tap_until = 0;
+    bool tap_pending = false;
+    ms_t tap_pending_until = 0;
+    int tap_x = 0;
+    int tap_y = 0;
+    unsigned steps_started = 0;
+    unsigned steps_seen = 0;
+
+    void start_tap( int x, int y, ms_t now, const tuning &tn ) {
+        tap_x = x;
+        tap_y = y;
+        tap_until = now + tn.tap_hold_ms;
+        tap_pending = true;
+        tap_pending_until = now + 400;
+    }
+
+    std::pair<int, int> resolve( unsigned bits, ms_t now ) {
+        const tuning &tn = tune();
+        bits &= 0xFFu;
+        for( size_t i = 0; i < 8; ++i ) {
+            if( ( bits & ~prev_bits ) & ( 1u << i ) ) {
+                seq[i] = ++counter;
+            }
+        }
+        prev_bits = bits;
+        // the held keys, opposing ones resolved by who was pressed last
+        unsigned best_seq[4] = {};  // x+, x-, y+, y-
+        for( size_t i = 0; i < 8; ++i ) {
+            if( !( bits & ( 1u << i ) ) ) {
+                continue;
+            }
+            const point_rel_ms delta = get_delta_from_movement_action( move_actions[i], iso_rotate::no );
+            if( delta.x() > 0 ) {
+                best_seq[0] = std::max( best_seq[0], seq[i] );
+            } else if( delta.x() < 0 ) {
+                best_seq[1] = std::max( best_seq[1], seq[i] );
+            }
+            if( delta.y() > 0 ) {
+                best_seq[2] = std::max( best_seq[2], seq[i] );
+            } else if( delta.y() < 0 ) {
+                best_seq[3] = std::max( best_seq[3], seq[i] );
+            }
+        }
+        const auto axis = [&]( unsigned plus, unsigned minus ) {
+            if( plus == 0 && minus == 0 ) {
+                return 0;
+            }
+            return plus > minus ? 1 : -1;
+        };
+        const int rx = axis( best_seq[0], best_seq[1] );
+        const int ry = axis( best_seq[2], best_seq[3] );
+
+        if( steps_started != steps_seen ) {
+            steps_seen = steps_started;
+            tap_pending = false;
+        }
+        if( tap_pending && now > tap_pending_until ) {
+            tap_pending = false;
+        }
+
+        int nx = out_x;
+        int ny = out_y;
+        const bool was_diag = out_x != 0 && out_y != 0;
+        if( rx == 0 && ry == 0 ) {
+            // keys released: a clean stop (also inside the release grace)
+            if( chord_until != 0 && ( chord_x != 0 || chord_y != 0 ) ) {
+                // released again before the chord window ended: that was a tap
+                start_tap( chord_x, chord_y, now, tn );
+            }
+            nx = 0;
+            ny = 0;
+            grace_until = 0;
+            chord_until = 0;
+        } else if( was_diag && ( rx != out_x || ry != out_y ) &&
+                   ( ( rx == out_x && ry == 0 ) || ( ry == out_y && rx == 0 ) ) ) {
+            // one key of the diagonal was released
+            if( grace_until == 0 ) {
+                grace_until = now + tn.release_grace_ms;
+            }
+            if( now >= grace_until ) {
+                nx = rx;
+                ny = ry;
+                grace_until = 0;
+            }
+        } else if( out_x == 0 && out_y == 0 && ( rx == 0 || ry == 0 ) && tn.chord_ms > 0 ) {
+            // from standstill: give a second key the chance to join
+            if( chord_until == 0 ) {
+                chord_until = now + tn.chord_ms;
+            }
+            chord_x = rx;
+            chord_y = ry;
+            if( now >= chord_until ) {
+                nx = rx;
+                ny = ry;
+                chord_until = 0;
+            }
+        } else {
+            nx = rx;
+            ny = ry;
+            grace_until = 0;
+            chord_until = 0;
+        }
+        if( nx != out_x || ny != out_y ) {
+            if( ( nx == 0 && ny == 0 ) && ( out_x != 0 || out_y != 0 ) && now - out_since < tn.tap_hold_ms ) {
+                start_tap( out_x, out_y, now - ( now - out_since ), tn );
+                tap_until = out_since + tn.tap_hold_ms;
+            }
+            out_x = nx;
+            out_y = ny;
+            out_since = now;
+        }
+        if( out_x != 0 || out_y != 0 ) {
+            tap_pending = false;
+            return { out_x, out_y };
+        }
+        if( ( tap_pending || now < tap_until ) && ( tap_x != 0 || tap_y != 0 ) ) {
+            return { tap_x, tap_y };
+        }
+        return { 0, 0 };
+    }
+};
+
+move_resolver &resolver()
+{
+    static move_resolver r;
+    return r;
+}
+
 std::vector<int> scancodes_for( const input_event &ev )
 {
     std::vector<int> result;
@@ -271,6 +419,11 @@ bool read_cursor( input_frame &out )
 
 } // namespace
 
+void note_own_step_started()
+{
+    ++resolver().steps_started;
+}
+
 void note_classic_action( int action )
 {
     device_state &d = dev();
@@ -335,17 +488,9 @@ bool poll_device( input_frame &out )
     raw &= ~d.suppressed;
     d.last_raw = raw;
 
-    int mx = 0;
-    int my = 0;
-    for( size_t i = 0; i < 8; ++i ) {
-        if( raw & ( 1u << i ) ) {
-            const point_rel_ms delta = get_delta_from_movement_action( move_actions[i], iso_rotate::no );
-            mx += delta.x();
-            my += delta.y();
-        }
-    }
-    out.move_x = std::clamp( mx, -1, 1 );
-    out.move_y = std::clamp( my, -1, 1 );
+    const std::pair<int, int> dir = resolver().resolve( raw, now_ms() );
+    out.move_x = dir.first;
+    out.move_y = dir.second;
     out.primary = ( raw & ( bit_primary | bit_primary_alt ) ) != 0;
     out.secondary = ( raw & ( bit_secondary | bit_secondary_alt ) ) != 0;
     out.cancel = ( raw & bit_cancel ) != 0;
@@ -360,6 +505,10 @@ bool poll_device( input_frame &out )
 }
 
 #else // TILES
+
+void note_own_step_started()
+{
+}
 
 void note_classic_action( int )
 {

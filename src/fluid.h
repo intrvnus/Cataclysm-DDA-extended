@@ -113,6 +113,8 @@ struct tuning {
     double camera_lead_tiles = 0.7;
 };
 const tuning &tune();
+// the own character started a step (the input resolver then drops a latched tap)
+void note_own_step_started();
 
 // ---------------------------------------------------------------------------------------
 // input
