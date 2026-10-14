@@ -1,5 +1,12 @@
 # Overnight report (updated as I go; last update at the end of the file)
 
+## Short version (for the morning)
+- Done and checked in the running game: driving + passengers, downed/help/bleed-out, dedicated server, chat, reconnect, sort armor, grab/push of furniture AND vehicles, host-side construction for a player's body, zombies chase a client player, map memory saved on leave, network compression (about half the traffic).
+- Vanilla unit tests that touch my changes pass (one melee test crashes in its own helper, as before).
+- Still only compiled, not run: factions view, pets/mounts, consoles, disarm/steal prompts, sort armor for friends, repeat craft, workout, loading of saved map memory, zones with a created zone.
+- Not done on purpose (your call): per-player bubbles (C2), faction rework (C4), balance changes, Windows build, PR.
+- Known test-environment quirk: the machine restarts when the session idles, which kills running games; harmless for the code.
+
 All work is on `claude/fluid-proto`, every step committed and pushed. No Windows build, no PR, `intrvnus-mod` untouched.
 
 ## Verified in the running game (logs quoted from the host/client debug logs)
