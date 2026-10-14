@@ -1,6 +1,8 @@
 #include "bubbles.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -52,6 +54,29 @@ void forget( map *m )
     v.erase( std::remove_if( v.begin(), v.end(), [m]( const std::unique_ptr<map> &p ) {
         return p.get() == m;
     } ), v.end() );
+}
+} // namespace
+
+namespace
+{
+struct stopwatch {
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    double ms() const {
+        return std::chrono::duration<double, std::milli>( std::chrono::steady_clock::now() - t0 ).count();
+    }
+};
+double sync_ms = 0;
+double tick_ms = 0;
+double follow_ms = 0;
+int timed_turns = 0;
+
+void report_timing()
+{
+    if( ++timed_turns % 10 == 0 ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble timing per turn: sync " << sync_ms / 10 <<
+                                   " ms, tick " << tick_ms / 10 << " ms, follow " << follow_ms / 10 << " ms";
+        sync_ms = tick_ms = follow_ms = 0;
+    }
 }
 } // namespace
 
@@ -118,6 +143,7 @@ bool in_any( const tripoint_abs_ms &p )
 
 void follow_all()
 {
+    stopwatch sw;
     // copy: following can open and close bubbles
     const std::map<int, map *> bodies = by_body();
     for( const auto &entry : bodies ) {
@@ -127,6 +153,7 @@ void follow_all()
         }
         g->update_extra_bubble( *entry.second, guy->pos_abs() );
     }
+    follow_ms += sw.ms();
 }
 
 view::view( const Character &who )
@@ -270,8 +297,47 @@ void shift_scent( const map &m, const point_rel_ms &shift )
     scent_of( m ).shift( shift );
 }
 
+namespace
+{
+bool overlaps_other( const map &m )
+{
+    const tripoint_abs_sm a = m.get_abs_sub();
+    for( const map *o : all() ) {
+        if( o == &m ) {
+            continue;
+        }
+        const tripoint_abs_sm b = o->get_abs_sub();
+        if( std::abs( a.x() - b.x() ) < MAPSIZE && std::abs( a.y() - b.y() ) < MAPSIZE ) {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
+void sync_caches()
+{
+    if( list().empty() ) {
+        return;
+    }
+    stopwatch sw;
+    for( map *m : all() ) {
+        if( !overlaps_other( *m ) ) {
+            continue;
+        }
+        swap_map swap( *m );
+        const int z = m->get_abs_sub().z();
+        for( int zl = std::max( -OVERMAP_DEPTH, z - 1 ); zl <= std::min( OVERMAP_HEIGHT, z + 1 ); ++zl ) {
+            m->invalidate_map_cache( zl );
+        }
+        m->rebuild_vehicle_level_caches();
+    }
+    sync_ms += sw.ms();
+}
+
 void tick()
 {
+    stopwatch sw;
     for( map *m : list() ) {
         swap_map swap( *m );
         m->build_floor_caches();
@@ -281,6 +347,8 @@ void tick()
         m->process_items();
         m->build_map_cache( m->get_abs_sub().z(), true );
     }
+    tick_ms += sw.ms();
+    report_timing();
 }
 
 void close_all()

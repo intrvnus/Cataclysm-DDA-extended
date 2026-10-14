@@ -5043,6 +5043,7 @@ void vehicle::set_owner( const Character &c )
         return;
     }
     owner = c.get_faction()->id;
+    DebugLog( D_INFO, D_MAIN ) << "Multiplayer: vehicle " << disp_name() << " owner set to " << owner.str() << " by " << c.get_name();
 }
 
 bool vehicle::handle_potential_theft( Character const &you, bool check_only, bool prompt )
@@ -5069,6 +5070,7 @@ bool vehicle::handle_potential_theft( Character const &you, bool check_only, boo
             // officially transfer ownership
             ( theft_time && calendar::turn - *theft_time > 15_minutes ) ) {
             set_owner( you.get_faction()->id );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: vehicle " << disp_name() << " taken by " << you.get_name() << " owner " << owner.str();
             remove_old_owner();
         }
         // No witnesses? then don't need to prompt, we assume the player is in process of stealing it.

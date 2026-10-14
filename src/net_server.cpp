@@ -1938,6 +1938,10 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         }
     }
     const std::string type = msg.get_string( "t", "" );
+    if( type == "ui" ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: ui message arrived, body " << rp->npc_id.get_value() <<
+                                   " valid " << rp->npc_id.is_valid() << " downed " << rp->downed;
+    }
     if( type == "hello" ) {
         if( msg.get_int( "v", 0 ) != protocol_version ) {
             send_json( peer, message( [&]( JsonOut & jo ) {

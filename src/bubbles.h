@@ -77,6 +77,12 @@ scent_map &scent_of( const map &m );
  * game::shift_map shifts game::scent for the main bubble.
  */
 void shift_scent( const map &m, const point_rel_ms &shift );
+/**
+ * Bubbles that share submaps with another bubble keep their own caches (vehicles, transparency,
+ * floors ...); a change made through one is not seen by the other until its caches are rebuilt.
+ * Called once a turn before the simulation.
+ */
+void sync_caches();
 /** Per-turn upkeep of the extra bubbles (what do_turn does for the main one). */
 void tick();
 void close_all();

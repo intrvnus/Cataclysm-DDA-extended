@@ -325,6 +325,11 @@ void monmove()
         if( !critter.is_dead() && ( m.impassable( critter_pos ) &&
                                     !m.get_impassable_field_at( critter_pos ).has_value() ) &&
             !critter.can_move_to( critter_pos ) ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: stuck monster at " << critter.pos_abs().to_string() <<
+                                       " in bubble at " << m.get_abs_sub().to_string() << " main at " <<
+                                       reality_bubble().get_abs_sub().to_string() << " bubbles " << bubble_maps.size() <<
+                                       " passable " << m.passable( critter_pos ) << " main passable " <<
+                                       reality_bubble().passable( reality_bubble().get_bub( critter.pos_abs() ) );
             dbg( D_ERROR ) << "game:monmove: " << critter.name()
                            << " can't move to its location!  (" << critter_pos.x()
                            << ":" << critter_pos.y() << ":" << critter_pos.z() << "), "
@@ -811,6 +816,7 @@ bool do_turn()
         scent.update( *centre, *bm );
     }
 
+    bubbles::sync_caches();
     // We need floor cache before checking falling 'n stuff
     m.build_floor_caches();
 
