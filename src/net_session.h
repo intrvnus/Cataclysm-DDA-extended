@@ -117,6 +117,10 @@ void alert_player( const Character &who, const std::string &text, int level,
  * client).  Monsters use it where the single player used to be "the" player.  Without a
  * session this is the avatar. */
 Character &nearest_player( const tripoint_abs_ms &from );
+/** Where the players are: the host's avatar first, then the body of every connected client.
+ * World simulation that used to be anchored on the avatar (hordes, overmap NPCs, spawns)
+ * runs around each of these.  Without a session this is just the avatar. */
+std::vector<tripoint_abs_ms> all_player_positions();
 /** Host: says something to everybody (chat). */
 void host_chat( const std::string &text );
 /** The list of the players with health and distance, for the chat/player-list key. */

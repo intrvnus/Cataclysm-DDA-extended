@@ -31,6 +31,7 @@
 #include "mod_manager.h"
 #include "mongroup.h"
 #include "monster.h"
+#include "net_session.h"
 #include "npc.h"
 #include "omdata.h"
 #include "overmap.h"
@@ -632,8 +633,7 @@ void overmapbuffer::process_mongroups()
 {
     // arbitrary radius to include nearby overmaps (aside from the current one)
     const int radius = MAPSIZE * 2;
-    const tripoint_abs_sm center = get_player_character().pos_abs_sm();
-    for( overmap *&om : get_overmaps_near( center, radius ) ) {
+    for( overmap *&om : get_overmaps_near_players( radius ) ) {
         om->process_mongroups();
     }
 }
@@ -642,8 +642,7 @@ void overmapbuffer::move_hordes()
 {
     // arbitrary radius to include nearby overmaps (aside from the current one)
     const int radius = MAPSIZE * 2;
-    const tripoint_abs_sm center = get_player_character().pos_abs_sm();
-    for( overmap *&om : get_overmaps_near( center, radius ) ) {
+    for( overmap *&om : get_overmaps_near_players( radius ) ) {
         om->move_hordes();
     }
 }
@@ -1477,6 +1476,32 @@ shared_ptr_fast<npc> overmapbuffer::remove_npc( const character_id &id )
 std::vector<shared_ptr_fast<npc>> overmapbuffer::get_npcs_near_player( int radius )
 {
     return get_npcs_near( get_player_character().pos_abs_sm(), radius );
+}
+
+std::vector<shared_ptr_fast<npc>> overmapbuffer::get_npcs_near_players( int radius )
+{
+    std::vector<shared_ptr_fast<npc>> result;
+    for( const tripoint_abs_ms &pos : net::all_player_positions() ) {
+        for( shared_ptr_fast<npc> &guy : get_npcs_near( project_to<coords::sm>( pos ), radius ) ) {
+            if( std::find( result.begin(), result.end(), guy ) == result.end() ) {
+                result.push_back( guy );
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<overmap *> overmapbuffer::get_overmaps_near_players( const int radius )
+{
+    std::vector<overmap *> result;
+    for( const tripoint_abs_ms &pos : net::all_player_positions() ) {
+        for( overmap *om : get_overmaps_near( project_to<coords::sm>( pos ), radius ) ) {
+            if( std::find( result.begin(), result.end(), om ) == result.end() ) {
+                result.push_back( om );
+            }
+        }
+    }
+    return result;
 }
 
 std::vector<overmap *> overmapbuffer::get_overmaps_near( const tripoint_abs_sm &location,

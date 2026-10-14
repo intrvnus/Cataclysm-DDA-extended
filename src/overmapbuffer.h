@@ -310,6 +310,12 @@ class overmapbuffer
          */
         std::vector<shared_ptr_fast<npc>> get_npcs_near_player( int radius );
         /**
+         * Same as @ref get_npcs_near_player but around every player (multiplayer: the host's
+         * avatar and the body of each client), without duplicates.  With a single player this
+         * is the same as get_npcs_near_player.
+         */
+        std::vector<shared_ptr_fast<npc>> get_npcs_near_players( int radius );
+        /**
          * Find the npc with the given ID.
          * Returns NULL if the npc could not be found.
          * Searches all loaded overmaps.
@@ -679,6 +685,8 @@ class overmapbuffer
          */
         std::vector<overmap *> get_overmaps_near( const point_abs_sm &p, int radius );
         std::vector<overmap *> get_overmaps_near( const tripoint_abs_sm &location, int radius );
+        /** The overmaps near any player (see net::all_player_positions), each only once. */
+        std::vector<overmap *> get_overmaps_near_players( int radius );
 };
 
 extern overmapbuffer overmap_buffer;
