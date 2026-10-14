@@ -1,13 +1,31 @@
-# Multiplayer fork: handoff (2026-10-14, updated at night for Gemini)
+# Multiplayer fork: handoff (2026-10-14, updated at night)
 
 Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over. Read this first,
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Newest: session of 2026-10-14 evening/night (Opus), handed to Gemini
+## 0. Newest: session of 2026-10-14 evening/night (Opus)
+The next session's lead is again Claude Opus; it can delegate small, well-scoped tasks to a
+Gemini-backed Claude Code (see `CLAUDE.md`, "Delegating to Gemini").
 Read this section first; sections 1-9 below are the older handoff (still valid unless this section
 says otherwise). Commits `f99adbe..6c81e05` on `claude/fluid-proto`, all pushed, Linux CI green up
 to `1bb8f18` (the last commit's run was queued at handoff).
+
+### First steps of the next session (Gemini delegation, set up but not yet tried with a real key)
+1. `echo ${GEMINI_API_KEY:+set}` must print `set` (Noah adds the key in the cloud environment
+   settings; never ask for it in chat). `ls /root/gemini` must list the scripts (the environment's
+   setup script writes them; if missing, Noah has not pasted the setup script yet).
+2. `/root/gemini/models.sh` lists the models the key may use; Noah is on the free plan, so pick the
+   newest **Flash** model (Pro runs out of free requests within a task or two), tell Noah which,
+   and use it via `GEMINI_MODEL=<id> /root/gemini/start-proxy.sh`.
+3. Verify for Noah: (a) the proxy answers on localhost:4000; (b) a trivial delegated task:
+   `/root/gemini/delegate-gemini.sh "In src/character.cpp, in the comment inside
+   Character::place_corpse( map *here ), fix the doubled word 'their their' to 'their'. Change
+   nothing else."`, then show the commit and `git diff claude/fluid-proto..gemini-work`;
+   (c) your own session still uses the normal Anthropic API (`get_session` model fields; the
+   Gemini instance runs with `env -i` and its own `CLAUDE_CONFIG_DIR=/root/.claude-gemini`).
+   Already tested on 2026-10-14 with an invalid placeholder key: worktree created, Gemini-backed
+   Claude Code started, request went through the proxy to Google and came back `API_KEY_INVALID`.
 
 ### Noah's rules (current)
 - **No sub-agents** (they eat Noah's usage). Do research, reviews and tests yourself.

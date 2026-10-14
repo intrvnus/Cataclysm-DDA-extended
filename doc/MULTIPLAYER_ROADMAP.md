@@ -1,7 +1,7 @@
 # Multiplayer roadmap (to-do list for discussion)
 
 ## STATUS (read this first; updated 2026-10-14 night, end of the Opus session)
-Handoff for the next agent (Gemini): `MULTIPLAYER_HANDOFF.md` (section 0 is the newest).
+Handoff for the next session: `MULTIPLAYER_HANDOFF.md` (section 0 is the newest); Gemini delegation: `CLAUDE.md`.
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
 | Topic | State |
