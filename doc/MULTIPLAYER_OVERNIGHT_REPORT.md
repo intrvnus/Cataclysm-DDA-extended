@@ -46,3 +46,5 @@ Update 04:10: vanilla unit tests re-run against the current sources (vehicle, mo
 Update 05:10: two-client test (car with a second player seated) 0 errors; key tour of 18 client keys: no crash, no host error, no "not available" (note: most keys open client-local menus, so the host log shows nothing for them). 
 
 Note 05:40: the machine was restarted at about 05:18-05:40 (uptime reset, all processes gone; files intact). The sweep that was running (car part passed: 6 drive actions, 0 failed, 0 errors) was cut off in the zombie part; re-started at 05:40.
+
+Update 06:25: full sweep passed again (car 6 drive actions 0 failed; downed/help/bleed-out; dedicated 33 heartbeats; 0 errors). **Zombie targeting now verified**: once the zombie had line of sight (`sees 1`) it walked from 7 to 2 tiles toward the client's body (06:14 -> 06:18 log lines), so monsters do chase a client player. Note for the test setup: the machine is restarted whenever this session sits idle between wake-ups (uptime resets, running games are killed), so long tests only survive while I am actively waiting on them.
