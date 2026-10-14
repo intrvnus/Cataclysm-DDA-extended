@@ -1,7 +1,7 @@
 # Multiplayer roadmap (to-do list for discussion)
 
-## STATUS (read this first; updated 2026-10-14 evening)
-Handoff for Opus: `MULTIPLAYER_HANDOFF.md`.
+## STATUS (read this first; updated 2026-10-14 night, end of the Opus session)
+Handoff for the next agent (Gemini): `MULTIPLAYER_HANDOFF.md` (section 0 is the newest).
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
 | Topic | State |
@@ -18,6 +18,10 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
 | **Noah's test findings (build #1)** | 1 timed actions: **fixed and run in game** (stamina freeze fixed, new option timed action speed x4). 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **approved by Noah, in progress** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Speed: `FLUID_TURN_MS` default now 300 ms (was 600; pace only, day length unchanged). Details in the section below. |
+| **Grid-free (free) movement** | Phase 1 **done, run in game** (host side; option `FLUID_FREE_MOVEMENT`, default on): solo walk at 3.3 tiles/s with terrain cost, wall stop, diagonal wall slide; a client's body moves freely on the host. **Open:** phase 2 (doors, bump attack/talk, diagonal squeeze, stairs, vehicles, ledges, swimming: code paths exist through the bump to the old tile step, **not tested**), phase 4 network (clients still see tile slides), phase 5 tests/tuning. Plan: `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`. |
+| **Timed actions** | **Done, run in game**: one activity turn per world turn (host + client bodies), option "Realtime: timed action speed" x4, stamina per world turn during actions, no blocking "struggle to continue" menu. Measured: pulp 3.65 s, wait 60 game min 38.5 s. |
+| **Actions removed in multiplayer** (Noah) | **Done**: wait, pause (only stops an action), turn duration option hidden, quickload, abandon character, safe-mode toggle; debug menu host-only. Autoattack (TAB) = fluid swing (run in game). WASD layout now matches vanilla keys (run/crouch/prone on Ctrl+R/C/Z, those three not run in game). |
+| **Multiplayer lives** (after the mod Extra Lives, Noah) | **Done, run in game** (`src/mp_lives.cpp`, world option `MP_LIVES_DIFFICULTY`, default normal): host and clients go down, can be helped up, bleed out, respawn as the same character with a life less, at their bed (last place slept) if any; host respawn too. Out of lives: the client is told and character creation opens (**creating the character and rejoining not tested**; host's new character not tested; item drop on hard/very hard and lives regained over days not tested). |
 | Phase 7 | Not started: consult Noah first |
 
 ## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
@@ -79,7 +83,7 @@ it says so; Noah asked for **no more fixes before the handoff to Opus**, only fo
   save `Ctrl+S`); close `c`, loot `O`, zoom `z`/`Z`, fire mode `F`, autoattack `TAB` are vanilla
   again; the new movement modes: run `Ctrl+R`, crouch `Ctrl+C`, prone `Ctrl+Z`. Table in
   `MULTIPLAYER_FLUID.md`.
-- **Found: the host's death freezes the session.** When the host's own character dies, the host
+- **(Fixed later the same night: multiplayer lives, see the STATUS table.)** Found: the host's death froze the session. When the host's own character dies, the host
   shows the end screen ("The End", last words) and the world stops for every client. Clients'
   bodies have downed/respawn; the host avatar has not. Needs a decision (host respawn like
   clients, or the dedicated server only).

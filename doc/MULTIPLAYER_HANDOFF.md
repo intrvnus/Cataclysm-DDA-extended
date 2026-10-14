@@ -1,8 +1,64 @@
-# Multiplayer fork: handoff (2026-10-14)
+# Multiplayer fork: handoff (2026-10-14, updated at night for Gemini)
 
 Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over. Read this first,
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
+
+## 0. Newest: session of 2026-10-14 evening/night (Opus), handed to Gemini
+Read this section first; sections 1-9 below are the older handoff (still valid unless this section
+says otherwise). Commits `f99adbe..6c81e05` on `claude/fluid-proto`, all pushed, Linux CI green up
+to `1bb8f18` (the last commit's run was queued at handoff).
+
+### Noah's rules (current)
+- **No sub-agents** (they eat Noah's usage). Do research, reviews and tests yourself.
+- Quality over convenience; no gameplay/balance change without asking (a short plan first for
+  anything big); say how each change was verified (compile-only / run in game / CI); keep the
+  roadmap STATUS table current; progress updates every 20-30 minutes; consult Noah before Phase 7;
+  never push to `intrvnus-mod`, no PR, no force push, no Windows build unless Noah asks.
+- Reply in English unless Noah writes German.
+
+### Done in this session (and how it was verified)
+| Change | Verified |
+|---|---|
+| Timed actions: one activity turn per world turn (host `do_turn.cpp`, client bodies `net_server.cpp` `run_activity`); option "Realtime: timed action speed" (`FLUID_ACTIVITY_SPEED`, x4); stamina counts per world turn during an action (`Character::update_stamina`); the blocking "You struggle to continue" menu is skipped in realtime (`player_activity.cpp`); pulp progress text | Run in game: `CATA_MP_TEST_ACTIVITY=pulp|wait` (host avatar + client body): pulp 3.65 s, wait 60 game min 38.5 s, no freeze |
+| Mouse-view box hidden in fluid mode (`game::handle_mouseview`) | Compile + CI only |
+| Warning sound only near danger (`alerts::danger_nearby`, `alerts.cpp`), silent after death; solo fluid death screen uses normal popups | Compile + CI only |
+| Sprint is level based; continuous walking chains steps (`tuning::chain_ms`); north-sliding sprites drawn after the next row (diagonal clipping, `cata_tiles.cpp` `fluid_deferred`); fluid camera pad rows drawn | Compile + CI; the draw order was seen working indirectly in screenshots only |
+| `FLUID_TURN_MS` default 600 -> 300 (pace only; existing option files keep 600: set it by hand) | Run in game (300 ms per tile at speed 100) |
+| **Free movement phase 1** (`fluid.cpp`: `body_*`, `free_move`, `body_cross`; option `FLUID_FREE_MOVEMENT`, default on) | Run in game: solo walk/terrain cost/wall stop/wall slide; client body moves freely on the host (trace lines `Multiplayer: trace free cross`) |
+| Actions removed in multiplayer: wait, pause (only stops an action), turn duration option (hidden, `COPT_REALTIME_HIDE`), quickload, abandon character, safe-mode toggle; debug menu host-only. Autoattack (TAB) = fluid swing at the weakest adjacent hostile | Run in game: client TAB hit the test zombie; client `\|` message. Others compile only |
+| WASD layout matches vanilla keys (`data/raw/keybindings/fluid_layout.json`, table in `MULTIPLAYER_FLUID.md`) | JSON loads; Ctrl+R/C/Z not pressed in game |
+| **Multiplayer lives** (`src/mp_lives.cpp/.h`, `data/json/multiplayer_lives.json`, world option `MP_LIVES_DIFFICULTY` default normal; after the mod Extra Lives by ProHere, credited): the host goes down like clients (`net::host_prevent_avatar_death`, hooked in `game::is_game_over`); bleeding out spends a life and the same character comes back healed with 30 s incorporeal, 90 s invisible/speed, 5 waves of force (durations in real seconds); respawn point = where the player last slept (host: `place_player_overmap`; client body: stored at the bed and respawned in its own bubble); hard/very hard drop the items where they died (map note); out of lives: client gets `out_of_lives`, disconnects, makes a new character (`mp_lives::make_new_character`) and reconnects (`net::request_reconnect`); host makes a new character in place | Run in game with `tools/mp_tests/lives_test.sh 1|bed|host|nolives`: client respawn lives 2->1 PASS, bed 30 tiles away PASS, host down/helped/bled out/respawn 2->1 (log checked), out of lives PASS up to "making a new character". **Not tested:** finishing the new character + rejoin, the host's new character, item drop, lives regained over days |
+| Test tooling: `bld.sh` copies changed files with fresh time stamps (the old `cp -a` caused a heap-corruption binary); `pair.sh` finds windows with `xdotool search --pid` (no `xwininfo`); new `autoattack_test.sh`, `lives_test.sh`, hook `CATA_MP_TEST_ACTIVITY` (`src/mp_test_activity.cpp`), `CATA_MP_TEST_DOWN=1|bed|host|nolives` | used for the runs above |
+
+### Open, in order (Noah asked for these)
+1. **Free movement phase 2**, test each in game: doors (push into a closed door opens it), bump
+   attack, talking to NPCs by walking into them, diagonal squeeze, stairs, vehicles (board/drive),
+   ledges, swimming, dragging furniture. The code goes through `free_move` -> `body_bump_worthy` ->
+   the old `start_step`. Write a scripted test per case (`CATA_MP_TEST_TRACE=1` gives
+   `trace free cross` / `trace free refused` / `trace swing` lines).
+2. **Free movement phase 4 (network):** clients still predict tile steps; send body positions and
+   do prediction + reconciliation (plan: `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`).
+3. Lives: test the untested parts above.
+4. Older open items: scene scripts (disarm, steal, use item, sort armor, consoles, recraft,
+   workout), pets, map memory, zones editing (section 6 below); C4/C6 decisions wait for Noah.
+5. Known limit: any host menu (also the host's new-character screen) still stops the world for the
+   clients (A2); the dedicated server avoids it.
+
+### Environment notes (cloud container)
+- Install once: `apt-get install -y libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev
+  libsdl2-mixer-dev libfreetype-dev zlib1g-dev ccache xdotool imagemagick gdb p7zip-full`.
+- Build copy: `cp -a` the repo to `/home/user/cdda-build` once, `make -j4 TILES=1 RELEASE=1 PCH=1
+  CCACHE=1 LOCALIZE=0 TESTS=0` (about 75 min on 4 cores; a change to a widely included header such
+  as `options.h` costs about 20 min), then `tools/mp_tests/bld.sh` and `mv -f cataclysm-tiles.next
+  cataclysm-tiles` in the repo root.
+- Test worlds: `/tmp/mp_test/ud_client/save/Leeds` with a character (made by hand under Xvfb:
+  start the game with `--userdir ... --world Leeds`, the empty world opens character creation; Tab
+  to DESCRIPTION, `n` random name, Tab, `Y`; then Ctrl+S, `Y`). `start_fresh` copies it to
+  ud_host. Set `FLUID_TURN_MS` to 300 in both `config/options.json`.
+- Editing a JSON file in `data/` while a game cache exists logs "Stale game data detected": test
+  artefact only.
+- A test zombie horde can kill the host's character in long runs; with lives that now respawns.
 
 ## 1. Goal
 A real-time ("fluid") multiplayer mode for Cataclysm: DDA. Every player has a character and a
