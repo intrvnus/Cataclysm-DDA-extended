@@ -11,6 +11,7 @@
 #include "activity_type.h"
 #include "alerts.h"
 #include "bubbles.h"
+#include "current_map.h"
 #include "cached_options.h" // IWYU pragma: keep
 #include "calendar.h"
 #include "character.h"
@@ -189,6 +190,8 @@ static const trait_id trait_HEAVYSLEEPER2( "HEAVYSLEEPER2" );
 struct monster_sound_event {
     int volume;
     bool provocative;
+    // Multiplayer: the map the position is relative to (only set while extra bubbles exist).
+    const map *bubble = nullptr;
 };
 
 struct sound_event {
@@ -334,7 +337,7 @@ void sounds::sound( const tripoint_bub_ms &p, int vol, sound_t category,
     }
     const season_type seas = season_of_year( calendar::turn );
     const std::string seas_str = season_str( seas );
-    recent_sounds.emplace_back( p, monster_sound_event{ vol, is_provocative( category ) } );
+    recent_sounds.emplace_back( p, monster_sound_event{ vol, is_provocative( category ), bubbles::extras().empty() ? nullptr : &get_map() } );
     sounds_since_last_turn.emplace_back( p,
                                          sound_event{ vol, category, description, ambient,
                                                  false, id, variant, seas_str,
@@ -479,11 +482,11 @@ static int get_signal_for_hordes( const centroid &centr )
     return 0;
 }
 
-void sounds::process_sounds()
+static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> &sounds_here )
 {
     map &here = get_map();
 
-    std::vector<centroid> sound_clusters = cluster_sounds( recent_sounds );
+    std::vector<centroid> sound_clusters = cluster_sounds( sounds_here );
     const int weather_vol = get_weather().weather_id->sound_attn;
     for( const centroid &this_centroid : sound_clusters ) {
         // Since monsters don't go deaf ATM we can just use the weather modified volume
@@ -522,6 +525,28 @@ void sounds::process_sounds()
                     }
                 }
             }
+        }
+    }
+}
+
+// Sound positions are relative to the bubble they were made in: each bubble handles its own.
+void sounds::process_sounds()
+{
+    if( bubbles::extras().empty() ) {
+        process_sounds_in( recent_sounds );
+        recent_sounds.clear();
+        return;
+    }
+    for( map *bm : bubbles::all() ) {
+        std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> mine;
+        for( const auto &snd : recent_sounds ) {
+            if( snd.second.bubble == bm || ( snd.second.bubble == nullptr && bm == &reality_bubble() ) ) {
+                mine.push_back( snd );
+            }
+        }
+        if( !mine.empty() ) {
+            swap_map swap( *bm );
+            process_sounds_in( mine );
         }
     }
     recent_sounds.clear();
