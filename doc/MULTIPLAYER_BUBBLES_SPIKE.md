@@ -33,3 +33,21 @@ The risky unknown ("can two maps over one world run side by side?") is answered:
 ## Unrelated commits made on the way (also on `claude/fluid-proto`)
 - Dialogue side commands (look at, size up, assess personality, check opinion, yell) now work for clients (run in game: "Size up stats" returned the NPC's stats).
 - Monsters, specials and the turret friend-or-foe check use the nearest player instead of only the host avatar (compile-checked; regression sweep re-run).
+
+
+## Full build status (branch `claude/fluid-bubbles`)
+Every remote player's body now has a reality bubble of its own from the moment it joins (the host keeps the main bubble). `CATA_MP_NO_BUBBLES=1` switches this off for comparisons.
+
+Done and compiled; checked in the running game where noted:
+- Lifecycle: bubble opened at join (next to another player if there is one), follows its body every turn (shifts, far jumps reload in one go, NPC loading, monster spawn/despawn at the edges), closed when the player leaves. **Run in game:** a car driven about 490 tiles with the bubble following; downed/helped/bleed-out/respawn opens a new bubble; two clients each with their own bubble; reconnect after being far away reopens the bubble at the saved far position.
+- Ownership: every creature, submap activity (fields, items), vehicle step and monster spawn is handled by exactly one bubble (nearest centre) where bubbles overlap (compiled; the overlapping case was run with zombies and two clients, no errors).
+- Scent per bubble; sounds processed per bubble; hordes, NPC activation and random NPC spawns around every player; the dedicated server no longer drags the host avatar to the group.
+- Cache sync: bubbles that overlap rebuild their vehicle/terrain caches every turn (a car placed through one bubble is visible in the other).
+- Client messages and fluid driving run inside the body's bubble; each client is sent its own bubble.
+
+Known gaps / to watch:
+- Rain scent decay runs on the main bubble only.
+- `map::build_map_cache` keeps a static "previous player position" shared by all maps (cosmetic cache).
+- The cache sync is a blunt per-turn invalidation for overlapping bubbles; if turns get slow with several players standing together a finer per-change notification is the next step.
+- A stray log line "monster can't move to its location" can appear for a monster spawned into a wall in a bubble strip that the main bubble never covered (the game recovers by itself).
+- Not yet tested in game: three or more bubbles, bubbles on different z-levels, vehicles crossing between bubbles, saving the world with several far bubbles.
