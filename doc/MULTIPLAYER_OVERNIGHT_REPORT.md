@@ -16,6 +16,7 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - **Car regression** on the newest build: velocity 800 -> 2400 -> 844, the car moved from x=7844 to x=7892, 6 drive actions replayed, 0 errors.
 
 - **Grab furniture** (`G` then a direction): the host log shows the table pushed 7836 -> 7837 -> 7838 with the player following; pulling backwards was blocked in the test (probably a wall behind the player), not verified. Vehicles cannot be dragged yet (a message says so). Works for steps in fluid mode and in classic input.
+- **Map memory of a client** (A4 open item): when a client leaves, its map memory is saved (the client's own `.mm1` files were rewritten: `.hot.zzip` and `.warm.zzip` newer than before). Not yet checked: that it is loaded correctly on the next visit at another place.
 - **Vanilla unit tests** (compiled in a separate copy) with my changes: vehicle (46 cases, 503825 assertions), monster, NPC, construction, item actions, missions, factions all pass. One melee test case ("Character attacking a zombie") crashes inside the test helper `full_attack_details` (`get_hit_weapon` on an empty wielded item); this is in test code I did not touch and is probably already present in the base. A full run of the whole suite was started afterwards.
 
 ## Built (compiles) but not run in game
