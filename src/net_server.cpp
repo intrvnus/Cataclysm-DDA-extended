@@ -61,6 +61,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "mission.h"
+#include "mp_test_npc.h"
 #include "monster.h"
 #include "mtype.h"
 #include "mutation.h"
@@ -2672,6 +2673,7 @@ void host_end_of_turn()
             report_test_armor( *guy );
             test_build( rp, *guy );
             test_bubble( rp, *guy );
+            mp_test_scenes( *guy );
             test_furniture( *guy, false );
             test_downed_cycle( rp, *guy );
         }
