@@ -38,3 +38,5 @@ All work is on `claude/fluid-proto`, every step committed and pushed. No Windows
 - Balance/gameplay: nothing changed.
 
 (Last update 00:55: host chat, reconnect and the car re-checked OK on the newest build. Now compiling the unit tests in a separate copy to run the vanilla vehicle/monster/NPC tests against my changes. Earlier note 00:30: regression sweep re-run: downed/bleed-out cycle and dedicated server pass again; the car part of that run failed because of a test-script focus bug (fixed), re-run queued together with host chat and reconnect tests.)
+
+Update 03:25: full sweep re-run on the newest build (car: velocity 1200 -> 2400 -> 757, 6 drive actions, 0 failed; downed/helped/bleed-out cycle completes; dedicated server 35 heartbeats; 0 errors in all three). Zombie check: spawned 4-5 tiles away out of sight, it walked from 7 to 5 tiles toward the client body over about 2 minutes (sees=0 all the time, so it follows scent/sound, slowly). Still no clean test with line of sight in daylight; the zombie targets the client's body at least as often as the host avatar, which is the point of the nearest-player change.
