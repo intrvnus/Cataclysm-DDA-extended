@@ -648,7 +648,12 @@ void test_build( remote_player &rp, npc &guy )
         {
             remote_ui::replay_scope scope( answers, guy, guy.getID().get_value() );
             place_construction( { construction_group_str_id( "place_battery" ) } );
-            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: replay failed=" << scope.failed();
+            std::string said;
+            for( const std::string &t : scope.texts() ) {
+                said += t + " / ";
+            }
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: replay failed=" << scope.failed() <<
+                                       " texts: " << said;
         }
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: test build: activity " <<
                                    ( guy.activity ? guy.activity.id().str() : std::string( "none" ) ) <<

@@ -1243,6 +1243,10 @@ void place_construction( std::vector<construction_group_str_id> const &groups )
     std::map<tripoint_bub_ms, const construction *> &valid = valid_pair.first;
     std::vector<construction *> &cons = valid_pair.second;
     map &here = get_map();
+    if( remote_ui::replaying() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: construction for a player's body: " << valid.size() <<
+                                   " valid places, " << cons.size() << " constructions";
+    }
 
     bool blink = true;
     std::optional<tripoint_bub_ms> mouse_pos;
