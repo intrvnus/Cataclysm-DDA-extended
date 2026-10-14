@@ -1,6 +1,6 @@
 # Multiplayer roadmap (to-do list for discussion)
 
-## STATUS (read this first; updated 2026-10-14 afternoon)
+## STATUS (read this first; updated 2026-10-14 evening)
 Handoff for Opus: `MULTIPLAYER_HANDOFF.md`.
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
@@ -17,7 +17,7 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | C4 faction rework, C6 basecamps | Options paper written (`MULTIPLAYER_FACTIONS_OPTIONS.md`): waiting for Noah's decisions |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
-| **Noah's test findings (build #1)**: pulping/timed actions stuck, movement slow/janky, delayed sprint, diagonal clipping, **grid-free smooth movement (FUNDAMENTAL, top priority)**, mouse-view panel covers the sidebar, warning sound at harmless moments | **Open**, see section "Noah's test findings" below the table |
+| **Noah's test findings (build #1)** | 1 timed actions, 5 mouse view, 6 warning sound: **fixed (compile-only so far)**. 2 slow/janky/late sprint: sprint and step-chaining bugs fixed (compile-only); the slowness itself is a speed decision for Noah. 3 diagonal clipping: draw-order fix (compile-only). 4 grid-free movement: **plan written, waiting for Noah's yes** (`MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`). Details in the section below. |
 | Phase 7 | Not started: consult Noah first |
 
 ## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
@@ -45,6 +45,39 @@ it says so; Noah asked for **no more fixes before the handoff to Opus**, only fo
 6. **The warning sound needs work.** It plays in situations that are not dangerous (example: the
    death screen). Differentiate dangerous from harmless situations, ideally by checking whether
    danger is close by and only then triggering it.
+
+### Work on the findings (Opus, 2026-10-14 evening)
+- **1 Timed actions (fixed, compile-only):** pulping was not frozen but ran ~14x too slowly in
+  multiplayer and its bar always read 0%. Cause: the extra world-time moves were given in one lump,
+  and most activities spend all moves in one call (pulp hits once per call, rooted ones pause),
+  so the bonus was thrown away. Now the extra moves are handed out one turn at a time, for the host
+  (`do_turn.cpp`) and for clients' bodies (`net_server.cpp` `run_activity`). Same fix helps every
+  activity that does a fixed amount per call (wait, pulp, ...). Pulp got a real progress text
+  (corpse damage %, corpses left).
+- **5 Mouse view (fixed, compile-only):** in fluid mode the mouse is the aiming cursor and always
+  over the map, and fluid input never reached the code that hides the box. The mouse-view box is
+  no longer shown in fluid mode (`game::handle_mouseview`); look (`x`) still works.
+- **6 Warning sound (fixed, compile-only):** danger alerts (hostile spotted, laser lock, a player
+  down/dead, monster wind-ups) still sound; plain warnings ("do it again to confirm", distractions
+  like pain/noise, loud noises) sound only when a hostile is visible within 12 tiles, a laser
+  lock is on you or you stand in a dangerous field (`alerts::danger_nearby`). Nothing sounds once
+  you are dead. Solo fluid mode: the death screen questions (death cam, keep world) are normal
+  popups again; before, "do it again to confirm" made the death cam unreachable.
+- **2 Movement (partly):** plain bugs fixed (compile-only): holding Shift while winded now starts
+  the sprint as soon as stamina allows (before it needed a new press); while walking continuously
+  the next step chains exactly on the end of the last even after a slow world turn (no pause on
+  the tile, tuning `chain_ms` 150). **Not changed (needs Noah):** the speed itself. With
+  `FLUID_TURN_MS` 600 a speed-100 character walks 1.67 tiles/s (diagonal 1.17, run 3.3). See the
+  plan's decision 1. Also known: a sprint pressed mid-step only applies from the next step (the
+  grid-free rework removes this).
+- **3 Diagonal clipping (fixed, compile-only):** rows are drawn top to bottom; a sprite sliding
+  north reaches into the row below and that row's terrain painted over it until the step ended.
+  Such sprites are now drawn after that row (`cata_tiles.cpp` `fluid_deferred`). Also fixed: the
+  two extra rows built for the moving camera were never drawn (blank strip at the screen edge).
+- **4 Grid-free movement:** plan in `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`, waiting for Noah.
+- Found on the way, not fixed: the "You struggle to continue. Keep trying?" menu when stamina runs
+  low during an activity (`player_activity.cpp`) is a blocking menu; in multiplayer it would
+  freeze the host. Pulping a corpse that takes over 10 minutes asks "do it again to confirm".
 
 Other open items found on the way (not from Noah's test):
 - **Crash when starting a world with no character** (Noah, build #1, `--mp-host`, SIGSEGV in

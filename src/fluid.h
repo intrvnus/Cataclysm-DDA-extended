@@ -57,6 +57,9 @@ bool smooth_camera();
 struct tuning {
     // length of one frame of the input wait loops
     int frame_ms = 16;
+    // while movement is held, a step that is up to this late (ms) still starts when the
+    // previous one ended (a slow world turn must not add a pause to walking)
+    int chain_ms = 150;
     // ---- melee
     // share of the attack time spent winding up before the blow lands
     float windup_share = 0.40f;
@@ -168,6 +171,8 @@ struct actor_state {
     // sprint key state of the last frame (hold to sprint)
     bool prev_sprint = false;
     bool prev_cancel = false;
+    // the last action was a step and movement is still held: the next step chains on
+    bool stepping = false;
 
     // ---- melee
     phase melee = phase::idle;

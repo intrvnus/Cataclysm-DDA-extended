@@ -874,6 +874,21 @@ class cata_tiles
         point op;
         // experimental fluid mode: extra pixel offset of the creature that is being drawn
         point fluid_shift;
+        // Fluid mode: a creature sliding north overlaps the row below its tile.  Rows are drawn
+        // top to bottom, so it is drawn after that row instead, or the row's terrain and
+        // furniture would cover the lower part of the sprite until the step ends.
+        struct fluid_deferred_critter {
+            tripoint_bub_ms pos;
+            lit_level ll;
+            int height_3d;
+            std::array<bool, 5> invisible;
+            int row;
+        };
+        std::vector<fluid_deferred_critter> fluid_deferred;
+        // row of the main draw loop being drawn (-1 outside of it: nothing is deferred)
+        int fluid_cur_row = -1;
+        bool fluid_drawing_deferred = false;
+        void draw_fluid_deferred( int row );
 
         std::map<tripoint_bub_ms, int> radiation_override;
         std::map<tripoint_bub_ms, ter_id> terrain_override;

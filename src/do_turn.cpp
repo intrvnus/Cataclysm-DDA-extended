@@ -663,14 +663,21 @@ bool do_turn()
     // Focus minigame (B3/B5): hitting SPACE on the prompt doubles the work done for a moment.
     focus_minigame::tick( u );
     const double focus = focus_minigame::multiplier( u );
+    int bonus_turns = 0;
     if( u.activity && alerts::nonblocking() ) {
-        const int bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
-        if( bonus_turns > 0 ) {
-            u.mod_moves( u.get_speed() * bonus_turns );
-        }
+        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
     }
-    while( u.get_moves() > 0 && u.activity ) {
-        u.activity.do_turn( u );
+    // Most activities spend all moves in one do_turn call (and rooted ones pause), so the
+    // extra world turns are handed out one turn of moves at a time: one activity turn per
+    // world turn.  Otherwise pulping etc. advance only one second per real turn.
+    for( int extra = 0; ; ++extra ) {
+        while( u.get_moves() > 0 && u.activity ) {
+            u.activity.do_turn( u );
+        }
+        if( extra >= bonus_turns || !u.activity ) {
+            break;
+        }
+        u.mod_moves( u.get_speed() );
     }
     if( ( world_step_turns > 1 || focus > 1.0 ) && !u.activity && u.get_moves() > u.get_speed() ) {
         // no burst of free actions after the activity ended

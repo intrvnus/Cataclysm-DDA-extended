@@ -1815,16 +1815,23 @@ bool run_activity( remote_player &rp, npc &guy )
         return false;
     }
     const int world_step_turns = to_turns<int>( calendar::last_step() );
+    int bonus_turns = 0;
     if( alerts::nonblocking() ) {
         const double focus = focus_minigame::multiplier( guy );
-        const int bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
-        if( bonus_turns > 0 ) {
-            guy.mod_moves( guy.get_speed() * bonus_turns );
-        }
+        bonus_turns = static_cast<int>( std::max( world_step_turns, 1 ) * focus ) - 1;
     }
     const size_t messages_before = Messages::size();
-    for( int guard = 0; guard < 1000 && guy.get_moves() > 0 && guy.activity; ++guard ) {
-        guy.activity.do_turn( guy );
+    // One activity turn per world turn (see do_turn.cpp): the extra moves are given one turn
+    // at a time, because most activities spend all moves in a single call.
+    int guard = 0;
+    for( int extra = 0; ; ++extra ) {
+        for( ; guard < 1000 && guy.get_moves() > 0 && guy.activity; ++guard ) {
+            guy.activity.do_turn( guy );
+        }
+        if( extra >= bonus_turns || !guy.activity || guard >= 1000 ) {
+            break;
+        }
+        guy.mod_moves( guy.get_speed() );
     }
     const size_t messages_after = Messages::size();
     if( messages_after > messages_before ) {

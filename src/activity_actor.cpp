@@ -8779,6 +8779,21 @@ void pulp_activity_actor::do_turn( player_activity &act, Character &you )
     }
 }
 
+std::string pulp_activity_actor::get_progress_message( const player_activity & ) const
+{
+    if( corpses.empty() ) {
+        return std::string();
+    }
+    const item *corpse = corpses.back().get_item();
+    if( corpse == nullptr ) {
+        return std::string();
+    }
+    const int percent = corpse->damage() * 100 / std::max( 1, corpse->max_damage() );
+    return corpses.size() > 1 ?
+           string_format( _( "%d%% (%d corpses left)" ), percent, static_cast<int>( corpses.size() ) ) :
+           string_format( "%d%%", percent );
+}
+
 bool pulp_activity_actor::can_pulp( item &corpse, Character &you )
 {
 

@@ -1389,7 +1389,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     st.prev_secondary = in.secondary;
 
     // ---- hold to sprint (B4); back to walking on release or when out of stamina
-    if( in.sprint && !st.prev_sprint && who.can_run() ) {
+    // level based: holding the key while winded starts the sprint once stamina allows it
+    if( in.sprint && !who.is_running() && who.can_run() ) {
         who.set_movement_mode( move_mode_run );
     } else if( who.is_running() && ( ( !in.sprint && st.prev_sprint ) || !who.can_run() ) ) {
         who.set_movement_mode( move_mode_walk );
@@ -1496,9 +1497,19 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         }
 
         if( !started && ( in.move_x != 0 || in.move_y != 0 ) ) {
-            started = start_step( who, st, in.move_x, in.move_y, now, t0, out );
+            // While walking continuously the next step starts exactly when the last one ended,
+            // even if the world turn in between took longer than a frame: no lost time (and
+            // no pause on the tile) after a hitch.
+            const ms_t step_t0 = ( st.stepping && st.ready_at > 0 && now - st.ready_at < tn.chain_ms ) ?
+                                 st.ready_at : t0;
+            const tripoint_abs_ms before = who.pos_abs();
+            started = start_step( who, st, in.move_x, in.move_y, now, step_t0, out );
+            st.stepping = started && who.pos_abs() != before;
+        } else {
+            st.stepping = false;
         }
-        ( void )started;
+    } else if( in.move_x == 0 && in.move_y == 0 ) {
+        st.stepping = false;
     }
 
     // ---- what the overlays show (local avatar only; set by host_frame)

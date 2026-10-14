@@ -2471,6 +2471,8 @@ class pulp_activity_actor : public activity_actor
 
         bool can_pulp( item &corpse, Character &you );
         void send_final_message( Character &you ) const;
+        // How far the corpse being smashed is pulped (the activity's own counter is open-ended).
+        std::string get_progress_message( const player_activity & ) const override;
 
         std::unique_ptr<activity_actor> clone() const override {
             return std::make_unique<pulp_activity_actor>( *this );

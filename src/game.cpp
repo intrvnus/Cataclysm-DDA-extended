@@ -1614,11 +1614,13 @@ bool game::cancel_activity_or_ignore_query( const distraction_type type, const s
     if( alerts::nonblocking() ) {
         if( u.has_destination() ) {
             u.abort_automove();
-            alerts::warn( string_format( _( "%s Auto move stopped." ), text ), alerts::level::danger );
+            alerts::warn( string_format( _( "%s Auto move stopped." ), text ),
+                          alerts::danger_nearby() ? alerts::level::danger : alerts::level::warning );
             return true;
         }
         if( u.activity && !u.activity.is_distraction_ignored( type ) ) {
-            alerts::warn( text, alerts::level::danger );
+            alerts::warn( text, alerts::danger_nearby() ? alerts::level::danger :
+                          alerts::level::warning );
         }
         return false;
     }
@@ -2605,6 +2607,14 @@ bool game::handle_mouseview( input_context &ctxt, std::string &action )
             ui_manager::redraw_invalidated();
             continue;
         }
+        if( action == "MOUSE_MOVE" && fluid::enabled() ) {
+            // In fluid mode the mouse is the aiming cursor and always over the map, so the
+            // mouse view box would cover the top of the sidebar for good.  Look (x) still works.
+            liveview.hide();
+            fluid::host_frame();
+            ui_manager::redraw();
+            continue;
+        }
         if( action == "MOUSE_MOVE" ) {
             const std::optional<tripoint_bub_ms> mouse_pos = ctxt.get_coordinates( w_terrain,
                     ter_view_p.raw().xy(),
@@ -2615,10 +2625,6 @@ bool game::handle_mouseview( input_context &ctxt, std::string &action )
             } else if( !mouse_pos ) {
                 liveview_pos.reset();
                 liveview.hide();
-            }
-            if( fluid::enabled() ) {
-                // the world does not freeze while the mouse moves
-                fluid::host_frame();
             }
             ui_manager::redraw();
         }

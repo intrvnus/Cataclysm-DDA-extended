@@ -46,6 +46,12 @@ void warn( const std::string &text, level lvl = level::warning,
  */
 bool confirm( const std::string &question );
 
+/**
+ * True when a threat is close: a visible hostile creature within a short range, a laser
+ * lock or a dangerous field on the player's tile.  Decides whether a warning makes a sound.
+ */
+bool danger_nearby();
+
 /** Plays the warning sound for @p lvl (no message). */
 void play_sound( level lvl );
 

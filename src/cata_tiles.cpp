@@ -1772,8 +1772,11 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     while( cur_zlevel <= center.z() ) {
         const half_open_rectangle<point> &cur_any_tile_range = is_isometric()
                 ? z_any_tile_range[center.z() - cur_zlevel] : top_any_tile_range;
-        // For each row
-        for( int row = cur_any_tile_range.p_min.y; row < cur_any_tile_range.p_max.y; row ++ ) {
+        // For each row (with the extra rows the fluid camera needs while it is shifted)
+        const int row_lo = cur_any_tile_range.p_min.y - fluid_pad;
+        const int row_hi = cur_any_tile_range.p_max.y + fluid_pad;
+        for( int row = row_lo; row < row_hi; row ++ ) {
+            fluid_cur_row = is_isometric() ? -1 : row;
             // Set base height for each tile
             for( tile_render_info &p : here.draw_points_cache[cur_zlevel][row] ) {
                 p.com.height_3d = ( cur_zlevel - center.z() ) * zlevel_height;
@@ -1817,7 +1820,10 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
                     }
                 }
             }
+            draw_fluid_deferred( row );
         }
+        fluid_cur_row = -1;
+        draw_fluid_deferred( INT_MAX );
         cur_zlevel += 1;
     }
 
@@ -4184,6 +4190,24 @@ bool cata_tiles::draw_critter_at_below( const tripoint_bub_ms &p, const lit_leve
     return true;
 }
 
+void cata_tiles::draw_fluid_deferred( int row )
+{
+    if( fluid_deferred.empty() ) {
+        return;
+    }
+    std::vector<fluid_deferred_critter> later;
+    fluid_drawing_deferred = true;
+    for( fluid_deferred_critter &d : fluid_deferred ) {
+        if( d.row <= row ) {
+            draw_critter_at( d.pos, d.ll, d.height_3d, d.invisible, false );
+        } else {
+            later.push_back( d );
+        }
+    }
+    fluid_drawing_deferred = false;
+    fluid_deferred = std::move( later );
+}
+
 bool cata_tiles::draw_critter_at( const tripoint_bub_ms &p, lit_level ll, int &height_3d,
                                   const std::array<bool, 5> &invisible, const bool memorize_only )
 {
@@ -4202,6 +4226,11 @@ bool cata_tiles::draw_critter_at( const tripoint_bub_ms &p, lit_level ll, int &h
     } fluid_guard{ fluid_shift };
     if( fluid::enabled() ) {
         const fluid::offset off = fluid::sprite_offset( here.get_abs( p ) );
+        if( off.y > 0.0 && fluid_cur_row >= 0 && !fluid_drawing_deferred ) {
+            // reaches into the next row: drawn after it (see fluid_deferred)
+            fluid_deferred.push_back( { p, ll, height_3d, invisible, fluid_cur_row + 1 } );
+            return true;
+        }
         fluid_shift = point( static_cast<int>( std::lround( off.x * tile_width ) ),
                              static_cast<int>( std::lround( off.y * tile_height ) ) );
     }
