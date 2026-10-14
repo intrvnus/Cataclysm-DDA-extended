@@ -716,8 +716,14 @@ void test_bubble( remote_player &rp, npc &guy )
         std::string line = "Multiplayer: test bubble: ";
         for( monster &z : g->all_monsters() ) {
             if( z.unique_name == "TESTBZ" ) {
+                map &zb = bubbles::owner( z.pos_abs() );
                 line += "B dist " + std::to_string( rl_dist( z.pos_abs(), guy.pos_abs() ) ) + " hp " +
-                        std::to_string( z.get_hp() ) + " ";
+                        std::to_string( z.get_hp() ) + " sees " + std::to_string( z.sees( zb, guy ) ) +
+                        " attitude " + std::to_string( static_cast<int>( z.attitude( &guy ) ) ) +
+                        " anger " + std::to_string( z.anger ) + " aggro " + std::to_string( z.aggro_character ) +
+                        " dest " + ( z.get_dest() == guy.pos_abs() ? "body" : "other" ) +
+                        " moves " + std::to_string( z.get_moves() ) + " light " +
+                        std::to_string( zb.ambient_light_at( z.pos_bub( zb ) ) ) + " ";
             } else if( z.unique_name == "TESTAZ" ) {
                 line += "A dist " + std::to_string( rl_dist( z.pos_abs(), get_avatar().pos_abs() ) ) +
                         " hp " + std::to_string( z.get_hp() ) + " ";
