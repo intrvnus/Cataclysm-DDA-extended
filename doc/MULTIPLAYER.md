@@ -49,6 +49,8 @@ you: when you come back, you are back in your own body where you left it.
 - Downed players can be helped up by walking into them.
 - Everybody sleeping skips the night.
 
+- Network: messages are compressed; one client uses roughly 15-30 KB/s while moving fast (about half of that without compression).
+
 ## Known limits
 
 - Players must stay within about 60 tiles of each other (one simulated area); the dedicated
