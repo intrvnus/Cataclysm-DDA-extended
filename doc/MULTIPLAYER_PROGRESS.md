@@ -1,46 +1,32 @@
 # Multiplayer build: progress overview
 
-Branch: `claude/fluid-proto` (repo intrvnus/Cataclysm-DDA-extended). Details and decisions: `doc/MULTIPLAYER_ROADMAP.md`.
+Branch: `claude/fluid-proto` (repo intrvnus/Cataclysm-DDA-extended). Plan and decisions: `doc/MULTIPLAYER_ROADMAP.md`. How to play: `doc/MULTIPLAYER.md`. Overnight run notes (with the test evidence): `doc/MULTIPLAYER_OVERNIGHT_REPORT.md`.
 
 ## What it is
-Host + clients over ENet. The host simulates the world. Each client has its own character (saved on the host, rejoin by key) and plays in a "fluid" real-time mode (WASD, mouse aim, throw at cursor). Client menus run on the client; the host repeats the chosen answers on the player's body (`src/remote_ui.*`, record/replay).
+Host + clients over ENet (messages compressed). The host simulates the world. Each client has its own character (saved on the host, rejoin by key) and plays in a real-time "fluid" mode (mouse aim, throw at cursor). Client menus run on the client; the host repeats the chosen answers on the player's body (`src/remote_ui.*`, record/replay).
 
-## Works (tested in game, Xvfb host + client)
-- Join, own character, saved and restored on reconnect (A4).
-- Fluid movement, melee, throwing at the mouse cursor.
-- Menus: apply (lighter etc.), examine, selective pickup, advanced inventory, bionics, mutations, unload, disassemble, smash, inventory screen with item menu (wield, wear, eat, drop...), crafting, doors, look, character sheet, sleep.
-- NPCs: walking into one opens the normal menu (talk, push, examine wounds, attack, disarm, steal, trade). Dialogue and trading run on the client and the host carries out the deal. No chat key.
-- Stairs and ladders: a player may be on another floor than the host.
-- Local views and settings (zoom, item list, medical, options, auto-pickup, colours...).
-- Client actions never touch the host's avatar (checked for wield).
+## Works (checked in the running game, host + client(s) under a virtual display, logs quoted in the overnight report)
+- Join, own character, saved and restored on reconnect (killed client rejoins its body).
+- Driving: take the controls, start the engine, drive; a passenger rides along.
+- Downed players: go down, are helped up, or bleed out and respawn.
+- Dedicated server: runs without a player and keeps the world ticking.
+- Chat (F2) and player list (F4), for clients and the host.
+- Sort armor (the host's worn order really changes), grab and push furniture, haul, item action menu, zones window, map (what any player has seen), missions list (group), peek, NPC menu entries, dialogue and trade, stairs, local views.
+- Earlier: apply, examine, pickup, advanced inventory, bionics, mutations, unload, disassemble, smash, inventory item menu, fluid throw.
+- Vanilla unit tests that touch my changes pass (vehicle, monster, NPC, construction, item actions, missions, factions); in a full-suite run 5 assertions failed in a monster-spawning test helper (they pass when those test files run alone: probably leftover state between tests); one melee test case crashes inside the test's own helper (not my code).
 
-## Added since (compiled; round 2 of the in-game checks is running)
-- Menus for clients: construction, workout, haul, peek, item action menu, sort armor, computer consoles, pets/mounts/friendly monsters, disarm/steal/use-item-on NPC, group missions list, shared zones and loot menu, shared overmap (what any player has seen).
-- Vehicles: take the controls, drive (steer/speed per key press), examine; test car hook `CATA_MP_TEST_VEHICLE`. Passengers/gunners and grab/drag come next.
-- The host never shows blocking debug popups (they stop the world for everybody; they are logged instead).
+## Compiled but not yet run in the game
+Factions read-only view, pets/mounts/friendly monsters, computers/consoles, disarm/steal/use-item (the confirmation prompts reach the host), sort armor for friends, repeat last craft, construction placement, workout, map memory loading on the next visit.
 
-## Written but not tried
-- Player cannot be seen, targeted or hurt while talking (for portal storms etc.): code only, no hazard tested.
-- Mend, fluid fire key, push/disarm/steal outcomes.
-
-## Already in the code from earlier sessions (found by reading it; not re-tested by me)
-- A1 world clock: `REALTIME_DAY_MINUTES` scales calendar time against action time (`do_turn.cpp`).
-- A2 dedicated server: `--dedicated` runs the host without a player; the host avatar becomes an invisible, invulnerable ghost that follows the group (also a first answer to C2: the bubble follows the players' centre, but players far apart are still not simulated).
-- A3: every player leaves scent; monsters see player bodies as NPC targets. Many AI places still look only at the host avatar (about 30 in `monster.cpp`/`monmove.cpp`): monsters' anger, aggro and "see the player" checks are not converted.
-- A5/B1: non-blocking mode (`alerts`): warning sounds, coloured messages and arrows instead of stopping.
-- B3 crafting/work stations (`stations.cpp`), B5 reading as a timed action and focus minigame, B6 sleep skip when everybody sleeps, B7 timed actions cancel on movement, B4 sprint by holding a key, B9 turret/monster wind-up alerts, C1 downed players that others can help up.
+## Already in the code from earlier sessions
+World clock (`REALTIME_DAY_MINUTES`), dedicated server, scent for every player, warnings instead of stopping (alerts), crafting stations, reading as a timed action + focus minigame, sleep skip when everybody sleeps, timed actions cancel on movement, sprint, turret/monster warnings.
 
 ## Not done
-- **Separate reality bubbles (C2):** only the dedicated ghost following the group's centre; players far apart still need a design decision.
-- Gameplay still open: stamina rework (B2) and weariness (B10) not checked; crouch/prone key layout not checked; C7-C9 tuning.
-- Systems: vehicles (C3, with grab), shared faction/ownership and the faction menu (C4/C5), basecamps (C6), chat/player list (C15), network efficiency (C17).
-- Menus still missing for clients: spells (not needed), classic (non-fluid) shooting, examining creatures/vehicles/consoles, factions menu, follower orders, NPC "sort armor".
-- Wait is refused on purpose (the world does not stop).
+- Separate reality bubbles (C2): players far apart are not simulated (the dedicated server follows the group's middle).
+- Dragging vehicles, spells (not needed), dialogue side commands (look at / size up / yell), classic (non-fluid) shooting for clients.
+- Faction rework (C4), basecamps (C6), stamina/weariness (B2/B10) and other balance work.
+- Sending only changed map parts (more network savings).
+- Windows build: none until the whole batch is done.
 
 ## Next
-Finish the remaining basic menus and untested items, then stop for a decision (C2) before the next phase. No Windows build until this batch is done.
-
-## Verified from logs (overnight run)
-- Driving: a client takes the controls, starts the engine and drives; the car reached speed 2400 and moved about 48 tiles, the driver and a passenger travel with it, the client screen follows.
-- Downed players: the body goes down, a helper gets it up, and when it bleeds out a new body spawns.
-- Dedicated server keeps ticking with a client connected (heartbeat log).
+Finish verifying the compiled-only items, then a decision about C2 (bubbles) before the next phase.
