@@ -333,18 +333,30 @@ class native_scope
         bool restore_safe_mode = false;
 };
 
-// 8 direction from a vector, (0,0) if the vector is too short
-std::pair<int, int> snap8( double dx, double dy )
+// compass direction of 45 degree sector @p octant (0 = east, counted toward +y = south)
+std::pair<int, int> compass_dir( int octant )
+{
+    static const int table_x[8] = { 1, 1, 0, -1, -1, -1, 0, 1 };
+    static const int table_y[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+    const int idx = ( ( octant % 8 ) + 8 ) % 8;
+    return { table_x[idx], table_y[idx] };
+}
+
+// The compass direction whose 45 degree sector (centred on it, e.g. east = -22.5..+22.5 degrees,
+// south-east = 22.5..67.5, y grows downward) holds the vector (dx, dy); (0,0) for a null vector.
+std::pair<int, int> sector_dir( double dx, double dy )
 {
     if( std::abs( dx ) < 1e-6 && std::abs( dy ) < 1e-6 ) {
         return { 0, 0 };
     }
     const double angle = std::atan2( dy, dx );
-    const int octant = static_cast<int>( std::lround( angle / ( M_PI / 4.0 ) ) );
-    static const int table_x[8] = { 1, 1, 0, -1, -1, -1, 0, 1 };
-    static const int table_y[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
-    const int idx = ( ( octant % 8 ) + 8 ) % 8;
-    return { table_x[idx], table_y[idx] };
+    return compass_dir( static_cast<int>( std::lround( angle / ( M_PI / 4.0 ) ) ) );
+}
+
+// 8 direction from a vector, (0,0) if the vector is too short
+std::pair<int, int> snap8( double dx, double dy )
+{
+    return sector_dir( dx, dy );
 }
 
 tripoint_abs_ms tile_of( double x, double y, int z )
@@ -406,6 +418,34 @@ Creature *assist_target( const Character &who, double dx, double dy, std::pair<i
         }
     }
     return best;
+}
+
+// M-C: the adjacent tile in the 45 degree sector the cursor (vector cdx, cdy from the player's tile
+// centre) is in.  If that tile holds no valid target but the neighbouring sector on the side of the
+// cursor does and the cursor is within 12 degrees of the boundary to it, the neighbour is used.
+// Returns false (dir untouched) if the cursor is inside the player's own tile (< 0.3 tile).
+bool cursor_sector_dir( const Character &who, double cdx, double cdy, std::pair<int, int> &dir )
+{
+    if( std::sqrt( cdx * cdx + cdy * cdy ) < 0.3 ) {
+        return false;
+    }
+    const double step = M_PI / 4.0;
+    const double angle = std::atan2( cdy, cdx );
+    const int octant = static_cast<int>( std::lround( angle / step ) );
+    dir = compass_dir( octant );
+    const tripoint_abs_ms pos = who.pos_abs();
+    if( target_at( who, pos + tripoint_rel_ms( dir.first, dir.second, 0 ) ) != nullptr ) {
+        return true;
+    }
+    const double off = angle - octant * step; // -22.5 .. +22.5 degrees
+    const double tolerance = 12.0 * M_PI / 180.0;
+    if( std::abs( off ) >= step / 2.0 - tolerance ) {
+        const auto side = compass_dir( octant + ( off > 0.0 ? 1 : -1 ) );
+        if( target_at( who, pos + tripoint_rel_ms( side.first, side.second, 0 ) ) != nullptr ) {
+            dir = side;
+        }
+    }
+    return true;
 }
 
 void emit( std::vector<event> *out, const event &ev )
@@ -684,6 +724,13 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     st.hit_something = false;
     st.buffered_until = 0;
     begin_lunge( who.pos_abs(), dx, dy, t0, windup, total );
+
+    static const bool swing_log = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    if( swing_log ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace swing id=" << who.getID().get_value() <<
+                                   " t=" << now_ms() << " dx=" << dx << " dy=" << dy << " hit=" <<
+                                   ( target_at( who, who.pos_abs() + tripoint_rel_ms( dx, dy, 0 ) ) != nullptr ? 1 : 0 );
+    }
 
     event ev;
     ev.type = fx_type::swing;
@@ -1194,9 +1241,12 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 if( dir.first == 0 && dir.second == 0 ) {
                     dir = { st.face_dx, st.face_dy };
                 }
+                // M-C: the click hits the tile of the cursor's 45 degree sector (no assist cone)
+                const bool sectors = tn.melee_sectors && have_cursor &&
+                                     cursor_sector_dir( who, cdx, cdy, dir );
                 std::pair<int, int> assisted = dir;
                 Creature *tgt = target_at( who, pos + tripoint_rel_ms( dir.first, dir.second, 0 ) );
-                if( tgt == nullptr ) {
+                if( tgt == nullptr && !sectors ) {
                     tgt = assist_target( who, have_dir ? cdx : dir.first, have_dir ? cdy : dir.second,
                                          assisted );
                     if( tgt != nullptr ) {
