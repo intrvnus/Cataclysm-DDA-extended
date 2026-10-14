@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "body_part_set.h"
+#include "bubbles.h"
 #include "bodypart.h"
 #include "calendar.h"
 #include "character.h"
@@ -28,6 +29,9 @@
 #include "map.h"
 #include "map_scale_constants.h"
 #include "mapdata.h"
+#include "current_map.h"
+#include "net_session.h"
+#include "npc.h"
 #include "math_defines.h"
 #include "messages.h"
 #include "omdata.h"
@@ -35,6 +39,7 @@
 #include "overmap.h"
 #include "overmap_ui.h"
 #include "overmapbuffer.h"
+#include "scent_map.h"
 #include "pocket_type.h"
 #include "point.h"
 #include "regional_settings.h"
@@ -460,9 +465,27 @@ void handle_weather_effects( const weather_type_id &w )
             wetness = 60;
         }
         here.decay_fields_and_scent( decay_time );
+        // multiplayer: every other reality bubble has its own scent grid, which rain washes out
+        // too (fields stay with the main bubble: overlapping bubbles share them)
+        for( map *extra : bubbles::extras() ) {
+            swap_map swap( *extra );
+            get_scent().decay();
+        }
         // Coarse correction to get us back to previously intended soaking rate.
-        if( calendar::once_every( 6_seconds ) && is_creature_outside( target ) ) {
-            wet_character( target, wetness );
+        if( calendar::once_every( 6_seconds ) ) {
+            if( is_creature_outside( target ) ) {
+                wet_character( target, wetness );
+            }
+            // the bodies of multiplayer clients get as wet as the host
+            for( npc &guy : g->all_npcs() ) {
+                if( net::is_remote_player( guy ) && !guy.is_dead() ) {
+                    map *own = bubbles::extra_containing( guy.pos_abs() );
+                    swap_map swap( own != nullptr ? *own : here );
+                    if( is_creature_outside( guy ) ) {
+                        wet_character( guy, wetness );
+                    }
+                }
+            }
         }
     }
     glare( w );
