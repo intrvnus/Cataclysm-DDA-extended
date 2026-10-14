@@ -13318,6 +13318,7 @@ point_rel_sm game::update_extra_bubble( map &bm, const tripoint_abs_ms &centre )
 {
     swap_map swap( bm );
     if( centre.z() != bm.get_abs_sub().z() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble level " << bm.get_abs_sub().z() << " -> " << centre.z();
         bm.vertical_shift( centre.z() );
     }
     const tripoint_bub_ms c = bm.get_bub( centre );
