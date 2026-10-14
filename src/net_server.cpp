@@ -2502,6 +2502,15 @@ Character &nearest_player( const tripoint_abs_ms &from )
     return *best;
 }
 
+std::vector<tripoint_abs_ms> all_player_positions()
+{
+    std::vector<tripoint_abs_ms> result = { get_player_character().pos_abs() };
+    for( const npc *guy : remote_player_npcs() ) {
+        result.push_back( guy->pos_abs() );
+    }
+    return result;
+}
+
 std::string player_list_text( const tripoint_abs_ms &from )
 {
     std::string text = _( "Players" ) + std::string( "\n\n" );

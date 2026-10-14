@@ -460,17 +460,37 @@ void monmove()
     g->cleanup_dead();
 }
 
+// Sounds are processed for NPCs near any player (the NPC of a client always has a player at
+// distance 0).  Sounds are stored relative to the bubble they were made in, so an NPC in an
+// extra bubble is processed from that bubble.
+void process_npc_sounds()
+{
+    for( npc &guy : g->all_npcs() ) {
+        const tripoint_abs_ms where = guy.pos_abs();
+        if( rl_dist( where, net::nearest_player( where ).pos_abs() ) >= MAX_VIEW_DISTANCE ) {
+            continue;
+        }
+        if( bubbles::extras().empty() ) {
+            sounds::process_sound_markers( &guy );
+        } else {
+            swap_map swap( bubbles::owner( where ) );
+            sounds::process_sound_markers( &guy );
+        }
+    }
+}
+
 void overmap_npc_move()
 {
-    avatar &u = get_avatar();
     std::vector<npc *> travelling_npcs;
     static constexpr int move_search_radius = 600;
-    for( auto &elem : overmap_buffer.get_npcs_near_player( move_search_radius ) ) {
+    for( auto &elem : overmap_buffer.get_npcs_near_players( move_search_radius ) ) {
         if( !elem ) {
             continue;
         }
         npc *npc_to_add = elem.get();
-        if( ( !npc_to_add->is_active() || rl_dist( u.pos_bub(), npc_to_add->pos_bub() ) > SEEX * 2 ) &&
+        const tripoint_abs_ms npc_pos = npc_to_add->pos_abs();
+        if( ( !npc_to_add->is_active() ||
+              rl_dist( net::nearest_player( npc_pos ).pos_abs(), npc_pos ) > SEEX * 2 ) &&
             npc_to_add->mission == NPC_MISSION_TRAVELLING ) {
             travelling_npcs.push_back( npc_to_add );
         }
@@ -604,6 +624,11 @@ bool do_turn()
         // Hordes that reached the reality bubble need to spawn,
         // make them spawn in invisible areas only.
         m.spawn_monsters( false );
+        // ... also where they reached the bubble of another player
+        for( map *bubble : bubbles::extras() ) {
+            swap_map swap( *bubble );
+            bubble->spawn_monsters( false );
+        }
     }
 
     g->debug_hour_timer.print_time();
@@ -642,11 +667,7 @@ bool do_turn()
     }
 
     // Process NPC sound events before they move or they hear themselves talking
-    for( npc &guy : g->all_npcs() ) {
-        if( rl_dist( guy.pos_bub(), u.pos_bub() ) < MAX_VIEW_DISTANCE ) {
-            sounds::process_sound_markers( &guy );
-        }
-    }
+    process_npc_sounds();
 
     music::deactivate_music_id( music::music_id::sound );
 
@@ -681,11 +702,7 @@ bool do_turn()
                 g->cleanup_dead();
                 g->mon_info_update();
                 // Process any new sounds the player caused during their turn.
-                for( npc &guy : g->all_npcs() ) {
-                    if( rl_dist( guy.pos_bub(), u.pos_bub() ) < MAX_VIEW_DISTANCE ) {
-                        sounds::process_sound_markers( &guy );
-                    }
-                }
+                process_npc_sounds();
                 explosion_handler::process_explosions();
                 sounds::process_sound_markers( &u );
                 if( !u.activity && g->uquit != QUIT_WATCH

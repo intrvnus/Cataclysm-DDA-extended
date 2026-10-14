@@ -9,6 +9,8 @@
 #include <unordered_map>
 
 #include "activity_type.h"
+#include "alerts.h"
+#include "bubbles.h"
 #include "cached_options.h" // IWYU pragma: keep
 #include "calendar.h"
 #include "character.h"
@@ -27,6 +29,7 @@
 #include "messages.h"
 #include "monster.h"
 #include "music.h"
+#include "net_session.h"
 #include "npc.h"
 #include "output.h"
 #include "overmapbuffer.h"
@@ -197,6 +200,8 @@ struct sound_event {
     std::string id;
     std::string variant;
     std::string season;
+    // Multiplayer: the map the position is relative to (only set while extra bubbles exist).
+    const map *bubble = nullptr;
 };
 
 struct centroid {
@@ -332,7 +337,8 @@ void sounds::sound( const tripoint_bub_ms &p, int vol, sound_t category,
     recent_sounds.emplace_back( p, monster_sound_event{ vol, is_provocative( category ) } );
     sounds_since_last_turn.emplace_back( p,
                                          sound_event{ vol, category, description, ambient,
-                                                 false, id, variant, seas_str } );
+                                                 false, id, variant, seas_str,
+                                                 bubbles::extras().empty() ? nullptr : &get_map() } );
 }
 
 void sounds::sound( const tripoint_bub_ms &p, int vol, sound_t category,
@@ -348,7 +354,23 @@ void sounds::add_footstep( const tripoint_bub_ms &p, int volume, int, monster *,
     const season_type seas = season_of_year( calendar::turn );
     const std::string seas_str = season_str( seas );
     sounds_since_last_turn.emplace_back( p, sound_event { volume,
-                                         sound_t::movement, footstep, false, true, "", "", seas_str} );
+                                         sound_t::movement, footstep, false, true, "", "", seas_str,
+                                         bubbles::extras().empty() ? nullptr : &get_map() } );
+}
+
+// Sound positions are relative to the map they were made on, so a body in another bubble only
+// hears the sounds of its own bubble.  Sounds from temporary maps count as before.
+static bool heard_in_bubble( const sound_event &sound, const map &here )
+{
+    if( sound.bubble == nullptr || sound.bubble == &here ) {
+        return true;
+    }
+    for( const map *m : bubbles::all() ) {
+        if( m == sound.bubble ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template <typename C>
@@ -569,6 +591,9 @@ void sounds::process_sound_markers( Character *you )
         // so the references may become invalid after the vector enlarged its internal buffer
         const tripoint_bub_ms pos = tripoint_bub_ms( sounds_since_last_turn[i].first );
         const sound_event sound = sounds_since_last_turn[i].second;
+        if( !heard_in_bubble( sound, here ) ) {
+            continue;
+        }
         const int distance_to_sound = sound_distance( you->pos_bub(), pos );
         const int raw_volume = sound.volume;
 
@@ -650,6 +675,23 @@ void sounds::process_sound_markers( Character *you )
             if( !sound.ambient ) {
                 npc *guy = dynamic_cast<npc *>( you );
                 guy->handle_sound( sound.category, description, heard_volume, pos );
+                if( net::is_remote_player( *you ) &&
+                    describe_sound( sound.category, pos == you->pos_bub() ||
+                                    ( sound.category == sound_t::movement && distance_to_sound <= 1 ) ) ) {
+                    // the body of a client: the player hears it on his own screen
+                    std::string text;
+                    if( pos == you->pos_bub( here ) ) {
+                        text = string_format( _( "From your position you hear %1$s" ), description );
+                    } else if( you->sees( here, pos ) ) {
+                        text = string_format( _( "You hear %1$s" ), description );
+                    } else {
+                        text = string_format( _( "From the %1$s you hear %2$s" ),
+                                              direction_name( direction_from( you->pos_bub(), pos ) ), description );
+                    }
+                    const bool loud = sound.category == sound_t::combat || sound.category == sound_t::alarm;
+                    net::alert_player( *you, text, static_cast<int>( loud ? alerts::level::warning :
+                                       alerts::level::notice ), here.get_abs( pos ) );
+                }
             }
             continue;
         }

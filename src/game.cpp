@@ -1299,6 +1299,12 @@ void game::load_npcs()
         npc->on_load( &here );
     }
 
+    // Multiplayer: the NPCs around the other players wake up in their bubbles.
+    for( map *bubble : bubbles::extras() ) {
+        swap_map swap( *bubble );
+        load_npcs( bubble );
+    }
+
     npcs_dirty = false;
 }
 
@@ -13506,7 +13512,7 @@ void game::perhaps_add_random_npc( bool ignore_spawn_timers_and_rates )
     static constexpr double days_to_rate_factor = 100.0 / 24;
     double spawn_rate = days_to_rate_factor / spawn_time;
     static constexpr int radius_spawn_range = 90;
-    std::vector<shared_ptr_fast<npc>> npcs = overmap_buffer.get_npcs_near_player( radius_spawn_range );
+    std::vector<shared_ptr_fast<npc>> npcs = overmap_buffer.get_npcs_near_players( radius_spawn_range );
     size_t npc_num = npcs.size();
     for( auto &npc : npcs ) {
         if( npc->has_trait( trait_NPC_STATIC_NPC ) || npc->has_trait( trait_NPC_STARTING_NPC ) ) {
@@ -13529,7 +13535,12 @@ void game::perhaps_add_random_npc( bool ignore_spawn_timers_and_rates )
         if( counter >= 10 ) {
             return;
         }
-        const tripoint_abs_omt u_omt = u.pos_abs_omt();
+        tripoint_abs_omt u_omt = u.pos_abs_omt();
+        const std::vector<tripoint_abs_ms> players = net::all_player_positions();
+        if( players.size() > 1 ) {
+            // multiplayer: around a random player
+            u_omt = project_to<coords::omt>( random_entry( players ) );
+        }
         spawn_point = u_omt + point( rng( -radius_spawn_range, radius_spawn_range ),
                                      rng( -radius_spawn_range, radius_spawn_range ) );
         // Only spawn random NPCs on z-level 0
