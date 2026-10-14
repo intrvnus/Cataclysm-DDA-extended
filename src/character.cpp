@@ -10648,7 +10648,7 @@ std::vector<run_cost_effect> Character::run_cost_effects( float &movecost ) cons
 
 void Character::place_corpse( map *here )
 {
-    //If the character/NPC is on a distant mission, don't drop their their gear when they die since they still have a local pos
+    //If the character/NPC is on a distant mission, don't drop their gear when they die since they still have a local pos
     if( !death_drops ) {
         return;
     }
