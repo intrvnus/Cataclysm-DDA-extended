@@ -71,6 +71,8 @@ class main_menu
         // start a game have a void return type.
         bool load_game( std::string const &worldname, save_t const &savegame );
         bool new_character_tab();
+        /** Creates a character in the world (character creation screen) and starts the game. */
+        bool start_new_character( WORLD *world, character_type play_type );
         bool load_character_tab( const std::string &worldname );
         void world_tab( const std::string &worldname );
 

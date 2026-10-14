@@ -110,6 +110,16 @@ compile; **UNIT** = `cata_test`.
 | Windows MSVC build | CI, two runs (section 7) |
 
 ## 6. Still open (ordered roughly by value)
+0. **Noah's findings from his first hands-on test (build #1) come first**; the full text is in
+   `MULTIPLAYER_ROADMAP.md`, section "Noah's test findings". In short: (a) timed actions such as
+   pulping a corpse stay at 0%; (b) movement feels janky and too slow, sprint starts late;
+   (c) diagonal steps clip through terrain / the sprite is partly hidden until the step ends;
+   (d) **fundamental, top priority: make movement smooth and independent of the grid** instead of
+   tile steps (move cost and speed must still count: the current step time comes from the native
+   move's charged moves via `moves_to_ms`); (e) the "mouse view" panel covers the top of the
+   sidebar; (f) the warning sound fires in harmless situations (death screen), it should only fire
+   when danger is close. Noah asked for no more fixes before this handoff, so none of these are
+   started. The grid-free movement is a design question: write a short plan for Noah first.
 1. **Noah's hands-on test** of build #2: movement feel, ease-back, camera lead, general play.
 2. **Not proven in game** (code is merged, compile-only or only partly run). Next job: fix the
    scene scripts and the real bugs they expose:
@@ -132,8 +142,11 @@ compile; **UNIT** = `cata_test`.
    decisions; **waiting for Noah**. Do not start before he answers.
 5. **Weariness "take a break"** action: needs Noah's approval (gameplay change).
 6. **Network deltas** (send only changed map parts): optional, bandwidth only.
-7. Docs: keep `MULTIPLAYER.md` / roadmap in step; say classic MP targeting is not used.
-8. **Phase 7**: not started; consult Noah first.
+7. **Starting a world with no character** crashed (build #1, `--mp-host`); fixed in `main_menu.cpp`
+   (empty world goes to character creation; `--mp-server` shows a message, open question for Noah
+   whether it should create a character itself). In a new Windows build only.
+8. Docs: keep `MULTIPLAYER.md` / roadmap in step; say classic MP targeting is not used.
+9. **Phase 7**: not started; consult Noah first.
 
 ## 7. Windows builds
 - Workflow `.github/workflows/noah-windows-build.yml` ("Windows Tiles build (manual)"), MSVC,

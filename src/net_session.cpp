@@ -131,6 +131,11 @@ bool dedicated()
     return state().dedicated && state().current == role::host;
 }
 
+bool dedicated_requested()
+{
+    return state().dedicated;
+}
+
 role current_role()
 {
     return state().current;

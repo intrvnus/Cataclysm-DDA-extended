@@ -50,6 +50,8 @@ void request_host( int port );
  * invisible, invulnerable ghost that follows the players and never waits for input. */
 void request_dedicated( int port );
 bool dedicated();
+/** A dedicated server was asked for on the command line (before the game is loaded). */
+bool dedicated_requested();
 /** Dedicated server: once per turn, keeps the ghost avatar with the players. */
 void dedicated_turn();
 void request_connect( const std::string &address, int port );

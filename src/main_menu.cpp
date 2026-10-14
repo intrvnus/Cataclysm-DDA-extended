@@ -28,6 +28,7 @@
 #include "cata_utility.h"
 #include "catacharset.h"
 #include "character_id.h"
+#include "net_session.h"
 #include "color.h"
 #include "debug.h"
 #include "enums.h"
@@ -765,13 +766,29 @@ bool main_menu::opening_screen()
     ui.mark_resize();
 
     if( !queued_world_to_load.empty() ) {
-        save_t const &save_to_load = queued_save_id_to_load.empty() ? world_generator->get_world(
-                                         queued_world_to_load )->world_saves.front() : save_t::from_save_id( queued_save_id_to_load );
-        start = main_menu::load_game( queued_world_to_load, save_to_load );
+        const std::string queued_world = queued_world_to_load;
+        const std::string queued_save = queued_save_id_to_load;
         queued_world_to_load.clear();
         queued_save_id_to_load.clear();
-        if( start ) {
-            load_game = true;
+        WORLD *queued = world_generator->get_world( queued_world );
+        if( queued == nullptr ) {
+            // unknown world name: show the main menu instead of crashing
+            popup( _( "World \"%s\" does not exist." ), queued_world );
+        } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
+            save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
+                                         save_t::from_save_id( queued_save );
+            start = main_menu::load_game( queued_world, save_to_load );
+            if( start ) {
+                load_game = true;
+            }
+        } else if( net::dedicated_requested() ) {
+            // a dedicated server needs a character to run the world around
+            popup( _( "\"%s\" has no characters, a dedicated server cannot start in it.  "
+                      "Start the world once and create a character, then start the server." ),
+                   queued_world );
+        } else {
+            // empty world: go to character creation like the new game menu does
+            start = start_new_character( queued, character_type::CUSTOM );
         }
     }
 
@@ -1136,13 +1153,6 @@ bool main_menu::new_character_tab()
                 return false;
             }
         }
-        world_generator->set_active_world( world );
-        try {
-            g->setup();
-        } catch( const std::exception &err ) {
-            debugmsg( "Error: %s", err.what() );
-            return false;
-        }
         character_type play_type = character_type::CUSTOM;
         switch( sel2 ) {
             case 0:
@@ -1158,20 +1168,39 @@ bool main_menu::new_character_tab()
                 play_type = character_type::FULL_RANDOM;
                 break;
         }
-        if( !pc.create( play_type ) ) {
-            load_char_templates();
-            MAPBUFFER.clear();
-            overmap_buffer.clear();
-            return false;
-        }
-
-        if( !g->start_game() ) {
-            return false;
-        }
         cleanup.cancel();
-        return true;
+        return start_new_character( world, play_type );
     }
     return false;
+}
+
+bool main_menu::start_new_character( WORLD *world, character_type play_type )
+{
+    avatar &pc = get_avatar();
+    on_out_of_scope cleanup( [&pc]() {
+        pc = avatar();
+        world_generator->set_active_world( nullptr );
+    } );
+    g->gamemode = nullptr;
+    world_generator->set_active_world( world );
+    try {
+        g->setup();
+    } catch( const std::exception &err ) {
+        debugmsg( "Error: %s", err.what() );
+        return false;
+    }
+    if( !pc.create( play_type ) ) {
+        load_char_templates();
+        MAPBUFFER.clear();
+        overmap_buffer.clear();
+        return false;
+    }
+
+    if( !g->start_game() ) {
+        return false;
+    }
+    cleanup.cancel();
+    return true;
 }
 
 bool main_menu::load_game( std::string const &worldname, save_t const &savegame )

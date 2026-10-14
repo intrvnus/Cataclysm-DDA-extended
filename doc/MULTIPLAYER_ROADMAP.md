@@ -17,7 +17,46 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | C4 faction rework, C6 basecamps | Options paper written (`MULTIPLAYER_FACTIONS_OPTIONS.md`): waiting for Noah's decisions |
 | Network deltas (send only changed map parts) | Open, optional (bandwidth only) |
 | Weariness "take a break", B3 stations polish, B9 turret telegraphs | Mostly done earlier (see sections below); check before starting |
+| **Noah's test findings (build #1)**: pulping/timed actions stuck, movement slow/janky, delayed sprint, diagonal clipping, **grid-free smooth movement (FUNDAMENTAL, top priority)**, mouse-view panel covers the sidebar, warning sound at harmless moments | **Open**, see section "Noah's test findings" below the table |
 | Phase 7 | Not started: consult Noah first |
+
+## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
+Noah's own words (lightly formatted, meaning unchanged). Nothing in this block is fixed yet unless
+it says so; Noah asked for **no more fixes before the handoff to Opus**, only for the roadmap.
+
+1. **Timed actions need to be implemented.** For example smashing (pulping) a zombie corpse stays
+   basically stuck at 0%.
+2. **Movement is janky and feels way too slow. Sprinting is also delayed**, which can cause real
+   issues in combat situations.
+3. **When moving diagonally, the character bugs through terrain and part of it is not visible until
+   it has fully moved to the next tile.**
+4. **FUNDAMENTAL, IMPORTANT:** "I think we really need to take the extra step and separate movement
+   from the grid by making it smooth instead of grid-based. Otherwise the jank will continue and
+   make the game more annoying than fun to play." This is the top priority of the roadmap.
+   Noah's question: **is move cost (shown in the sidebar beneath Focus) taken into consideration?**
+   Answer from the code (read, not tested in game): yes for the current step-based movement. A
+   step's duration is the moves the native move charged (terrain move cost, clothing, load, etc.)
+   converted to milliseconds by the character's speed (`moves_to_ms` in `src/fluid.cpp`), and the
+   client predicts with the host's last step duration. A smooth, grid-free movement has to keep
+   using the same move cost and speed (speed in tiles per second = f(move cost, speed)); this is a
+   design point for the rework.
+5. **The "mouse view" panel covers the top of the sidebar** when the mouse moves over anything but
+   the sidebar, hiding vital sidebar information. It has to be removed or changed.
+6. **The warning sound needs work.** It plays in situations that are not dangerous (example: the
+   death screen). Differentiate dangerous from harmless situations, ideally by checking whether
+   danger is close by and only then triggering it.
+
+Other open items found on the way (not from Noah's test):
+- **Crash when starting a world with no character** (Noah, build #1, `--mp-host`, SIGSEGV in
+  `main_menu::opening_screen`): cause was `world_saves.front()` on an empty list (and a null world
+  pointer for an unknown world name) in the `--world` start path. A fix is committed on
+  `claude/fluid-proto` (empty world goes to character creation; unknown world name shows a popup;
+  `--mp-server` on an empty world shows a message because a dedicated server needs a character).
+  It reaches Noah only with a new Windows build, which he has to ask for. Until then: create a
+  character in the world first. Open decision for Noah: should a dedicated server on a world
+  without a character create one automatically instead of refusing?
+- The scripted NPC scenes (disarm, steal, use item, sort armor for friend, console, repeat craft,
+  workout), pets, saved map memory, created zones editing: see the handoff, section 6.
 
 ### Movement rework spec (Noah + Opus, reviewed by Claude)
 - M-A: client input resolver: held-key set (not raw keydowns), press order (last pressed wins for opposing keys), tap = one tile, hold = continuous; the host samples the held direction at the step boundary (next step starts the instant the last ends); from standstill a short chord window (default 40 ms, tunable, 0 = off) lets two-key diagonals form; release grace (default 60 ms) keeps a diagonal latched so a near-simultaneous release leaves no stray cardinal step.
