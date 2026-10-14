@@ -41,6 +41,7 @@
 #include "overmapbuffer.h"
 #include "player_activity.h"
 #include "pocket_type.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "ret_val.h"
 #include "rng.h"
@@ -112,7 +113,7 @@ static const zone_type_id zone_type_VEHICLE_PATROL( "VEHICLE_PATROL" );
 
 void handbrake( map &here )
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     const optional_vpart_position vp = here.veh_at( player_character.pos_bub() );
     if( !vp ) {
         return;
@@ -150,7 +151,7 @@ void vehicle::control_doors( map &here )
             if( !require_flag.empty() && !vp.info().has_flag( require_flag ) ) {
                 continue;
             }
-            if( new_open || can_close( motorized_idx, get_player_character() ) ) {
+            if( new_open || can_close( motorized_idx, remote_ui::acting_player() ) ) {
                 open_or_close( here, motorized_idx, new_open );
             }
         }
@@ -183,7 +184,7 @@ void vehicle::control_doors( map &here )
         .location( bub_part_pos( here, vp ).raw() )
         .keep_menu_open()
         .on_submit( [this, vp_idx, open, &here] {
-            if( can_close( vp_idx, get_player_character() ) )
+            if( can_close( vp_idx, remote_ui::acting_player() ) )
             {
                 open_or_close( here, vp_idx, open );
             }
@@ -213,24 +214,24 @@ void vehicle::control_doors( map &here )
 
         menu.add( _( "Open all curtains" ) )
         .hotkey_auto()
-        .location( get_player_character().pos_bub().raw() )
+        .location( remote_ui::acting_player().pos_bub().raw() )
         .on_submit( [&open_or_close_all] { open_or_close_all( true, "CURTAIN" ); } );
 
         menu.add( _( "Open all curtains and doors" ) )
         .hotkey_auto()
-        .location( get_player_character().pos_bub().raw() )
+        .location( remote_ui::acting_player().pos_bub().raw() )
         .on_submit( [&open_or_close_all, &lock_or_unlock_all] {
             lock_or_unlock_all( false, "LOCKABLE_DOOR" );
             open_or_close_all( true, "" );
         } );
         menu.add( _( "Close all doors" ) )
         .hotkey_auto()
-        .location( get_player_character().pos_bub().raw() )
+        .location( remote_ui::acting_player().pos_bub().raw() )
         .on_submit( [&open_or_close_all] { open_or_close_all( false, "DOOR" ); } );
 
         menu.add( _( "Close all curtains and doors" ) )
         .hotkey_auto()
-        .location( get_player_character().pos_bub().raw() )
+        .location( remote_ui::acting_player().pos_bub().raw() )
         .on_submit( [&open_or_close_all] { open_or_close_all( false, "" ); } );
 
         for( const vpart_reference &vp_motor : get_avail_parts( "DOOR_MOTOR" ) ) {
@@ -375,7 +376,7 @@ void vehicle::build_electronics_menu( map &here, veh_menu &menu )
             menu.add( _( "Play arcade machine" ) )
             .hotkey( "ARCADE" )
             .enable( !!arc_itm )
-            .on_submit( [arc_itm] { iuse::portable_game( &get_avatar(), arc_itm, tripoint_bub_ms::zero ); } );
+            .on_submit( [arc_itm] { iuse::portable_game( &remote_ui::acting_player(), arc_itm, tripoint_bub_ms::zero ); } );
             break;
         }
     }
@@ -430,7 +431,7 @@ void vehicle::control_engines( map &here )
 
     if( engines_were_on && !engine_on ) {
         add_msg( _( "You turn off the %s's engines to change their configurations." ), name );
-    } else if( !get_player_character().controlling_vehicle ) {
+    } else if( !remote_ui::acting_player().controlling_vehicle ) {
         add_msg( _( "You change the %s's engine configuration." ), name );
     }
 
@@ -451,7 +452,7 @@ void vehicle::smash_security_system( map &here )
             break;
         }
     }
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     if( idx_controls < 0 || idx_security < 0 ) {
         debugmsg( "No security system found on vehicle." );
         return; // both must be valid parts
@@ -649,7 +650,7 @@ bool vehicle::start_engine( map &here, vehicle_part &vp )
         return false;
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     const bool out_of_fuel = !auto_select_fuel( here, vp );
     if( out_of_fuel ) {
         if( vpi.fuel_type == fuel_type_muscle ) {
@@ -893,7 +894,7 @@ void vehicle::honk_horn( map &here ) const
 
 void vehicle::reload_seeds( map *here, const tripoint_bub_ms &pos )
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     std::vector<item *> seed_inv = player_character.cache_get_items_with( "is_seed", &item::is_seed );
 
     auto seed_entries = iexamine::get_seed_entries( seed_inv );
@@ -946,7 +947,7 @@ void vehicle::beeper_sound( map &here ) const
 
 void vehicle::play_music( map &here ) const
 {
-    Character &player_character = get_player_character();
+    Character &player_character = remote_ui::acting_player();
     for( const vpart_reference &vp : get_enabled_parts( "STEREO" ) ) {
         // TODO: Make play_music map aware.
         iuse::play_music( &player_character, vp.pos_bub( here ), 15, 30 );
@@ -1345,7 +1346,7 @@ void vehicle::open_or_close( map &here, const int part_index, const bool opening
     here.set_transparency_cache_dirty( sm_pos.z() );
     const tripoint_abs_ms part_location = mount_to_tripoint_abs( parts[part_index].mount );
     here.set_seen_cache_dirty( here.get_bub( part_location ) );
-    const int dist = rl_dist( get_player_character().pos_abs(), part_location );
+    const int dist = rl_dist( remote_ui::acting_player().pos_abs(), part_location );
     if( dist < 20 ) {
         sfx::play_variant_sound( opening ? "vehicle_open" : "vehicle_close",
                                  parts[ part_index ].info().id.str(), 100 - dist * 3 );
@@ -1438,7 +1439,7 @@ void vehicle::use_autoclave( map &here, int p )
 void vehicle::use_washing_machine( map &here, int p )
 {
     vehicle_part &vp = parts[p];
-    avatar &player_character = get_avatar();
+    Character &player_character = remote_ui::acting_player();
     // Get all the items that can be used as detergent
     const inventory &inv = player_character.crafting_inventory();
     std::vector<const item *> detergents = inv.items_with( [inv]( const item & it ) {
@@ -1523,7 +1524,7 @@ void vehicle::use_washing_machine( map &here, int p )
 void vehicle::use_dishwasher( map &here, int p )
 {
     vehicle_part &vp = parts[p];
-    avatar &player_character = get_avatar();
+    Character &player_character = remote_ui::acting_player();
     bool detergent_is_enough = player_character.crafting_inventory().has_charges( itype_detergent, 5 );
     vehicle_stack items = get_items( vp );
     bool filthy_items = std::all_of( items.begin(), items.end(), []( const item & i ) {
@@ -1584,7 +1585,7 @@ void vehicle::use_monster_capture( int part, map */*here*/, const tripoint_bub_m
     }
     item base = item( parts[part].get_base() );
     // TODO: Use map aware invoke when available
-    base.type->invoke( &get_avatar(), base, pos );
+    base.type->invoke( &remote_ui::acting_player(), base, pos );
     if( base.has_var( "contained_name" ) ) {
         parts[part].set_flag( vp_flag::animal_flag );
     } else {
@@ -1650,7 +1651,7 @@ static void pickup_furniture_for_carry( map &here, vehicle_part &part )
 
     const furn_str_id picked_up_furn = here.furn( *selected_tile )->id;
 
-    const Character &you = get_player_character();
+    const Character &you = remote_ui::acting_player();
     const int lifting_str_available = you.get_lift_str() + you.get_lift_assist();
 
     if( picked_up_furn->move_str_req < 0 ) {
@@ -1769,7 +1770,7 @@ void vehicle::use_harness( int part, map *here, const tripoint_bub_ms &pos )
         add_msg( m_info, _( "You untie your %s." ), m.get_name() );
         m.remove_effect( effect_tied );
         if( m.tied_item ) {
-            get_player_character().i_add( *m.tied_item );
+            remote_ui::acting_player().i_add( *m.tied_item );
             m.tied_item.reset();
         }
     }
@@ -1806,7 +1807,7 @@ void vehicle::build_bike_rack_menu( map &here, veh_menu &menu, int part )
         .skip_locked_check()
         .on_submit( [this, rackable] {
             bikerack_racking_activity_actor rack( *this, *rackable.veh, rackable.racks );
-            get_player_character().assign_activity( rack );
+            remote_ui::acting_player().assign_activity( rack );
         } );
 
         has_rack_actions = true;
@@ -1819,7 +1820,7 @@ void vehicle::build_bike_rack_menu( map &here, veh_menu &menu, int part )
         .skip_locked_check()
         .on_submit( [this, unrackable] {
             bikerack_unracking_activity_actor unrack( *this, unrackable.parts, unrackable.racks );
-            get_player_character().assign_activity( unrack );
+            remote_ui::acting_player().assign_activity( unrack );
         } );
 
         has_rack_actions = true;
@@ -1932,11 +1933,11 @@ bool vehicle::use_vehicle_tool( vehicle &veh, map *here, const tripoint_bub_ms &
     }
     if( !no_invoke ) {
         // TODO: pass map or go abs
-        get_player_character().invoke_item( &tool, vp_pos );
+        remote_ui::acting_player().invoke_item( &tool, vp_pos );
     }
 
     // HACK: Evil hack incoming
-    player_activity &act = get_player_character().activity;
+    player_activity &act = remote_ui::acting_player().activity;
     if( act.id() == ACT_REPAIR_ITEM &&
         ( tool_type == itype_welder ||
           tool_type == itype_welder_crude ||
@@ -1992,9 +1993,9 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                                          ? has_parts( {"CTRL_ELECTRONIC", "REMOTE_CONTROL"} ).any()
                                          : has_part_here( "CTRL_ELECTRONIC" );
     const bool controls_here = has_part_here( "CONTROLS" );
-    const bool player_is_driving = get_player_character().controlling_vehicle;
-    const bool player_inside = here->veh_at( get_player_character().pos_abs() ) ?
-                               &here->veh_at( get_player_character().pos_abs() )->vehicle() == this :
+    const bool player_is_driving = remote_ui::acting_player().controlling_vehicle;
+    const bool player_inside = here->veh_at( remote_ui::acting_player().pos_abs() ) ?
+                               &here->veh_at( remote_ui::acting_player().pos_abs() )->vehicle() == this :
                                false;
     bool power_linked = false;
     bool item_linked = false;
@@ -2034,17 +2035,17 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
     if( is_locked && controls_here ) {
         if( player_inside ) {
             menu.add( _( "Hotwire" ) )
-            .enable( get_player_character().crafting_inventory().has_quality( qual_SCREW ) )
+            .enable( remote_ui::acting_player().crafting_inventory().has_quality( qual_SCREW ) )
             .desc( _( "Attempt to hotwire the car using a screwdriver." ) )
             .skip_locked_check()
             .hotkey( "HOTWIRE" )
             .on_submit( [this] {
                 ///\EFFECT_MECHANICS speeds up vehicle hotwiring
-                const float skill = std::max( 1.0f, get_player_character().get_skill_level( skill_mechanics ) );
+                const float skill = std::max( 1.0f, remote_ui::acting_player().get_skill_level( skill_mechanics ) );
                 const int moves = to_moves<int>( 6000_seconds / skill );
                 const tripoint_abs_ms target = pos_abs() + coord_translate( parts[0].mount );
                 const hotwire_car_activity_actor hotwire_act( moves, target );
-                get_player_character().assign_activity( hotwire_act );
+                remote_ui::acting_player().assign_activity( hotwire_act );
             } );
         }
 
@@ -2072,7 +2073,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .hotkey( "RELEASE_CONTROLS" )
         .skip_theft_check()
         .on_submit( [] {
-            get_player_character().controlling_vehicle = false;
+            remote_ui::acting_player().controlling_vehicle = false;
             g->setremoteveh( nullptr );
             add_msg( _( "You stop controlling the vehicle." ) );
         } );
@@ -2092,7 +2093,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                     }
                     disable_smart_controller_if_needed();
                     stop_engines( *here );
-                    get_player_character().controlling_vehicle = false;
+                    remote_ui::acting_player().controlling_vehicle = false;
                     g->setremoteveh( nullptr );
                 } );
             } else if( controls_here && has_engine_type_not( fuel_type_muscle, true ) ) {
@@ -2107,7 +2108,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                         stop_engines( *here );
                     } else
                     {
-                        start_engines( *here, &get_player_character() );
+                        start_engines( *here, &remote_ui::acting_player() );
                     }
                 } );
             }
@@ -2119,7 +2120,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
             .skip_locked_check() // in case player somehow controls locked vehicle
             .skip_theft_check()
             .on_submit( [] {
-                get_player_character().controlling_vehicle = false;
+                remote_ui::acting_player().controlling_vehicle = false;
                 add_msg( _( "You let go of the controls." ) );
             } );
 
@@ -2179,7 +2180,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .skip_locked_check()
         .on_submit( [this, vppos, here] {
             item_location loc = turret_query( here, vppos ).base();
-            get_player_character().unload( loc );
+            remote_ui::acting_player().unload( loc );
         } );
     }
 
@@ -2189,11 +2190,11 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .skip_locked_check()
         .on_submit( [this, vppos, here] {
             item_location loc = turret_query( here, vppos ).base();
-            item::reload_option opt = get_player_character().select_ammo( loc, true );
+            item::reload_option opt = remote_ui::acting_player().select_ammo( loc, true );
             if( opt )
             {
                 reload_activity_actor reload_act( std::move( opt ) );
-                get_player_character().assign_activity( reload_act );
+                remote_ui::acting_player().assign_activity( reload_act );
             }
         } );
     }
@@ -2238,8 +2239,8 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .skip_locked_check()
         .hotkey( "DISCONNECT_CABLES" )
         .on_submit( [here, this, vp] {
-            unlink_cables( *here, vp.mount_pos(), get_player_character(), true, true, true );
-            get_player_character().pause();
+            unlink_cables( *here, vp.mount_pos(), remote_ui::acting_player(), true, true, true );
+            remote_ui::acting_player().pause();
         } );
     }
     if( item_linked || tow_linked ) {
@@ -2249,8 +2250,8 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .skip_locked_check()
         .hotkey( "DISCONNECT_CABLES" )
         .on_submit( [here, this, vp] {
-            unlink_cables( *here, vp.mount_pos(), get_player_character(), true, true, false );
-            get_player_character().pause();
+            unlink_cables( *here, vp.mount_pos(), remote_ui::acting_player(), true, true, false );
+            remote_ui::acting_player().pause();
         } );
     }
 
@@ -2280,7 +2281,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
             }
 
             if( !tools_to_remove.empty() ) {
-                Character &you = get_player_character();
+                Character &you = remote_ui::acting_player();
                 for( item &tool_to_remove : tools_to_remove ) {
                     you.add_msg_if_player( _( "The %s is no longer compatible with %s and pops out." ),
                                            tool_to_remove.tname(), vp_toolstation->part().name( false ) );
@@ -2398,7 +2399,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
             } );
 
             menu.add( _( "Have a drink" ) )
-            .enable( get_player_character().will_eat( *water_item ).success() )
+            .enable( remote_ui::acting_player().will_eat( *water_item ).success() )
             .hotkey( "FAUCET_DRINK" )
             .skip_locked_check()
             .on_submit( [this, vp_tank_idx] {
@@ -2408,7 +2409,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                 item_location base_loc( vehicle_cursor( *this, vp_tank_idx ), &vp_tank.base );
                 item_location water_loc( base_loc, &vp_tank.base.only_item() );
                 const consume_activity_actor consume_act( water_loc );
-                get_player_character().assign_activity( consume_act );
+                remote_ui::acting_player().assign_activity( consume_act );
             } );
         }
     }
@@ -2492,7 +2493,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .skip_locked_check()
         .on_submit( [this, wb_idx, vppos] {
             const vpart_reference vp_workbench( *this, wb_idx );
-            iexamine::workbench_internal( get_player_character(), vppos, vp_workbench );
+            iexamine::workbench_internal( remote_ui::acting_player(), vppos, vp_workbench );
         } );
     }
 
@@ -2503,7 +2504,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         menu.add( string_format( _( "Attach a tool to %s" ), vp_name ) )
         .skip_locked_check( true )
         .on_submit( [this, vp_idx, vp_name, here] {
-            Character &you = get_player_character();
+            Character &you = remote_ui::acting_player();
             vehicle_part &vp = part( vp_idx );
             std::set<itype_id> allowed_types = vp.info().toolkit_info->allowed_types;
             for( const std::pair<const item, int> &pair : prepare_tools( *here, vp ) )
@@ -2543,13 +2544,13 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                 .skip_locked_check( true )
                 .skip_theft_check( true )
                 .on_submit( [this, &i, &vp_tools, vp_name]() {
-                    Character &you = get_player_character();
+                    Character &you = remote_ui::acting_player();
                     std::vector<item> &tools = get_tools( vp_tools );
                     const auto it_to_remove = std::find_if( tools.begin(), tools.end(),
                     [&i]( const item & it ) {
                         return &it == &i;
                     } );
-                    get_player_character().add_msg_if_player( _( "You detach %s from %s." ),
+                    remote_ui::acting_player().add_msg_if_player( _( "You detach %s from %s." ),
                             i.tname(), vp_name );
                     you.add_or_drop_with_msg( *it_to_remove );
                     tools.erase( it_to_remove );
@@ -2567,7 +2568,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
         .hotkey( "FOLD_VEHICLE" )
         .on_submit( [this] {
             vehicle_folding_activity_actor folding_act( *this );
-            get_avatar().assign_activity( folding_act );
+            remote_ui::acting_player().assign_activity( folding_act );
         } );
     }
 
@@ -2579,19 +2580,19 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
             menu.add( string_format( _( "Lock %s" ), vp_lockable_door->part().name() ) )
             .hotkey( "LOCK_DOOR" )
             .on_submit( [p, here] {
-                doors::lock_door( *here, get_player_character(), p );
+                doors::lock_door( *here, remote_ui::acting_player(), p );
             } );
         } else if( player_inside && vp_lockable_door->part().locked ) {
             menu.add( string_format( _( "Unlock %s" ), vp_lockable_door->part().name() ) )
             .hotkey( "UNLOCK_DOOR" )
             .on_submit( [p, here] {
-                doors::unlock_door( *here, get_player_character(), p );
+                doors::unlock_door( *here, remote_ui::acting_player(), p );
             } );
         } else if( vp_lockable_door->part().locked ) {
             menu.add( string_format( _( "Check the lock on %s" ), vp_lockable_door->part().name() ) )
             .hotkey( "LOCKPICK" )
             .on_submit( [p] {
-                iexamine::locked_object( get_player_character(), p );
+                iexamine::locked_object( remote_ui::acting_player(), p );
             } );
         }
     }
