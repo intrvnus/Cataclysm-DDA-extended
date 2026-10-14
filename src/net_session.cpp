@@ -60,11 +60,6 @@ void send_json_fast( ENetPeer *peer, const std::string &json )
     }
 }
 
-uint64_t wire_bytes_sent()
-{
-    return impl::state().host != nullptr ? impl::state().host->totalSentData : 0;
-}
-
 static bool enet_ready()
 {
     static bool initialized = false;
@@ -100,6 +95,12 @@ static void handle_packet( ENetPeer *peer, const ENetPacket *packet )
 }
 
 } // namespace impl
+
+uint64_t wire_bytes_sent()
+{
+    return impl::state().host != nullptr ? impl::state().host->totalSentData : 0;
+}
+
 
 using namespace impl;
 
