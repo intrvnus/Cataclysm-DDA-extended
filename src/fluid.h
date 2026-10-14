@@ -96,6 +96,21 @@ struct tuning {
     int slide_max_ms = 1500;
     // camera follows the visual position of the avatar
     bool camera_follows_slide = true;
+    // ---- movement feel (WASD), see the movement rework spec in doc/MULTIPLAYER_ROADMAP.md
+    // from standstill, wait this long for a second key so that a two-key diagonal forms (0 = off)
+    int chord_ms = 40;
+    // after one key of a held diagonal is released, the diagonal stays latched this long
+    int release_grace_ms = 60;
+    // a tap is sent for at least this long, so that a short press is never lost
+    int tap_hold_ms = 100;
+    // a blocked diagonal slides along the free cardinal component
+    bool corner_slide = true;
+    // a step the host did not allow eases back over this long instead of snapping
+    int ease_back_ms = 100;
+    // the melee click hits the tile of the 45 degree sector the cursor is in
+    bool melee_sectors = true;
+    // camera leads toward the cursor by this many tiles (0 = off)
+    double camera_lead_tiles = 0.7;
 };
 const tuning &tune();
 
