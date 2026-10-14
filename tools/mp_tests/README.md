@@ -23,6 +23,7 @@ They were written in a scratch directory and copied here unchanged apart from th
 | `xt.sh`, `pair.sh`, `mp_menu_lib.sh` | helpers: start host/client, `k <win> keys`, screenshots, `waitlog`, `start_fresh` |
 | `movetest.sh`, `movecheck.py`, `stam_trace.sh`, `stamina.sh` | movement harness (hold/tap/chord/release grace/opposing keys) and stamina numbers |
 | `cornertest.sh`, `melee_sector_test.sh`, `meleecheck.py` | corner sliding; cursor-sector melee (`CATA_MP_TEST_CORNER`) |
+| `freetest.sh` | free movement phase 2: CASE=door\|attack\|talk\|squeeze\|swim\|ledge\|vehicle; host hook `CATA_MP_TEST_FREE` (`src/mp_test_free.cpp`) builds a walled corridor with the obstacle, the script holds D (squeeze: W+D) and decides from `test free state` lines; result in `$S/FREE_RESULT_<case>.txt` |
 | `bubble.sh`, `two.sh`, `cartest.sh`, `stairs.sh`, `reconnect*.sh` | reality bubbles: far, overlap, car, two clients, stairs, reconnect |
 | `zones_test.sh`, `pet_test.sh`, `factions_test.sh`, `mapmem_test.sh` | zones, pets, factions window, map memory |
 | `scene.sh`, `scenes_all.sh` | NPC actions: disarm, steal, useitem, armor, console, recraft, workout (`CATA_MP_TEST_SCENE=`) |
