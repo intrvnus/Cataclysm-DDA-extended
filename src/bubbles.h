@@ -54,6 +54,10 @@ bool in_extra( const tripoint_abs_ms &p );
 bool keeps( const tripoint_abs_sm &p );
 bool keeps( const tripoint_abs_omt &p );
 const std::vector<map *> &extras();
+/** True if the submap is really inside the grid of the map (the map's own inbounds() is coarser). */
+bool holds( const map &m, const tripoint_abs_sm &sm );
+/** Stores monsters and NPCs that are in no bubble any more. */
+void unload_outside();
 /** The main bubble first, then every extra bubble. */
 std::vector<map *> all();
 /**

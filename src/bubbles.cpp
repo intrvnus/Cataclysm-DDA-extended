@@ -134,6 +134,8 @@ void release( int body_id )
     map *m = it->second;
     by_body().erase( it );
     forget( m );
+    // what only that bubble covered is stored away
+    g->unload_outside_bubbles();
 }
 
 bool in_any( const tripoint_abs_ms &p )
@@ -244,6 +246,14 @@ int centre_distance( const map &m, const tripoint_abs_sm &sm )
 }
 } // namespace
 
+bool holds( const map &m, const tripoint_abs_sm &sm )
+{
+    const tripoint_abs_sm o = m.get_abs_sub();
+    const int dx = sm.x() - o.x();
+    const int dy = sm.y() - o.y();
+    return dx >= 0 && dy >= 0 && dx < m.getmapsize() && dy < m.getmapsize();
+}
+
 bool owns_submap( const map &m, const tripoint_abs_sm &sm )
 {
     if( list().empty() ) {
@@ -252,7 +262,7 @@ bool owns_submap( const map &m, const tripoint_abs_sm &sm )
     const map *best = nullptr;
     int best_d = 0;
     for( const map *c : all() ) {
-        if( !c->inbounds( sm ) ) {
+        if( !holds( *c, sm ) ) {
             continue;
         }
         const int d = centre_distance( *c, sm );
@@ -271,6 +281,9 @@ bool owns( const map &m, const tripoint_abs_ms &p )
 
 map &owner( const tripoint_abs_ms &p )
 {
+    if( list().empty() ) {
+        return reality_bubble();
+    }
     for( map *c : all() ) {
         if( owns( *c, p ) ) {
             return *c;
@@ -349,6 +362,11 @@ void tick()
     }
     tick_ms += sw.ms();
     report_timing();
+}
+
+void unload_outside()
+{
+    g->unload_outside_bubbles();
 }
 
 void close_all()

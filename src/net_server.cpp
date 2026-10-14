@@ -2533,7 +2533,10 @@ Character &nearest_player( const tripoint_abs_ms &from )
 
 std::vector<tripoint_abs_ms> all_player_positions()
 {
-    std::vector<tripoint_abs_ms> result = { get_player_character().pos_abs() };
+    std::vector<tripoint_abs_ms> result;
+    if( !dedicated() ) {
+        result.push_back( get_avatar().pos_abs() );
+    }
     for( const npc *guy : remote_player_npcs() ) {
         result.push_back( guy->pos_abs() );
     }
@@ -2602,6 +2605,7 @@ void host_end_of_turn()
         // Died for good (C1): respawn with a new character next to the others.
         if( rp.allow_death && ( guy == nullptr || guy->is_dead() ) ) {
             fluid::forget_state( rp.npc_id.get_value() );
+            bubbles::release( rp.npc_id.get_value() );
             rp.npc_id = character_id();
             rp.allow_death = false;
             rp.commands.clear();

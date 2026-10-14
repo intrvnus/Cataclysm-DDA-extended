@@ -15,6 +15,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <unordered_set>
 #include <vector>
 
 #include "action.h"
@@ -309,6 +310,7 @@ void monmove()
     avatar &u = get_avatar();
 
     // Experimental multiplayer: the main bubble and every extra bubble run their own monsters.
+    std::unordered_set<const monster *> simulated;
     std::vector<map *> bubble_maps = { &get_map() };
     bubble_maps.insert( bubble_maps.end(), bubbles::extras().begin(), bubbles::extras().end() );
     for( map *bubble_map : bubble_maps ) {
@@ -317,6 +319,10 @@ void monmove()
     for( monster &critter : g->all_monsters() ) {
         // each creature is simulated once: by the extra bubble it is in, else by the main one
         if( !m.inbounds( critter.pos_abs() ) || &bubbles::owner( critter.pos_abs() ) != &m ) {
+            continue;
+        }
+        // a monster that walked from one bubble into the next is not simulated twice
+        if( !bubbles::extras().empty() && !simulated.insert( &critter ).second ) {
             continue;
         }
         const tripoint_bub_ms critter_pos = critter.pos_bub( m );
@@ -478,7 +484,7 @@ void process_npc_sounds()
         if( bubbles::extras().empty() ) {
             sounds::process_sound_markers( &guy );
         } else {
-            swap_map swap( bubbles::owner( where ) );
+            swap_map swap( bubbles::map_for( guy ) );
             sounds::process_sound_markers( &guy );
         }
     }
@@ -816,6 +822,7 @@ bool do_turn()
         scent.update( *centre, *bm );
     }
 
+    bubbles::follow_all();
     bubbles::sync_caches();
     // We need floor cache before checking falling 'n stuff
     m.build_floor_caches();
@@ -833,7 +840,6 @@ bool do_turn()
     // Update vision caches for monsters. If this turns out to be expensive,
     // consider a stripped down cache just for monsters.
     m.build_map_cache( levz, true );
-    bubbles::follow_all();
     bubbles::tick();
     fluid::snapshot_before_monsters();
     monmove();

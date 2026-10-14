@@ -666,6 +666,8 @@ class game
         point_rel_sm update_map( Character &p, bool z_level_changed = false );
         /** Experimental multiplayer: keeps an extra reality bubble centred on @p centre (see bubbles.h). */
         point_rel_sm update_extra_bubble( map &bubble, const tripoint_abs_ms &centre );
+        /** Stores the monsters and NPCs that are in no reality bubble. */
+        void unload_outside_bubbles();
         point_rel_sm update_map( int &x, int &y, bool z_level_changed = false );
         void update_overmap_seen(); // Update which overmap tiles we can see
 

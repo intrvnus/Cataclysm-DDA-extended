@@ -719,7 +719,9 @@ void map::vehmove()
             return elem == tgt.v;
         };
         if( std::find_if( vehicle_list.begin(), vehicle_list.end(), same_ptr ) !=
-            vehicle_list.end() ) {
+            vehicle_list.end() || !bubbles::extras().empty() ) {
+            // (with several bubbles the dirty vehicle may belong to another bubble's list;
+            // the cleanup is safe to run from any)
             elem->part_removal_cleanup( *this );
         }
     }
@@ -5288,11 +5290,11 @@ item &map::add_item( const tripoint_bub_ms &p, item new_item )
 static void activate_in_other_bubbles( map &self, const tripoint_abs_sm &loc )
 {
     map &bubble_map = reality_bubble();
-    if( &self != &bubble_map && bubble_map.inbounds( loc ) ) {
+    if( &self != &bubble_map && bubbles::holds( bubble_map, loc ) ) {
         bubble_map.make_active( loc );
     }
     for( map *extra : bubbles::extras() ) {
-        if( extra != &self && extra->inbounds( loc ) ) {
+        if( extra != &self && bubbles::holds( *extra, loc ) ) {
             extra->make_active( loc );
         }
     }
@@ -5659,6 +5661,7 @@ void map::process_items()
         if( current_submap == nullptr ) {
             debugmsg( "Tried to process items at %s but the submap is not loaded",
                       local_pos.to_string() );
+            iter = submaps_with_active_items.erase( iter );
             continue;
         }
         // TODO: fix point types
@@ -6649,7 +6652,7 @@ void map::on_field_modified( const tripoint_bub_ms &p, const field_type &fd_type
         // that has the submap loaded.
         const tripoint_abs_sm sm_abs = project_to<coords::sm>( get_abs( p ) );
         const auto flag_in = [&]( map & other ) {
-            if( &other != this && other.inbounds( sm_abs ) ) {
+            if( &other != this && bubbles::holds( other, sm_abs ) ) {
                 const tripoint_rel_sm rel = sm_abs - other.abs_sub;
                 other.get_cache( p.z() ).field_cache.set( rel.x() + rel.y() * MAPSIZE );
             }
@@ -8033,7 +8036,9 @@ void map::shift( const point_rel_sm &sp )
 
     set_abs_sub( abs + sp );
 
-    g->shift_destination_preview( { -sp.x() * SEEX, -sp.y() * SEEY } );
+    if( this == &reality_bubble() ) {
+        g->shift_destination_preview( { -sp.x() * SEEX, -sp.y() * SEEY } );
+    }
 
     shift_traps( sp );
 

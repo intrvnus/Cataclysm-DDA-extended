@@ -1,4 +1,5 @@
 #include "net_session.h"
+#include "bubbles.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -196,6 +197,7 @@ void start_pending()
 
 void shutdown()
 {
+    bubbles::close_all();
     session_state &s = state();
     if( s.host == nullptr ) {
         s.current = role::none;

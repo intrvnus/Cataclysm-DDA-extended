@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <unordered_map>
 
@@ -190,8 +191,8 @@ static const trait_id trait_HEAVYSLEEPER2( "HEAVYSLEEPER2" );
 struct monster_sound_event {
     int volume;
     bool provocative;
-    // Multiplayer: the map the position is relative to (only set while extra bubbles exist).
-    const map *bubble = nullptr;
+    // Multiplayer: see sound_event::origin
+    std::optional<tripoint_abs_ms> origin;
 };
 
 struct sound_event {
@@ -203,8 +204,9 @@ struct sound_event {
     std::string id;
     std::string variant;
     std::string season;
-    // Multiplayer: the map the position is relative to (only set while extra bubbles exist).
-    const map *bubble = nullptr;
+    // Multiplayer: the absolute position of the origin of the map the position is relative to
+    // (only set while extra bubbles exist).
+    std::optional<tripoint_abs_ms> origin;
 };
 
 struct centroid {
@@ -246,6 +248,16 @@ std::string enum_to_string<sounds::sound_t>( sounds::sound_t data )
 
 // Static globals tracking sounds events of various kinds.
 // The sound events since the last monster turn.
+// Sound positions are relative to the map they were made on: while there are several bubbles the
+// origin of that map is stored with them, so every bubble can place them.
+static std::optional<tripoint_abs_ms> sound_origin()
+{
+    if( bubbles::extras().empty() ) {
+        return std::nullopt;
+    }
+    return get_map().get_abs( tripoint_bub_ms( 0, 0, 0 ) );
+}
+
 static std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> recent_sounds;
 // The sound events since the last interactive player turn. (doesn't count sleep etc)
 static std::vector<std::pair<tripoint_bub_ms, sound_event>> sounds_since_last_turn;
@@ -337,11 +349,11 @@ void sounds::sound( const tripoint_bub_ms &p, int vol, sound_t category,
     }
     const season_type seas = season_of_year( calendar::turn );
     const std::string seas_str = season_str( seas );
-    recent_sounds.emplace_back( p, monster_sound_event{ vol, is_provocative( category ), bubbles::extras().empty() ? nullptr : &get_map() } );
+    recent_sounds.emplace_back( p, monster_sound_event{ vol, is_provocative( category ), sound_origin() } );
     sounds_since_last_turn.emplace_back( p,
                                          sound_event{ vol, category, description, ambient,
                                                  false, id, variant, seas_str,
-                                                 bubbles::extras().empty() ? nullptr : &get_map() } );
+                                                 sound_origin() } );
 }
 
 void sounds::sound( const tripoint_bub_ms &p, int vol, sound_t category,
@@ -358,22 +370,17 @@ void sounds::add_footstep( const tripoint_bub_ms &p, int volume, int, monster *,
     const std::string seas_str = season_str( seas );
     sounds_since_last_turn.emplace_back( p, sound_event { volume,
                                          sound_t::movement, footstep, false, true, "", "", seas_str,
-                                         bubbles::extras().empty() ? nullptr : &get_map() } );
+                                         sound_origin() } );
 }
 
-// Sound positions are relative to the map they were made on, so a body in another bubble only
-// hears the sounds of its own bubble.  Sounds from temporary maps count as before.
-static bool heard_in_bubble( const sound_event &sound, const map &here )
+// A position that was relative to the origin of another map, relative to @p here.
+static tripoint_bub_ms sound_pos_in( const std::optional<tripoint_abs_ms> &origin,
+                                     const tripoint_bub_ms &p, const map &here )
 {
-    if( sound.bubble == nullptr || sound.bubble == &here ) {
-        return true;
+    if( !origin ) {
+        return p;
     }
-    for( const map *m : bubbles::all() ) {
-        if( m == sound.bubble ) {
-            return false;
-        }
-    }
-    return true;
+    return here.get_bub( tripoint_abs_ms( origin->x() + p.x(), origin->y() + p.y(), p.z() ) );
 }
 
 template <typename C>
@@ -482,9 +489,11 @@ static int get_signal_for_hordes( const centroid &centr )
     return 0;
 }
 
-static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> &sounds_here )
+static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> &sounds_here,
+                              bool main_bubble )
 {
     map &here = get_map();
+    const bool several = !bubbles::extras().empty();
 
     std::vector<centroid> sound_clusters = cluster_sounds( sounds_here );
     const int weather_vol = get_weather().weather_id->sound_attn;
@@ -496,7 +505,7 @@ static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, mons
         const tripoint_bub_ms source = tripoint_bub_ms( this_centroid.x, this_centroid.y, this_centroid.z );
         // --- Monster sound handling here ---
         // Alert all hordes
-        int sig_power = get_signal_for_hordes( this_centroid );
+        int sig_power = main_bubble ? get_signal_for_hordes( this_centroid ) : 0;
         if( sig_power > 0 ) {
 
             const point_abs_ms abs_ms = here.get_abs( source ).xy();
@@ -506,6 +515,10 @@ static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, mons
         }
         // Alert all monsters (that can hear) to the sound.
         for( monster &critter : g->all_monsters() ) {
+            // each monster hears it once: through the bubble that simulates it
+            if( several && !bubbles::owns( here, critter.pos_abs() ) ) {
+                continue;
+            }
             // TODO: Generalize this to Creature::hear_sound
             const int dist = sound_distance( source, critter.pos_bub() );
             if( vol * 2 > dist ) {
@@ -516,6 +529,9 @@ static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, mons
         // Trigger sound-triggered traps and ensure they are still valid
         for( const trap *trapType : trap::get_sound_triggered_traps() ) {
             for( const tripoint_bub_ms &tp : here.trap_locations( trapType->id ) ) {
+                if( several && !bubbles::owns( here, here.get_abs( tp ) ) ) {
+                    continue;
+                }
                 const int dist = sound_distance( source, tp );
                 const trap &tr = here.tr_at( tp );
                 // Exclude traps that certainly won't hear the sound
@@ -529,24 +545,24 @@ static void process_sounds_in( const std::vector<std::pair<tripoint_bub_ms, mons
     }
 }
 
-// Sound positions are relative to the bubble they were made in: each bubble handles its own.
+// Sound positions are relative to the bubble they were made in: every bubble places all of them
+// in its own frame and alerts the monsters it simulates.
 void sounds::process_sounds()
 {
     if( bubbles::extras().empty() ) {
-        process_sounds_in( recent_sounds );
+        process_sounds_in( recent_sounds, true );
         recent_sounds.clear();
         return;
     }
     for( map *bm : bubbles::all() ) {
+        swap_map swap( *bm );
         std::vector<std::pair<tripoint_bub_ms, monster_sound_event>> mine;
         for( const auto &snd : recent_sounds ) {
-            if( snd.second.bubble == bm || ( snd.second.bubble == nullptr && bm == &reality_bubble() ) ) {
-                mine.push_back( snd );
-            }
+            mine.emplace_back( sound_pos_in( snd.second.origin, snd.first, *bm ),
+                               monster_sound_event{ snd.second.volume, snd.second.provocative, std::nullopt } );
         }
         if( !mine.empty() ) {
-            swap_map swap( *bm );
-            process_sounds_in( mine );
+            process_sounds_in( mine, bm == &reality_bubble() );
         }
     }
     recent_sounds.clear();
@@ -614,11 +630,9 @@ void sounds::process_sound_markers( Character *you )
         // copy values instead of making references here to fix use-after-free error
         // sounds_since_last_turn may be inserted with new elements inside the loop
         // so the references may become invalid after the vector enlarged its internal buffer
-        const tripoint_bub_ms pos = tripoint_bub_ms( sounds_since_last_turn[i].first );
         const sound_event sound = sounds_since_last_turn[i].second;
-        if( !heard_in_bubble( sound, here ) ) {
-            continue;
-        }
+        const tripoint_bub_ms pos = sound_pos_in( sound.origin, tripoint_bub_ms( sounds_since_last_turn[i].first ),
+                                    here );
         const int distance_to_sound = sound_distance( you->pos_bub(), pos );
         const int raw_volume = sound.volume;
 

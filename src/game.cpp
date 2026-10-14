@@ -1313,7 +1313,8 @@ void game::load_npcs( map *here )
     const int mapsize = here->getmapsize();
     const int radius = mapsize / 2 - 1;
     const tripoint_abs_sm abs_sub( here->get_abs_sub() );
-    const tripoint_abs_sm center = abs_sub + point_rel_sm{radius, radius};
+    // the middle submap of the grid
+    const tripoint_abs_sm center = abs_sub + point_rel_sm{mapsize == MAPSIZE ? mapsize / 2 : radius, mapsize == MAPSIZE ? mapsize / 2 : radius};
     const half_open_rectangle<point_abs_sm> map_bounds( abs_sub.xy(), abs_sub.xy() + point( mapsize,
             mapsize ) );
     // uses submap coordinates
@@ -13271,7 +13272,9 @@ point_rel_sm game::update_map( int &x, int &y, bool z_level_changed )
 
     // Shift NPCs
     for( auto it = critter_tracker->active_npc.begin(); it != critter_tracker->active_npc.end(); ) {
-        ( *it )->shift( shift );
+        if( !bubbles::in_extra( ( *it )->pos_abs() ) ) {
+            ( *it )->shift( shift );
+        }
         const tripoint_bub_ms pos = ( *it )->pos_bub( here );
 
         // TODO: This could probably be replaced by an inbounds check.
@@ -13364,22 +13367,14 @@ point_rel_sm game::update_extra_bubble( map &bm, const tripoint_abs_ms &centre )
     for( monster &critter : all_monsters() ) {
         if( bm.inbounds( critter.pos_abs() ) ) {
             critter.shift( shift );
-        } else if( !bubbles::in_any( critter.pos_abs() ) ) {
-            // outside every bubble now: stored away
-            despawn_monster( critter );
         }
     }
-    for( auto it = critter_tracker->active_npc.begin(); it != critter_tracker->active_npc.end(); ) {
-        if( bm.inbounds( ( *it )->pos_abs() ) ) {
-            ( *it )->shift( shift );
-        }
-        if( !bubbles::in_any( ( *it )->pos_abs() ) ) {
-            ( *it )->on_unload();
-            it = critter_tracker->active_npc.erase( it );
-        } else {
-            ++it;
+    for( const shared_ptr_fast<npc> &guy : critter_tracker->active_npc ) {
+        if( bm.inbounds( guy->pos_abs() ) ) {
+            guy->shift( shift );
         }
     }
+    unload_outside_bubbles();
     get_scent().shift( coords::project_to<coords::ms>( shift ) );
 
     load_npcs( &bm );
@@ -13389,6 +13384,23 @@ point_rel_sm game::update_extra_bubble( map &bm, const tripoint_abs_ms &centre )
     bm.build_map_cache( bm.get_abs_sub().z() );
     bm.spawn_monsters( false );
     return shift;
+}
+
+void game::unload_outside_bubbles()
+{
+    for( monster &critter : all_monsters() ) {
+        if( !bubbles::in_any( critter.pos_abs() ) ) {
+            despawn_monster( critter );
+        }
+    }
+    for( auto it = critter_tracker->active_npc.begin(); it != critter_tracker->active_npc.end(); ) {
+        if( !bubbles::in_any( ( *it )->pos_abs() ) ) {
+            ( *it )->on_unload();
+            it = critter_tracker->active_npc.erase( it );
+        } else {
+            ++it;
+        }
+    }
 }
 
 void game::update_overmap_seen()

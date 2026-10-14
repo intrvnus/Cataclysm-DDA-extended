@@ -1481,9 +1481,10 @@ std::vector<shared_ptr_fast<npc>> overmapbuffer::get_npcs_near_player( int radiu
 std::vector<shared_ptr_fast<npc>> overmapbuffer::get_npcs_near_players( int radius )
 {
     std::vector<shared_ptr_fast<npc>> result;
-    for( const tripoint_abs_ms &pos : net::all_player_positions() ) {
+    const std::vector<tripoint_abs_ms> positions = net::all_player_positions();
+    for( const tripoint_abs_ms &pos : positions ) {
         for( shared_ptr_fast<npc> &guy : get_npcs_near( project_to<coords::sm>( pos ), radius ) ) {
-            if( std::find( result.begin(), result.end(), guy ) == result.end() ) {
+            if( positions.size() == 1 || std::find( result.begin(), result.end(), guy ) == result.end() ) {
                 result.push_back( guy );
             }
         }
