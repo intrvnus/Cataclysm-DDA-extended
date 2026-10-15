@@ -3527,6 +3527,90 @@ void client_event( const event &ev, ms_t arrival, bool mine )
     }
 }
 
+namespace
+{
+// C11: auto-travel of a client (overmap "travel", auto-move): the route the overmap gave the
+// avatar is kept in absolute tiles (the client's map shifts under it) and walked by pressing
+// the movement keys for the player; any key of its own or a danger warning stops it
+std::vector<tripoint_abs_ms> &travel_route()
+{
+    static std::vector<tripoint_abs_ms> r;
+    return r;
+}
+
+void client_auto_travel( avatar &u, input_frame &in )
+{
+    map &here = get_map();
+    std::vector<tripoint_abs_ms> &route = travel_route();
+    if( u.has_destination() ) {
+        route.clear();
+        for( const tripoint_bub_ms &p : u.get_auto_move_route() ) {
+            route.push_back( here.get_abs( p ) );
+        }
+        u.clear_destination();
+    }
+    if( route.empty() ) {
+        return;
+    }
+    if( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) {
+        route.clear();
+        u.omt_path.clear();
+        u.add_msg_if_player( m_info, _( "You stop travelling." ) );
+        return;
+    }
+    if( alerts::recent_threat( 1000 ) ) {
+        route.clear();
+        u.omt_path.clear();
+        u.add_msg_if_player( m_warning, _( "Danger!  You stop travelling." ) );
+        return;
+    }
+    const tripoint_abs_ms at = u.pos_abs();
+    // drop the points already reached (a ramp can change the level)
+    while( !route.empty() && route.front().xy() == at.xy() ) {
+        route.erase( route.begin() );
+    }
+    if( route.empty() && !u.omt_path.empty() ) {
+        // overmap travel: the next leg (as activity_handlers::travel_do_turn)
+        u.omt_path.pop_back();
+        if( u.omt_path.empty() ) {
+            u.add_msg_if_player( m_info, _( "You have reached your destination." ) );
+            return;
+        }
+        const tripoint_abs_omt next_omt = u.omt_path.back();
+        tripoint_abs_ms waypoint;
+        if( u.omt_path.size() == 1 ) {
+            waypoint = midpoint( project_bounds<coords::ms>( next_omt ) );
+        } else {
+            const tripoint_abs_ms cur_mid = midpoint( project_bounds<coords::ms>( u.pos_abs_omt() ) );
+            waypoint = clamp( cur_mid, project_bounds<coords::ms>( next_omt ) );
+        }
+        const std::vector<tripoint_bub_ms> leg =
+            here.route( u, pathfinding_target::radius( here.get_bub( waypoint ), 2 ) );
+        if( leg.empty() ) {
+            u.omt_path.clear();
+            u.add_msg_if_player( m_warning, _( "You cannot reach that destination." ) );
+            return;
+        }
+        for( const tripoint_bub_ms &p : leg ) {
+            route.push_back( here.get_abs( p ) );
+        }
+    }
+    if( route.empty() ) {
+        return;
+    }
+    const tripoint_abs_ms next = route.front();
+    if( std::max( std::abs( next.x() - at.x() ), std::abs( next.y() - at.y() ) ) > 2 ) {
+        // pushed off the way: stop rather than walk somewhere else
+        route.clear();
+        u.omt_path.clear();
+        u.add_msg_if_player( m_info, _( "You lost the way and stop travelling." ) );
+        return;
+    }
+    in.move_x = std::clamp( next.x() - at.x(), -1, 1 );
+    in.move_y = std::clamp( next.y() - at.y(), -1, 1 );
+}
+} // namespace
+
 void client_frame()
 {
     if( !client_active() ) {
@@ -3541,6 +3625,7 @@ void client_frame()
     if( !poll_device( in ) ) {
         return;
     }
+    client_auto_travel( u, in );
     const int seq = net::client_send_input( in );
     note_cursor( in, now );
     if( client_free_movement() ) {

@@ -98,6 +98,8 @@ Host and client need this build (network protocol 3).
       the cast key opens the spell list, the spell goes where the mouse points; recast repeats it.
 - [ ] Group reading: one player reads a skill book, another of the same group stands close and
       does nothing: the listener gets "You learn a little about ..." too (slower).
+- [ ] Auto-travel as a client: on the map (M) pick a place a few tiles away and travel: your
+      character walks there by itself; a movement key or a zombie coming stops it.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport
