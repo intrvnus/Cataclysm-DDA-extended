@@ -5907,7 +5907,12 @@ void iexamine::ledge( Character &you, const tripoint_bub_ms &examp )
             if( jump_direction == 1 || jump_direction == 3 || jump_direction == 5 || jump_direction == 7 ) {
                 glide_distance = std::round( 0.7 * glide_distance );
             }
-            you.as_avatar()->grab( object_type::NONE );
+            if( avatar *jumper = you.as_avatar() ) {
+                jumper->grab( object_type::NONE );
+            } else {
+                // a multiplayer client's body lets go of what it held
+                you.grab_point = tripoint_rel_ms::zero;
+            }
             glide_activity_actor glide( &you, jump_direction, glide_distance );
             you.remove_effect( effect_bouldering );
             you.assign_activity( glide );

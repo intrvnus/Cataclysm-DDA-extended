@@ -4369,6 +4369,13 @@ std::optional<int> iuse::portable_game( Character *p, item *it, const tripoint_b
 
 std::optional<int> iuse::fitness_check( Character *p, item *it, const tripoint_bub_ms & )
 {
+    if( p->as_avatar() == nullptr ) {
+        // the calorie records are the avatar's only (a multiplayer client's body has none)
+        if( remote_ui::replaying() ) {
+            remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+        }
+        return std::nullopt;
+    }
     if( p->has_trait( trait_ILLITERATE ) ) {
         p->add_msg_if_player( m_info, _( "You don't know what you're looking at." ) );
         return std::nullopt;
@@ -8064,6 +8071,13 @@ std::optional<int> iuse::dbg_lux_meter( Character *p, item *, const tripoint_bub
 
 std::optional<int> iuse::calories_intake_tracker( Character *p, item *it, const tripoint_bub_ms & )
 {
+    if( p->as_avatar() == nullptr ) {
+        // the calorie records are the avatar's only (a multiplayer client's body has none)
+        if( remote_ui::replaying() ) {
+            remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+        }
+        return std::nullopt;
+    }
     if( p->has_trait( trait_ILLITERATE ) ) {
         p->add_msg_if_player( m_info, _( "You don't know what you're looking at." ) );
         return std::nullopt;
