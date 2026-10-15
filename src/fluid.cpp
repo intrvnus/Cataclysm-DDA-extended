@@ -2397,6 +2397,7 @@ event read_event( const JsonObject &jo )
 
 namespace
 {
+const efftype_id effect_downed_free( "downed" );
 int interp_delay_ms()
 {
     return has_option( "FLUID_INTERP_MS" ) ? get_option<int>( "FLUID_INTERP_MS" ) : 100;
@@ -2540,7 +2541,9 @@ void client_free_frame( const input_frame &in, int seq, ms_t now )
     if( u.controlling_vehicle || u.in_vehicle ) {
         // riding: the vehicle moves the character, the body stays on its tile
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
-    } else if( now >= ci.busy_until ) {
+    } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
+        // (a downed or sleeping body does not move on the host: predicting it would only be
+        // corrected back again and again)
         predict_free_move( u, st, in, dt );
     }
     if( seq >= 0 ) {
