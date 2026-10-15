@@ -178,6 +178,9 @@ void host_chat( const std::string &text );
 std::string player_list_text( const Character &viewer );
 /** The NPCs on the host that are played by connected clients (in the reality bubble). */
 std::vector<npc *> remote_player_npcs();
+/** Host: a server started on a world without characters keeps the world's time still until
+ * the first player's character has joined (remembered with the world). */
+bool waiting_for_first_player();
 /** Called once at the end of every turn: handles joins and sends the world state. */
 void host_end_of_turn();
 

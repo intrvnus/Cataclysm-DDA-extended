@@ -782,10 +782,14 @@ bool main_menu::opening_screen()
                 load_game = true;
             }
         } else if( net::dedicated_requested() ) {
-            // a dedicated server needs a character to run the world around
-            popup( _( "\"%s\" has no characters, a dedicated server cannot start in it.  "
-                      "Start the world once and create a character, then start the server." ),
-                   queued_world );
+            // a world without characters: the server makes its invisible anchor itself (no
+            // character screen); the players make their characters when they connect, and the
+            // world's time waits for the first of them (net::waiting_for_first_player)
+            start = start_new_character( queued, character_type::NOW );
+            if( start ) {
+                get_avatar().set_value( "mp_listen_anchor", "1" );
+                get_avatar().set_value( "mp_world_waiting", "1" );
+            }
         } else {
             // empty world: go to character creation like the new game menu does
             start = start_new_character( queued, character_type::CUSTOM );

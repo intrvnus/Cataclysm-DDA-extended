@@ -5,6 +5,7 @@
 #endif
 
 #include <algorithm>
+#include <thread>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -556,6 +557,12 @@ bool do_turn()
         return net::client_do_turn();
     }
     net::poll();
+    if( net::waiting_for_first_player() ) {
+        // a new world: nothing happens until the first player has made a character and joined
+        net::host_end_of_turn();
+        std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+        return false;
+    }
     net::dedicated_turn();
     // Experimental fluid mode: a new turn window opens (see fluid.h).
     fluid::begin_turn();

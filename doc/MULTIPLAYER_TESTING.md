@@ -73,6 +73,10 @@ Host and client need this build (network protocol 3).
 - [ ] Options page, fluid section: "Free movement: push time into danger", "body width" and
       "other players' delay" can be changed (keep body width the same on host and clients).
 - [ ] Lives: running out of lives, making a new character and joining again.
+- [ ] Hosting a brand-new world (no character yet) with `--mp-host`: you get the character
+      screen; the world's clock does not move until your character is in the game (check the time
+      before and after a long stay in the character screen). The same with a dedicated server
+      (`--mp-server`): it starts by itself, the first player to connect brings their character.
 - [ ] Groups: in the chat (F2) `/group create Red` on one client, `/group invite <name>` and
       `/group accept` on another, `/group` lists the groups. F4 shows health only for your group.
 - [ ] Groups and items: a player of another group taking items from your group's base counts as

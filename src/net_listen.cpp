@@ -179,9 +179,10 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     const fs::path user = fs::absolute( fs::path( PATH_INFO::user_dir() ) );
     const fs::path world_dir = user / "save" / world;
     if( !has_character( world_dir ) ) {
-        printf( "Multiplayer: \"%s\" has no character yet.  Start the world once on its own and make a character, then host it.\n",
+        // a new world: the server makes its anchor, this player makes a character on its copy
+        // when the game starts (and the world waits for it)
+        printf( "Multiplayer: \"%s\" has no character yet: you make one, the world waits.\n",
                 world.c_str() );
-        return false;
     }
     // the identity of this player: the server hands the world's character to it
     client_key();

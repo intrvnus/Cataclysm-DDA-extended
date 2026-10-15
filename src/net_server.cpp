@@ -2906,6 +2906,23 @@ void host_send_events( const std::vector<fluid::event> &events )
     }
 }
 
+bool waiting_for_first_player()
+{
+    if( !is_host() || !dedicated() ) {
+        return false;
+    }
+    avatar &u = get_avatar();
+    if( u.get_value( "mp_world_waiting" ).str() != "1" ) {
+        return false;
+    }
+    if( !remote_player_npcs().empty() ) {
+        u.remove_value( "mp_world_waiting" );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the first player is here, the world's time starts";
+        return false;
+    }
+    return true;
+}
+
 void dedicated_turn()
 {
     if( !dedicated() ) {
