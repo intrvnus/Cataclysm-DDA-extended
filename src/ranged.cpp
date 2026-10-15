@@ -4395,7 +4395,7 @@ bool gunmode_checks_weapon( avatar &you, const map &m, std::vector<std::string> 
         const units::energy energy_drain = gmode->get_gun_energy_drain();
         bool is_mech_weapon = false;
         if( you.is_mounted() ) {
-            monster *mons = get_player_character().mounted_creature.get();
+            monster *mons = you.mounted_creature.get();
             if( !mons->type->mech_weapon.is_empty() ) {
                 is_mech_weapon = true;
             }
