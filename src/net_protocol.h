@@ -75,6 +75,10 @@ void server_on_message( _ENetPeer *peer, const JsonObject &msg );
 void client_on_connect();
 void client_on_disconnect();
 void client_on_message( const JsonObject &msg );
+/** Client inside a menu: a message from the host that is queued, looked at for danger only. */
+void client_peek_message( const std::string &json );
+/** Services the connection without handling messages (they are queued for the next poll). */
+void menu_poll();
 
 } // namespace impl
 } // namespace net

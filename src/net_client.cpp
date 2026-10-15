@@ -20,6 +20,7 @@
 
 #include "action.h"
 #include "alerts.h"
+#include "mtype.h"
 #include "advanced_inv.h"
 #include "help.h"
 #include "dialogue_win.h"
@@ -114,6 +115,11 @@ struct client_state {
     // player is told instead of wondering why everything froze
     fluid::ms_t last_host_msg = 0;
     bool host_wait_shown = false;
+    // a menu is open (the game waits for a key outside the main game screen): messages from
+    // the host are only looked at for danger, which closes the menus
+    bool in_main_input = false;
+    bool menu_danger = false;
+    int menu_hp_base = -1;
 };
 
 client_state &cstate()
@@ -848,7 +854,10 @@ bool handle_input()
     const bool fluid_on = cstate().fluid_on && fluid::client_active();
     // fluid mode: one frame is 16 ms, the screen moves smoothly
     ctxt.set_timeout( fluid_on ? fluid::tune().frame_ms : 50 );
+    // only this key read is the main game screen; menus opened below wait elsewhere
+    cstate().in_main_input = true;
     const std::string &action = ctxt.handle_input();
+    cstate().in_main_input = false;
     if( action == "TIMEOUT" || action == "MOUSE_MOVE" ) {
         return false;
     }
@@ -1741,7 +1750,74 @@ void client_on_message( const JsonObject &msg )
     }
 }
 
+void client_peek_message( const std::string &json )
+{
+    client_state &cs = cstate();
+    if( !cs.fluid_on || cs.menu_danger ) {
+        return;
+    }
+    try {
+        JsonValue jv = json_loader::from_string( json );
+        JsonObject msg = jv.get_object();
+        msg.allow_omitted_members();
+        if( msg.get_string( "t", "" ) != "state" ) {
+            return;
+        }
+        JsonObject you = msg.get_object( "you" );
+        you.allow_omitted_members();
+        const tripoint_abs_ms me = read_pos( you.get_array( "pos" ) );
+        int hp = 0;
+        JsonObject parts = you.get_object( "hp" );
+        parts.allow_omitted_members();
+        for( const JsonMember m : parts ) {
+            hp += m.get_int();
+        }
+        if( cs.menu_hp_base >= 0 && hp < cs.menu_hp_base ) {
+            cs.menu_danger = true;
+            return;
+        }
+        for( JsonObject mon : msg.get_array( "monsters" ) ) {
+            mon.allow_omitted_members();
+            const mtype_id type( mon.get_string( "id", "" ) );
+            if( mon.get_int( "fr", 0 ) != 0 || mon.get_bool( "pet", false ) || !type.is_valid() ||
+                type->agro <= 0 ) {
+                continue;
+            }
+            if( rl_dist( read_pos( mon.get_array( "pos" ) ), me ) <= 1 ) {
+                cs.menu_danger = true;
+                return;
+            }
+        }
+    } catch( const std::exception & ) {
+        // a bad message is reported when it is handled for real
+    }
+}
+
 } // namespace impl
+
+bool input_idle()
+{
+    client_state &cs = cstate();
+    if( !is_client() || !cs.welcomed || !cs.fluid_on || cs.in_main_input ) {
+        return false;
+    }
+    static fluid::ms_t last = 0;
+    const fluid::ms_t now = fluid::now_ms();
+    if( now - last < 50 ) {
+        return cs.menu_danger;
+    }
+    last = now;
+    if( cs.menu_hp_base < 0 ) {
+        int hp = 0;
+        avatar &u = get_avatar();
+        for( const bodypart_id &bp : u.get_all_body_parts() ) {
+            hp += u.get_part_hp_cur( bp );
+        }
+        cs.menu_hp_base = hp;
+    }
+    impl::menu_poll();
+    return cs.menu_danger;
+}
 
 int client_send_input( const fluid::input_frame &in )
 {
@@ -1827,6 +1903,14 @@ bool client_do_turn()
                 jo.member( "t", "omap_req" );
             } ) );
         }
+    }
+    {
+        client_state &cs = cstate();
+        if( cs.menu_danger ) {
+            alerts::warn( _( "Danger!  You drop what you were doing." ), alerts::level::danger );
+        }
+        cs.menu_danger = false;
+        cs.menu_hp_base = -1;
     }
     if( handle_input() ) {
         // what this player has seen stays with them for the next visit (the world itself is not saved)

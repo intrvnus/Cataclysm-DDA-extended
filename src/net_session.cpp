@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <exception>
+#include <deque>
 #include <string>
 #include <thread>
 
@@ -77,11 +78,10 @@ static bool enet_ready()
     return initialized;
 }
 
-static void handle_packet( ENetPeer *peer, const ENetPacket *packet )
+static void handle_data( ENetPeer *peer, std::string data )
 {
     session_state &s = state();
     try {
-        std::string data( reinterpret_cast<const char *>( packet->data ), packet->dataLength );
         JsonValue jv = json_loader::from_string( std::move( data ) );
         JsonObject msg = jv.get_object();
         msg.allow_omitted_members();
@@ -93,6 +93,40 @@ static void handle_packet( ENetPeer *peer, const ENetPacket *packet )
     } catch( const std::exception &err ) {
         DebugLog( D_WARNING, D_GAME ) << "Multiplayer: bad message: " << err.what();
     }
+}
+
+static void handle_packet( ENetPeer *peer, const ENetPacket *packet )
+{
+    handle_data( peer, std::string( reinterpret_cast<const char *>( packet->data ), packet->dataLength ) );
+}
+
+// messages a client received while it was inside a menu, handled at the next poll; an empty
+// string stands for "the host went away"
+static std::deque<std::string> &menu_queue()
+{
+    static std::deque<std::string> q;
+    return q;
+}
+
+void menu_poll()
+{
+    session_state &s = state();
+    if( s.host == nullptr || s.current != role::client ) {
+        return;
+    }
+    ENetEvent event;
+    for( int handled = 0; handled < 256 && enet_host_service( s.host, &event, 0 ) > 0; ++handled ) {
+        if( event.type == ENET_EVENT_TYPE_RECEIVE ) {
+            std::string data( reinterpret_cast<const char *>( event.packet->data ),
+                              event.packet->dataLength );
+            enet_packet_destroy( event.packet );
+            client_peek_message( data );
+            menu_queue().push_back( std::move( data ) );
+        } else if( event.type == ENET_EVENT_TYPE_DISCONNECT ) {
+            menu_queue().emplace_back();
+        }
+    }
+    enet_host_flush( s.host );
 }
 
 } // namespace impl
@@ -230,6 +264,19 @@ void shutdown()
 void poll()
 {
     session_state &s = state();
+    if( s.host == nullptr ) {
+        return;
+    }
+    // first what came in while a menu was open (client)
+    while( !impl::menu_queue().empty() && s.host != nullptr ) {
+        std::string data = std::move( impl::menu_queue().front() );
+        impl::menu_queue().pop_front();
+        if( data.empty() ) {
+            client_on_disconnect();
+        } else {
+            impl::handle_data( s.server_peer, std::move( data ) );
+        }
+    }
     if( s.host == nullptr ) {
         return;
     }

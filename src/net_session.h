@@ -163,6 +163,10 @@ bool client_item_action( int key, const item_location &loc );
 /** Fluid mode: sends the input of this frame (only if something changed, or now and then).
  * Returns the sequence number of the frame sent, or -1 if nothing was sent. */
 int client_send_input( const fluid::input_frame &in );
+/** Called while the game waits for a key.  Multiplayer client inside a menu: keeps hearing the
+ * host (messages are queued until the menu closes) and returns true when danger appeared (own
+ * hit points went down, a hostile monster next to the own character): the menu backs out. */
+bool input_idle();
 /** Client, free movement: puts the shadow of another player on @p tile (from the
  * interpolated body position). */
 void client_place_shadow( int actor, const tripoint_abs_ms &tile );

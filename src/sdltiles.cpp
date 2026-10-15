@@ -60,6 +60,7 @@
 #include "mission.h"
 #include "npc.h"
 #include "options.h"
+#include "net_session.h"
 #include "output.h"
 #include "overmap.h"
 #include "overmap_ui.h"
@@ -4025,10 +4026,23 @@ input_event input_manager::get_input_event( const keyboard_mode preferred_keyboa
         try_sdl_update();
     }
 
+    // multiplayer client: inside a menu the host is still heard; danger backs out of the menu
+    const auto danger_escape = [&]() {
+        if( !net::input_idle() ) {
+            return false;
+        }
+        last_input = input_event( KEY_ESCAPE,
+                                  actual_keyboard_mode( preferred_keyboard_mode ) == keyboard_mode::keychar ?
+                                  input_event_t::keyboard_char : input_event_t::keyboard_code );
+        return true;
+    };
     if( inputdelay < 0 ) {
         do {
             CheckMessages();
             if( last_input.type != input_event_t::error ) {
+                break;
+            }
+            if( danger_escape() ) {
                 break;
             }
             SDL_Delay( 1 );
@@ -4041,6 +4055,9 @@ input_event input_manager::get_input_event( const keyboard_mode preferred_keyboa
             CheckMessages();
             endtime = SDL_GetTicks();
             if( last_input.type != input_event_t::error ) {
+                break;
+            }
+            if( danger_escape() ) {
                 break;
             }
             SDL_Delay( 1 );
