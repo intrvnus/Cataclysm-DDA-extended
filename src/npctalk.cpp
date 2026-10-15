@@ -8192,6 +8192,15 @@ talk_topic talk_effect_t::apply( dialogue &d ) const
         for( const talk_effect_fun_t &effect : effects ) {
             effect( d );
         }
+        // multiplayer (C4, Noah 2026-10-15): a follower serves the player who last gave it an
+        // order in its menu, not simply the nearest player
+        if( npc *guy = d.actor( true )->get_npc() ) {
+            const Character *orderer = d.actor( false )->get_const_character();
+            if( orderer != nullptr && guy->is_player_ally() &&
+                ( orderer->is_avatar() || net::is_remote_player( *orderer ) ) ) {
+                guy->set_value( "mp_leader", std::to_string( orderer->getID().get_value() ) );
+            }
+        }
         d.actor( true )->add_opinion( opinion );
         if( miss && ( mission_opinion.trust || mission_opinion.fear ||
                       mission_opinion.value || mission_opinion.anger ) ) {

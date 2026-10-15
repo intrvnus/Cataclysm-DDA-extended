@@ -341,13 +341,13 @@ tripoint_bub_ms npc::good_escape_direction( bool include_pos )
                            name );
         }
     } else if( path.empty() && run_to_friend && is_player_ally() ) {
-        Character &player_character = get_player_character();
+        Character &player_character = npc_player_for( *this );
         int dist = rl_dist( pos_bub(), player_character.pos_bub() );
         int def_radius = rules.has_flag( ally_rule::follow_close ) ? follow_distance() : 6;
         if( dist > def_radius ) {
             add_msg_debug( debugmode::DF_NPC_MOVEAI,
                            "<color_light_gray>%s is repositioning closer to</color> you", name );
-            tripoint_bub_ms destination = get_player_character().pos_bub();
+            tripoint_bub_ms destination = npc_player_for( *this ).pos_bub();
             int loop_avoider = 0;
             while( !can_move_to( destination ) && loop_avoider < 10 ) {
                 destination.x() += rng( -2, 2 );
@@ -753,7 +753,7 @@ void npc::assess_danger()
     int preferred_close_range = std::max( max_range, 1 );
     preferred_close_range = std::min( preferred_close_range, preferred_medium_range / 2 );
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     bool sees_player = sees( here, player_character.pos_bub( here ) );
     const bool self_defense_only = rules.engagement == combat_engagement::NO_MOVE ||
                                    rules.engagement == combat_engagement::NONE;
@@ -1132,7 +1132,7 @@ void npc::act_on_danger_assessment()
 
     bool npc_ranged = get_wielded_item() && get_wielded_item()->is_gun();
     bool failed_reposition = false;
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     if( has_effect( effect_npc_run_away ) ) {
         // this check runs each turn that the NPC is repositioning and assesses if the situation is getting any better.
         // The longer they try to move without improving, the more likely they become to stop and stand their ground.
@@ -1312,7 +1312,7 @@ void npc::regen_ai_cache()
     }
     // Non-allied NPCs with a completed mission should move to the player
     if( !is_player_ally() && !is_stationary( true ) ) {
-        Character &player_character = get_player_character();
+        Character &player_character = npc_player_for( *this );
         for( ::mission *miss : chatbin.missions_assigned ) {
             if( miss->is_complete( getID() ) ) {
                 // unless the player found an item and already told the NPC he wanted to keep it
@@ -1363,7 +1363,7 @@ void npc::move()
     add_msg_debug( debugmode::DF_NPC, "NPC %s: target = %s, danger = %.1f, range = %d",
                    get_name(), target_name, ai_cache.danger, *confident_range_cache );
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     //faction opinion determines if it should consider you hostile
     if( !is_enemy() && guaranteed_hostile() && sees( here, player_character ) ) {
         if( is_player_ally() ) {
@@ -1621,7 +1621,7 @@ void npc::execute_action( npc_action action )
                name, target, npc_action_name(action));
     */
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     map &here = get_map();
     switch( action ) {
         case npc_do_attack:
@@ -1805,7 +1805,7 @@ void npc::execute_action( npc_action action )
                     heal_player( *patient );
                 } else if( !path.empty() ) {
                     std::string talktag = chat_snippets().snip_heal_player.translated();
-                    parse_tags( talktag, get_player_character(), *this );
+                    parse_tags( talktag, npc_player_for( *this ), *this );
                     say( string_format( talktag, patient->disp_name() ) );
                     move_to_next();
                 } else {
@@ -2484,7 +2484,7 @@ npc_action npc::address_needs( float danger )
 {
     map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     // rng because NPCs are not meant to be hypervigilant hawks that notice everything
     // and swing into action with alarming alacrity.
     // no sometimes they are just looking the other way, sometimes they hestitate.
@@ -2637,7 +2637,7 @@ npc_action npc::address_player()
 {
     const map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     if( ( attitude == NPCATT_TALK || attitude == NPCATT_RECOVER_GOODS ) &&
         sees( here, player_character ) ) {
         if( player_character.in_sleep_state() ) {
@@ -3087,7 +3087,7 @@ void npc::move_to( const tripoint_bub_ms &pt, bool no_bashing, std::set<tripoint
         }
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     if( p.z() != pos.z() ) {
         // Z-level move
         // For now just teleport to the destination
@@ -3306,7 +3306,7 @@ void npc::move_away_from( const tripoint_bub_ms &pt, bool no_bash_atk,
             continue;
         }
 
-        if( p == get_player_character().pos_bub() ) {
+        if( p == npc_player_for( *this ).pos_bub() ) {
             continue;
         }
 
@@ -3886,7 +3886,7 @@ bool npc::would_take_that( const item &it, const tripoint_bub_ms &p )
     if( !is_stealing ) {
         return true;
     }
-    Character &player = get_player_character();
+    Character &player = npc_player_for( *this );
     // Actual numeric relations are only relative to player faction
     if( it.is_owned_by( player ) ) {
         bool would_always_steal = false;
@@ -3956,7 +3956,7 @@ bool npc::find_corpse_to_pulp()
 {
     map &here = get_map();
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     if( is_player_ally() ) {
         if( !rules.has_flag( ally_rule::allow_pulp ) ||
             player_character.in_vehicle || is_hallucination() ) {
@@ -4032,7 +4032,7 @@ bool npc::find_corpse_to_pulp()
 
     if( corpse != nullptr && corpse != old_target && is_walking_with() ) {
         std::string talktag = chat_snippets().snip_pulp_zombie.translated();
-        parse_tags( talktag, get_player_character(), *this );
+        parse_tags( talktag, npc_player_for( *this ), *this );
         say( string_format( talktag, corpse->tname() ) );
     }
 
@@ -4625,7 +4625,7 @@ static float rate_food( const item &it, int want_nutr, int want_quench )
 
 bool npc::consume_food_from_camp()
 {
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     std::optional<basecamp *> potential_bc;
     for( const tripoint_abs_omt &camp_pos : player_character.camps ) {
         if( rl_dist( camp_pos.xy(), pos_abs_omt().xy() ) < 3 ) {
@@ -4733,7 +4733,7 @@ void npc::mug_player( Character &mark )
         return;
     }
 
-    Character &player_character = get_player_character();
+    Character &player_character = npc_player_for( *this );
     const bool u_see = player_character.sees( here, *this ) || player_character.sees( here, mark );
     if( mark.cash > 0 ) {
         if( !is_hallucination() ) { // hallucinations can't take items
@@ -4866,7 +4866,7 @@ void npc::reach_omt_destination()
         guard_pos = pos_abs();
         goal = no_goal_point;
         if( is_player_ally() ) {
-            Character &player_character = get_player_character();
+            Character &player_character = npc_player_for( *this );
             talk_function::assign_guard( *this );
             if( rl_dist( player_character.pos_bub(), pos_bub() ) > SEEX * 2 ) {
                 if( player_character.cache_has_item_with_flag( flag_TWO_WAY_RADIO, true ) &&
@@ -5285,7 +5285,7 @@ bool npc::complain_about( const std::string &issue, const time_duration &dur,
     // Don't wake player up with non-serious complaints
     // Stop complaining while asleep
     const bool do_complain = force || ( rules.has_flag( ally_rule::allow_complain ) &&
-                                        !get_player_character().in_sleep_state() && !in_sleep_state() );
+                                        !npc_player_for( *this ).in_sleep_state() && !in_sleep_state() );
 
     if( complain_since( issue, dur ) && do_complain ) {
         say( speech, priority );
@@ -5319,7 +5319,7 @@ bool npc::complain()
         const effect &eff = get_effect( effect_infected, bp );
         int intensity = eff.get_intensity();
         std::string talktag = chat_snippets().snip_wound_infected.translated();
-        parse_tags( talktag, get_player_character(), *this );
+        parse_tags( talktag, npc_player_for( *this ), *this );
         const std::string speech = string_format( talktag, body_part_name( bp ) );
         if( complain_about( infected_string, time_duration::from_hours( 4 - intensity ), speech,
                             intensity >= 3 ) ) {
@@ -5332,7 +5332,7 @@ bool npc::complain()
     if( has_effect( effect_bite ) ) {
         const bodypart_id &bp =  bp_affected( *this, effect_bite );
         std::string talktag = chat_snippets().snip_wound_bite.translated();
-        parse_tags( talktag, get_player_character(), *this );
+        parse_tags( talktag, npc_player_for( *this ), *this );
         const std::string speech = string_format( talktag, body_part_name( bp ) );
         if( complain_about( bite_string, 1_hours, speech ) ) {
             return true;
@@ -5381,12 +5381,12 @@ bool npc::complain()
         time_duration often;
         if( get_effect( effect_bleed, bp ).get_intensity() < 10 ) {
             std::string talktag = chat_snippets().snip_bleeding.translated();
-            parse_tags( talktag, get_player_character(), *this );
+            parse_tags( talktag, npc_player_for( *this ), *this );
             speech = string_format( talktag, body_part_name( bp ) );
             often = 5_minutes;
         } else {
             std::string talktag = chat_snippets().snip_bleeding_badly.translated();
-            parse_tags( talktag, get_player_character(), *this );
+            parse_tags( talktag, npc_player_for( *this ), *this );
             speech = string_format( talktag, body_part_name( bp ) );
             often = 1_minutes;
         }

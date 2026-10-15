@@ -753,6 +753,10 @@ std::string convert_talk_topic( talk_topic_enum old_value );
 
 class npc_template;
 
+/** The player an NPC's AI cares about: in multiplayer the player who last gave it an order (its
+ * leader), else the nearest player; without multiplayer the avatar. */
+Character &npc_player_for( const npc &guy );
+
 class npc : public Character
 {
     public:

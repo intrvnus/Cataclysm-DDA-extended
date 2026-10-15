@@ -3193,6 +3193,27 @@ void npc::add_msg_if_npc( const std::string &msg ) const
     add_msg( replace_with_npc_name( msg ) );
 }
 
+Character &npc_player_for( const npc &guy )
+{
+    if( !net::active() ) {
+        return get_player_character();
+    }
+    const std::string leader = guy.get_value( "mp_leader" ).str();
+    if( !leader.empty() ) {
+        const int id = std::atoi( leader.c_str() );
+        avatar &u = get_avatar();
+        if( id == u.getID().get_value() && !net::dedicated() ) {
+            return u;
+        }
+        if( npc *body = g->find_npc( character_id( id ) ) ) {
+            if( net::is_remote_player( *body ) && !body->is_dead() ) {
+                return *body;
+            }
+        }
+    }
+    return net::nearest_player( guy.pos_abs() );
+}
+
 void npc::add_msg_if_player( const std::string &msg ) const
 {
     if( net::is_remote_player( *this ) ) {
