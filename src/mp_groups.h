@@ -35,6 +35,9 @@ bool is_player( const Creature &who );
 bool protected_from( const Creature &attacker, const Creature &victim );
 /** Melee may target @p victim, a player of another group (MP_PVP on). */
 bool pvp_target( const Character &attacker, const Creature &victim );
+/** C20: a trap @p who placed at @p pos (on the current map) becomes known to every other
+ * player of their group. */
+void share_trap( const Character &who, const tripoint_bub_ms &pos );
 /** A "/group ..." chat line of @p who (the text after "/group"); returns the answer for them. */
 std::string command( Character &who, const std::string &args );
 /** Missions belong to the group of the player who accepted them (kept with the world). */

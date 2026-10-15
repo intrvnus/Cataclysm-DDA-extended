@@ -67,6 +67,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "monster.h"
+#include "mp_groups.h"
 #include "mtype.h"
 #include "music.h"
 #include "mutation.h"
@@ -4264,6 +4265,8 @@ static void place_and_add_as_known( Character &p, const tripoint_bub_ms &pos,
     if( !tr.can_see( pos, p ) ) {
         p.add_known_trap( pos, tr );
     }
+    // multiplayer (C20): the placer's group knows the trap too
+    mp_groups::share_trap( p, pos );
 }
 
 std::optional<int> place_trap_actor::use( Character *p, item &it, const tripoint_bub_ms &pos ) const

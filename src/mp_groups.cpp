@@ -19,6 +19,8 @@
 #include "game.h"
 #include "net_session.h"
 #include "npc.h"
+#include "trap.h"
+#include "map.h"
 #include "omdata.h"
 #include "options.h"
 #include "overmapbuffer.h"
@@ -408,6 +410,22 @@ void save()
         }
         jo.end_object();
     }, _( "multiplayer group notes" ) );
+}
+
+void share_trap( const Character &who, const tripoint_bub_ms &pos )
+{
+    if( !net::is_host() ) {
+        return;
+    }
+    const trap &tr = get_map().tr_at( pos );
+    if( tr.is_null() ) {
+        return;
+    }
+    for( Character *c : players() ) {
+        if( c != &who && same_group( *c, who ) ) {
+            c->add_known_trap( pos, tr );
+        }
+    }
 }
 
 bool is_player( const Creature &who )
