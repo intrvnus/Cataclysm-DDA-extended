@@ -790,7 +790,8 @@ bool Character::activate_bionic( bionic &bio, bool eff_only, bool *close_bionics
     }
 
     item tmp_item;
-    avatar &player_character = get_avatar();
+    // the one activating it (multiplayer: may be a client's body)
+    Character &player_character = *this;
     map &here = get_map();
     // On activation effects go here
     if( bio.info().has_flag( json_flag_BIONIC_GUN ) ) {
@@ -809,7 +810,9 @@ bool Character::activate_bionic( bionic &bio, bool eff_only, bool *close_bionics
         if( close_bionics_ui ) {
             *close_bionics_ui = true;
         }
-        avatar_action::fire_ranged_bionic( player_character, bio.get_weapon() );
+        if( avatar *you = as_avatar() ) {
+            avatar_action::fire_ranged_bionic( *you, bio.get_weapon() );
+        }
     } else if( bio.info().has_flag( json_flag_BIONIC_WEAPON ) ) {
         if( !bio.has_weapon() ) {
             debugmsg( "tried to activate weapon bionic \"%s\" without fake_weapon",
