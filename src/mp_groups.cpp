@@ -319,6 +319,26 @@ om_vision_level seen_by( const Character &who, const tripoint_abs_omt &p )
            om_vision_level::unseen;
 }
 
+namespace
+{
+std::map<int, std::string> &mission_takers()
+{
+    static std::map<int, std::string> m;
+    return m;
+}
+} // namespace
+
+void note_mission_taker( int mission_id, const std::string &name )
+{
+    mission_takers()[mission_id] = name;
+}
+
+std::string mission_taker( int mission_id )
+{
+    const auto iter = mission_takers().find( mission_id );
+    return iter == mission_takers().end() ? std::string() : iter->second;
+}
+
 void note_mission( int mission_id, const std::string &group )
 {
     mission_groups()[mission_id] = group;
@@ -361,12 +381,21 @@ void load()
         } );
     }
     mission_groups().clear();
+    mission_takers().clear();
     if( !file_exist( mission_file() ) ) {
         return;
     }
     read_from_file_optional_json( mission_file(), []( const JsonValue & jv ) {
         for( const JsonMember m : jv.get_object() ) {
-            mission_groups()[std::atoi( m.name().c_str() )] = m.get_string();
+            const int id = std::atoi( m.name().c_str() );
+            if( m.test_string() ) {
+                mission_groups()[id] = m.get_string();
+            } else {
+                // {"g": group, "by": who accepted it}
+                JsonObject o = m.get_object();
+                mission_groups()[id] = o.get_string( "g", "" );
+                mission_takers()[id] = o.get_string( "by", "" );
+            }
         }
     } );
 }
@@ -378,7 +407,11 @@ void save()
         JsonOut jo( fout );
         jo.start_object();
         for( const auto &e : mission_groups() ) {
-            jo.member( std::to_string( e.first ), e.second );
+            jo.member( std::to_string( e.first ) );
+            jo.start_object();
+            jo.member( "g", e.second );
+            jo.member( "by", mission_taker( e.first ) );
+            jo.end_object();
         }
         jo.end_object();
     }, _( "multiplayer missions" ) );

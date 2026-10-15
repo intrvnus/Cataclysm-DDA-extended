@@ -49,6 +49,9 @@ std::string command( Character &who, const std::string &args );
 void note_mission( int mission_id, const std::string &group );
 /** The group a mission belongs to ("" = the shared group, also for older missions). */
 std::string mission_group( int mission_id );
+/** Who of the players accepted a mission (name; empty if not known). */
+void note_mission_taker( int mission_id, const std::string &name );
+std::string mission_taker( int mission_id );
 /** Overmap knowledge per group (C4, Noah's decision: shared per faction).  The shared group
  * uses the world's overmap; every other group keeps its own list of known overmap tiles.
  * Whoever joins a group brings their map into it; whoever leaves keeps a copy. */

@@ -2506,16 +2506,39 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         if( active.empty() ) {
             text += _( "No active missions." ) + std::string( "\n" );
         }
+        const std::string my_name = me_body != nullptr ? me_body->get_name() : std::string();
         for( const mission *m : active ) {
-            text += "* " + m->name() + "\n  " + m->get_description() + "\n";
+            const std::string taker = mp_groups::mission_taker( m->get_id() );
+            text += "* " + m->name();
+            if( !taker.empty() ) {
+                text += taker == my_name ? std::string( _( "  (yours)" ) ) :
+                        string_format( _( "  (taken by %s)" ), taker );
+            }
+            text += "\n  " + m->get_description() + "\n";
             if( m->has_deadline() ) {
                 text += string_format( _( "  Deadline: %s\n" ),
                                        to_string( m->get_deadline() - calendar::turn ) );
             }
         }
-        text += string_format( _( "\nCompleted: %d   Failed: %d" ),
-                               static_cast<int>( get_avatar().get_completed_missions().size() ),
-                               static_cast<int>( get_avatar().get_failed_missions().size() ) );
+        // the log of the group and of this player
+        int group_done = 0;
+        int group_failed = 0;
+        int own_done = 0;
+        int own_failed = 0;
+        for( const mission *m : get_avatar().get_completed_missions() ) {
+            if( mp_groups::mission_group( m->get_id() ) == my_group ) {
+                group_done++;
+                own_done += mp_groups::mission_taker( m->get_id() ) == my_name ? 1 : 0;
+            }
+        }
+        for( const mission *m : get_avatar().get_failed_missions() ) {
+            if( mp_groups::mission_group( m->get_id() ) == my_group ) {
+                group_failed++;
+                own_failed += mp_groups::mission_taker( m->get_id() ) == my_name ? 1 : 0;
+            }
+        }
+        text += string_format( _( "\nGroup: %d completed, %d failed.   You: %d completed, %d failed." ),
+                               group_done, group_failed, own_done, own_failed );
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: missions sent to " << rp->name << ": text length " <<
                                    text.size();
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {

@@ -84,6 +84,12 @@ Host and client need this build (network protocol 3).
       made by you.
 - [ ] Sparring: two players of one group both type `/spar <other name>`; hitting each other
       gives "You spar with ..." and no damage; skills go up slowly (character sheet).
+- [ ] Music as a client: an mp3 player or an instrument you use plays music on your computer
+      (not on the host's); it stops a few seconds after you switch it off.
+- [ ] A talking monster examined as a client: the conversation opens on your screen.
+- [ ] Translocators as a client: activate two gates, translocate: you arrive at the other one.
+- [ ] `/stats` in the chat: kills, skill levels, lives lost for every player. Missions screen:
+      "(yours)" / "(taken by ...)" and the group's and your own completed/failed.
 - [ ] Groups: in the chat (F2) `/group create Red` on one client, `/group invite <name>` and
       `/group accept` on another, `/group` lists the groups. F4 shows health only for your group.
 - [ ] Groups and items: a player of another group taking items from your group's base counts as

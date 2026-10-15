@@ -134,6 +134,7 @@ void talk_function::assign_mission( npc &p )
     miss->assign( get_avatar() );
     // multiplayer (C4): the mission belongs to the group of the player who accepted it
     mp_groups::note_mission( miss->get_id(), mp_groups::group_of( get_player_character() ) );
+    mp_groups::note_mission_taker( miss->get_id(), get_player_character().get_name() );
     p.chatbin.missions_assigned.push_back( miss );
     const auto it = std::find( p.chatbin.missions.begin(), p.chatbin.missions.end(), miss );
     p.chatbin.missions.erase( it );
