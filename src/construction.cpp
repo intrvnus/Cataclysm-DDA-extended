@@ -1654,10 +1654,11 @@ bool construct::check_matching_down_above( const tripoint_bub_ms &p )
            ter_here.substr( 0, separation + 1 ) + "down" == ter_above;
 }
 
-void construct::done_trunk_plank( const tripoint_bub_ms &/*p*/, Character &/*who*/ )
+void construct::done_trunk_plank( const tripoint_bub_ms &/*p*/, Character &who )
 {
     int num_logs = rng( 2, 3 );
-    Character &player_character = get_player_character();
+    // whoever built it (in multiplayer that can be a client's body)
+    Character &player_character = who;
     for( int i = 0; i < num_logs; ++i ) {
         iuse::cut_log_into_planks( player_character );
     }
@@ -1887,12 +1888,13 @@ void construct::done_deconstruct( const tripoint_bub_ms &p, Character &player_ch
     }
 }
 
-static void unroll_digging( const int numer_of_2x4s )
+static void unroll_digging( const Character &who, const int numer_of_2x4s )
 {
     // refund components!
     item rope( itype_rope_30 );
     map &here = get_map();
-    tripoint_bub_ms avatar_pos = get_player_character().pos_bub();
+    // (at the feet of whoever dug: in multiplayer that can be a client's body)
+    tripoint_bub_ms avatar_pos = who.pos_bub();
     here.add_item_or_charges( avatar_pos, rope );
     // presuming 2x4 to conserve lumber.
     here.spawn_item( avatar_pos, itype_2x4, numer_of_2x4s );
@@ -1916,7 +1918,7 @@ void construct::done_digormine_stair( const tripoint_bub_ms &p, bool dig,
     if( here.ter( p_below ) == ter_t_lava ) {
         if( !query_yn( _( "The rock feels much warmer than normal.  Proceed?" ) ) ) {
             here.ter_set( p, ter_t_pit ); // You dug down a bit before detecting the problem
-            unroll_digging( dig ? 8 : 12 );
+            unroll_digging( player_character, dig ? 8 : 12 );
         } else {
             add_msg( m_warning, _( "You just tunneled into lava!" ) );
             get_event_bus().send<event_type::digs_into_lava>();
@@ -1992,7 +1994,7 @@ void construct::done_mine_upstair( const tripoint_bub_ms &p, Character &player_c
     if( here.ter( p_above ) == ter_t_lava ) {
         here.ter_set( p, ter_t_rock_floor ); // You dug a bit before discovering the problem
         add_msg( m_warning, _( "The rock overhead feels hot.  You decide *not* to mine magma." ) );
-        unroll_digging( 12 );
+        unroll_digging( player_character, 12 );
         return;
     }
 
@@ -2000,7 +2002,7 @@ void construct::done_mine_upstair( const tripoint_bub_ms &p, Character &player_c
         here.has_flag_ter( ter_furn_flag::TFLAG_DEEP_WATER, p_above ) ) {
         here.ter_set( p, ter_t_rock_floor ); // You dug a bit before discovering the problem
         add_msg( m_warning, _( "The rock above is rather damp.  You decide *not* to mine water." ) );
-        unroll_digging( 12 );
+        unroll_digging( player_character, 12 );
         return;
     }
 
