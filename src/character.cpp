@@ -4599,7 +4599,11 @@ void Character::mod_stored_calories( int ncal, const bool ignore_weariness )
         add_spent_calories( -nkcal );
     }
 
-    if( !ignore_weariness ) {
+    // Realtime / multiplayer (B10, Noah 2026-10-15): weariness only from heavy work (timed
+    // actions such as crafting or building, sprinting, carrying a heavy load), not from walking
+    const bool light_burn = ncal < 0 && alerts::nonblocking() && !activity && !is_running() &&
+                            weight_carried() * 4 <= weight_capacity() * 3;
+    if( !ignore_weariness && !light_burn ) {
         activity_history.calorie_adjust( ncal );
     }
     if( ncal < 0 || std::numeric_limits<int>::max() - ncal > stored_calories ) {
