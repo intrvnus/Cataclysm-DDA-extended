@@ -967,6 +967,8 @@ int main( int argc, const char *argv[] )
         shared_ptr_fast<ui_adaptor> ui = g->create_or_get_main_ui_adaptor();
         get_event_bus().send<event_type::game_begin>( getVersionString() );
         while( !do_turn() ) {}
+        // the game's screen goes now: nothing may draw the unloaded world (see the wait below)
+        ui.reset();
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
         net::client_reset();

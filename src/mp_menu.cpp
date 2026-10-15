@@ -187,7 +187,7 @@ std::string choose_world( const std::string &current, bool allow_new )
 std::string join_info( int port )
 {
     const std::string lan = net::local_address();
-    std::string text = string_format( _( "How others join (Multiplayer → Join a game):\n"
+    std::string text = string_format( _( "How others join (Multiplayer > Join a game):\n"
                                          "• on this computer: <color_light_green>127.0.0.1:%d</color>\n" ), port );
     if( !lan.empty() ) {
         text += string_format( _( "• in your home network: <color_light_green>%s:%d</color>\n" ), lan, port );
@@ -252,7 +252,7 @@ bool host_menu( settings &s, bool play_too_default )
         menu.addentry( e_start, !world.empty(), 's', play_too ? _( "<color_light_green>Start hosting</color>" ) :
                        _( "<color_light_green>Start the server</color>" ) );
         menu.desc_enabled = true;
-        menu.footer_text = _( "The rules are saved with the world.  More world options: World → the world → options." );
+        menu.footer_text = _( "The rules are saved with the world.  More world options: World > the world > options." );
         menu.query();
 
         if( menu.ret < 0 ) {
@@ -334,7 +334,7 @@ bool join_menu( settings &s )
     std::string address = get( s, "join", string_format( "127.0.0.1:%d", net::default_port ) );
     string_input_popup pop;
     pop.title( _( "Address of the game to join (address:port):" ) ).width( 40 ).text( address );
-    pop.description( _( "On this computer: 127.0.0.1:7777.  The host sees the address under Multiplayer → Host → How do the others join?" ) );
+    pop.description( _( "On this computer: 127.0.0.1:7777.  The host sees the address under Multiplayer > Host > How do the others join?" ) );
     pop.query();
     if( pop.canceled() || pop.text().empty() ) {
         return false;

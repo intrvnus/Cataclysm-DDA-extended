@@ -72,9 +72,14 @@ int timed_turns = 0;
 
 void report_timing()
 {
+    // a measurement for tests only: in a server's terminal it would bury the useful lines
+    static const bool wanted = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr ||
+                               std::getenv( "CATA_MP_TEST_TIMING" ) != nullptr;
     if( ++timed_turns % 10 == 0 ) {
-        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble timing per turn: sync " << sync_ms / 10 <<
-                                   " ms, tick " << tick_ms / 10 << " ms, follow " << follow_ms / 10 << " ms";
+        if( wanted ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: bubble timing per turn: sync " << sync_ms / 10 <<
+                                       " ms, tick " << tick_ms / 10 << " ms, follow " << follow_ms / 10 << " ms";
+        }
         sync_ms = tick_ms = follow_ms = 0;
     }
 }
