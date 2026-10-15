@@ -5932,8 +5932,10 @@ void game::exam_appliance( vehicle &veh, const point_rel_ms &c )
 
     player_activity act = veh_app_interact::run( here, veh, c );
     if( act ) {
-        u.set_moves( 0 );
-        u.assign_activity( act );
+        // the one examining (multiplayer: a client's body during its action)
+        Character &you = get_player_character();
+        you.set_moves( 0 );
+        you.assign_activity( act );
     }
 }
 
@@ -5947,8 +5949,10 @@ void game::exam_vehicle( vehicle &veh, const point_rel_ms &c )
     }
     player_activity act = veh_interact::run( here, veh, c );
     if( act ) {
-        u.set_moves( 0 );
-        u.assign_activity( act );
+        // the one examining (multiplayer: a client's body during its action)
+        Character &you = get_player_character();
+        you.set_moves( 0 );
+        you.assign_activity( act );
     }
 }
 

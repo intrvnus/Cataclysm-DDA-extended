@@ -147,7 +147,7 @@ player_activity veh_interact::serialize_activity( map &here )
         return player_activity();
     }
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     time_duration time = 0_seconds;
     switch( sel_cmd ) {
         case 'i':
@@ -197,7 +197,7 @@ player_activity veh_interact::serialize_activity( map &here )
 void orient_part( map &here, vehicle *veh, const vpart_info &vpinfo, int partnum,
                   const std::optional<point_rel_ms> &part_placement )
 {
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     // Stash offset and set it to the location of the part so look_around will
     // start there.
     const tripoint_rel_ms old_view_offset = player_character.view_offset;
@@ -649,7 +649,7 @@ task_reason veh_interact::cant_do( const map &here,  char mode )
     bool has_skill = true;
     bool enough_light = true;
     const vehicle_part_range vpr = veh->get_all_parts();
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     switch( mode ) {
         case 'i':
             // install mode
@@ -866,7 +866,7 @@ bool veh_interact::update_part_requirements( map &here )
 
     const requirement_data reqs = sel_vpart_info->install_requirements();
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     std::string nmsg;
     bool ok = format_reqs( nmsg, reqs, sel_vpart_info->install_skills,
                            sel_vpart_info->install_time( player_character ) );
@@ -1007,7 +1007,7 @@ void veh_interact::do_install( map &here )
 
     int &pos = install_info->pos = 0;
     size_t &tab = install_info->tab = 0;
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
 
     std::vector<const vpart_info *> &tab_vparts = install_info->tab_vparts;
 
@@ -1164,7 +1164,7 @@ void veh_interact::do_repair( map &here )
 
     restore_on_out_of_scope prev_hilight_part( highlight_part );
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     while( true ) {
         vehicle_part &pt = veh->part( parts_here[need_repair[pos]] );
         const vpart_info &vp = pt.info();
@@ -1281,7 +1281,7 @@ void veh_interact::do_mend( map &here )
     restore_on_out_of_scope prev_title( title );
     title = _( "Choose a part here to mend:" );
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     const bool toggling = player_character.has_trait( trait_DEBUG_HS );
     auto sel = [toggling]( const map &, const vehicle_part & pt ) {
         if( toggling ) {
@@ -1803,7 +1803,7 @@ bool veh_interact::can_remove_part( map &here, int idx, const Character &you )
     sel_vehicle_part->info().format_description( nmsg, desc_color, getmaxx( w_msg ) - 4 );
 
     msg = colorize( nmsg, c_light_gray );
-    return ok || get_avatar().has_trait( trait_DEBUG_HS );
+    return ok || get_player_character().has_trait( trait_DEBUG_HS );
 }
 
 void veh_interact::do_remove( map &here )
@@ -1822,7 +1822,7 @@ void veh_interact::do_remove( map &here )
                 remove_info ) );
     remove_info = std::make_unique<remove_info_t>();
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     int pos = 0;
     for( size_t i = 0; i < parts_here.size(); i++ ) {
         if( can_remove_part( here, parts_here[ i ], player_character ) ) {
@@ -2082,7 +2082,7 @@ std::pair<bool, std::string> veh_interact::calc_lift_requirements( map &here, co
     bool use_str = false;
     bool ok = true;
     std::string nmsg;
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
 
     if( sel_vpart_info.has_flag( "NEEDS_JACKING" ) ) {
         if( terrain_here.has_flag( ter_furn_flag::TFLAG_LIQUID ) ) {
