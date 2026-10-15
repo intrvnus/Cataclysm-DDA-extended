@@ -75,6 +75,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "monster.h"
+#include "mp_groups.h"
 #include "mtype.h"
 #include "npc.h"
 #include "options.h"
@@ -1831,6 +1832,25 @@ bool read_activity_actor::player_read( avatar &you )
         }
     }
 
+    // multiplayer (B5): players of the reader's group close by who are not busy listen in; they
+    // learn at half the speed
+    std::set<const Character *> listeners;
+    if( net::is_host() ) {
+        for( Character *other : g->get_characters_if( [&]( const Character & guy ) {
+        return &guy != &you && mp_groups::is_player( guy ) && mp_groups::same_group( guy, *you.as_character() ) &&
+               !guy.in_sleep_state() && !guy.activity && !guy.is_deaf() &&
+               rl_dist( guy.pos_bub(), you.pos_bub() ) < PICKUP_RANGE &&
+                   get_map().clear_path( you.pos_bub(), guy.pos_bub(), PICKUP_RANGE, 1, 100 );
+        } ) ) {
+            if( std::find( learners.begin(), learners.end(), other ) == learners.end() &&
+                other->get_book_mastery( *book ) == book_mastery::LEARNING &&
+                ( other->fun_to_read( *book ) || other->has_morale_to_read() ) ) {
+                learners.push_back( other );
+                listeners.insert( other );
+            }
+        }
+    }
+
     // caller should check if player
     // can understand the book
     learners.push_back( you.as_character() );
@@ -1861,6 +1881,9 @@ bool read_activity_actor::player_read( avatar &you )
                 const time_duration read_time = you.time_to_read( *book, *reader, learner );
                 penalty = static_cast<double>( moves_total ) / to_moves<int>( read_time );
             }
+            if( listeners.count( learner ) > 0 ) {
+                penalty *= 0.5;
+            }
         } else {
             continue;   // reading for fun
         }
@@ -1881,9 +1904,9 @@ bool read_activity_actor::player_read( avatar &you )
                 get_event_bus().send<event_type::gains_skill_level>(
                     learner->getID(), skill, skill_level.knowledgeLevel() );
 
-                if( learner->is_avatar() ) {
-                    add_msg( m_good, _( "Your theoretical knowledge of %s increases to level %d." ), skill.obj().name(),
-                             originalSkillLevel + 1 );
+                if( learner->is_avatar() || net::is_remote_player( *learner ) ) {
+                    learner->add_msg_if_player( m_good, _( "Your theoretical knowledge of %s increases to level %d." ),
+                                                skill.obj().name(), originalSkillLevel + 1 );
                 } else {
                     add_msg( m_good, _( "%s increases their %s knowledge." ), learner->disp_name(),
                              skill.obj().name() );
@@ -1894,9 +1917,9 @@ bool read_activity_actor::player_read( avatar &you )
                 }
 
             } else {
-                if( learner->is_avatar() ) {
-                    add_msg( m_info, _( "You learn a little about %s!  (%d%%)" ), skill_name,
-                             skill_level.knowledgeExperience() );
+                if( learner->is_avatar() || net::is_remote_player( *learner ) ) {
+                    learner->add_msg_if_player( m_info, _( "You learn a little about %s!  (%d%%)" ), skill_name,
+                                                skill_level.knowledgeExperience() );
                 } else {
                     little_learned.push_back( learner->disp_name() );
                 }
@@ -1905,8 +1928,8 @@ bool read_activity_actor::player_read( avatar &you )
             if( ( skill_level == islotbook->level || !skill_level.can_train() ) ||
                 ( learner->has_trait( trait_SCHIZOPHRENIC ) && !learner->has_effect( effect_took_thorazine ) &&
                   one_in( 25 ) ) ) {
-                if( learner->is_avatar() ) {
-                    add_msg( m_info, _( "You can no longer learn from %s." ), book->type_name() );
+                if( learner->is_avatar() || net::is_remote_player( *learner ) ) {
+                    learner->add_msg_if_player( m_info, _( "You can no longer learn from %s." ), book->type_name() );
                 } else {
                     cant_learn.push_back( learner->disp_name() );
                 }
