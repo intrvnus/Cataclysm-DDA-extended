@@ -403,6 +403,16 @@ cli_opts parse_commandline( int argc, const char **argv )
                 }
             },
             {
+                "--mp-max-players", "<n>",
+                "Experimental multiplayer: how many players a server lets in at once (1-32, default 4)",
+                section_default,
+                1,
+                []( int, const char **params ) -> int {
+                    net::set_max_players( std::atoi( params[0] ) );
+                    return 1;
+                }
+            },
+            {
                 "--mp-connect", "<address[:port]>",
                 "Experimental multiplayer: join a hosted game once a game is loaded",
                 section_default,

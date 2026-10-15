@@ -44,7 +44,8 @@ namespace net
 
 constexpr int protocol_version = 3;
 constexpr int channel_count = 2;
-constexpr int max_clients = 4;
+// players a server can hold at most (its own limit is set with --mp-max-players, default 4)
+constexpr int max_clients = 32;
 
 namespace impl
 {

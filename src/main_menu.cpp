@@ -42,6 +42,7 @@
 #include "mapbuffer.h"
 #include "mapsharing.h"
 #include "messages.h"
+#include "mp_menu.h"
 #include "music.h"
 #include "options.h"
 #include "output.h"
@@ -72,6 +73,7 @@ enum class main_menu_opts : int {
     NEWCHAR,
     LOADCHAR,
     WORLD,
+    MULTIPLAYER,
     TUTORIAL,
     SETTINGS,
     HELP,
@@ -585,6 +587,7 @@ void main_menu::init_strings()
     vMenuItems.emplace_back( pgettext( "Main Menu", "<N|n>ew Game" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "Lo<a|A>d" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "<W|w>orld" ) );
+    vMenuItems.emplace_back( pgettext( "Main Menu", "Multi<p|P>layer" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "T<u|U>torial Game" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "Se<t|T>tings" ) );
     vMenuItems.emplace_back( pgettext( "Main Menu", "H<e|E|?>lp" ) );
@@ -818,7 +821,7 @@ bool main_menu::opening_screen()
                     sel1 = i;
                     sel2 = i == getopt( main_menu_opts::LOADCHAR ) ? last_world_pos : 0;
                     sel_line = 0;
-                    if( i == getopt( main_menu_opts::HELP ) ) {
+                    if( i == getopt( main_menu_opts::HELP ) || i == getopt( main_menu_opts::MULTIPLAYER ) ) {
                         action = "CONFIRM";
                     } else if( i == getopt( main_menu_opts::QUIT ) ) {
                         action = "QUIT";
@@ -865,7 +868,8 @@ bool main_menu::opening_screen()
                         on_move();
                     }
                     if( action == "SELECT" &&
-                        ( sel1 == getopt( main_menu_opts::HELP ) || sel1 == getopt( main_menu_opts::QUIT ) ) ) {
+                        ( sel1 == getopt( main_menu_opts::HELP ) || sel1 == getopt( main_menu_opts::QUIT ) ||
+                          sel1 == getopt( main_menu_opts::MULTIPLAYER ) ) ) {
                         action = "CONFIRM";
                     }
                     ui_manager::redraw();
@@ -963,6 +967,13 @@ bool main_menu::opening_screen()
             switch( static_cast<main_menu_opts>( sel1 ) ) {
                 case main_menu_opts::HELP:
                     get_help().display_help();
+                    break;
+                case main_menu_opts::MULTIPLAYER:
+                    // host / dedicated server / join without command lines (src/mp_menu.cpp)
+                    if( mp_menu::open() ) {
+                        // a new copy of the game took over with the chosen options
+                        return false;
+                    }
                     break;
                 case main_menu_opts::QUIT:
                     return false;

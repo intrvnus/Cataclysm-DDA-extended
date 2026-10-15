@@ -2346,7 +2346,7 @@ void server_on_start()
 
 void server_on_connect( ENetPeer *peer )
 {
-    if( clients().size() >= static_cast<size_t>( max_clients ) ) {
+    if( clients().size() >= static_cast<size_t>( max_players() ) ) {
         enet_peer_disconnect_later( peer, 0 );
         return;
     }

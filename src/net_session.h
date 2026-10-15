@@ -50,6 +50,13 @@ void request_host( int port );
 /** Command line: dedicated server (A2): host without playing; the avatar becomes an
  * invisible, invulnerable ghost that follows the players and never waits for input. */
 void request_dedicated( int port );
+/** Server: how many players may be connected at once (--mp-max-players, 1..32, default 4). */
+void set_max_players( int n );
+int max_players();
+/** Starts another copy of this game (same user folder) with @p args; false if it failed. */
+bool launch_game( const std::vector<std::string> &args );
+/** The address of this computer in the local network (empty if unknown). */
+std::string local_address();
 bool dedicated();
 /** A dedicated server was asked for on the command line (before the game is loaded). */
 bool dedicated_requested();

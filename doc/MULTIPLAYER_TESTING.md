@@ -6,6 +6,16 @@ mix it into a normal game folder).
 
 ## Start
 
+**Easiest: main menu → Multiplayer** (no command line needed):
+- *Host a game (you play too)*: pick a world (or make a new one), port, how many players, and
+  the world's rules (groups, lives, PvP, friendly fire, debug menu for players).
+  "How do the others join?" shows the address to give them.  Start: the game restarts as host.
+- *Start a dedicated server*: the same, the world runs in its own window; you can join it right
+  away from this computer.
+- *Join a game*: type the address (the last one is remembered); the game restarts and connects.
+
+The command lines below still work.
+
 Open `cmd` or PowerShell in the unzipped folder (the exe prints to that console).
 
 - **Host** (plays and owns the world):
@@ -73,6 +83,10 @@ Host and client need this build (network protocol 3).
 - [ ] Options page, fluid section: "Free movement: push time into danger", "body width" and
       "other players' delay" can be changed (keep body width the same on host and clients).
 - [ ] Lives: running out of lives, making a new character and joining again.
+- [ ] Main menu → Multiplayer: host a game from the menu (new world and an existing one), start a
+      dedicated server from the menu and join it ("Join it now?"), join from the menu with an
+      address; the rules you set show up in the world's options; "How do the others join?" shows
+      this computer's network address.
 - [ ] Hosting a brand-new world (no character yet) with `--mp-host`: you get the character
       screen; the world's clock does not move until your character is in the game (check the time
       before and after a long stay in the character screen). The same with a dedicated server

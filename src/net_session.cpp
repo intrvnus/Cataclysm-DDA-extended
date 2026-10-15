@@ -3,6 +3,7 @@
 #include "alerts.h"
 #include "bubbles.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <exception>
@@ -160,6 +161,51 @@ void request_reconnect()
 {
     session_state &s = state();
     s.pending = role::client;
+}
+
+namespace
+{
+int &player_limit()
+{
+    static int n = 4;
+    return n;
+}
+} // namespace
+
+void set_max_players( int n )
+{
+    player_limit() = std::clamp( n, 1, max_clients );
+}
+
+int max_players()
+{
+    return player_limit();
+}
+
+std::string local_address()
+{
+    if( enet_initialize() != 0 ) {
+        return std::string();
+    }
+    std::string result;
+    // a datagram socket "connected" to a public address sends nothing; it only picks the
+    // network card (and so the address) that leads out of this computer
+    const ENetSocket sock = enet_socket_create( ENET_SOCKET_TYPE_DATAGRAM );
+    if( sock != ENET_SOCKET_NULL ) {
+        ENetAddress probe;
+        if( enet_address_set_host_ip( &probe, "8.8.8.8" ) == 0 ) {
+            probe.port = 53;
+            ENetAddress mine;
+            char text[64] = {};
+            if( enet_socket_connect( sock, &probe ) == 0 && enet_socket_get_address( sock, &mine ) == 0 &&
+                enet_address_get_host_ip( &mine, text, sizeof( text ) ) == 0 ) {
+                result = text;
+            }
+        }
+        enet_socket_destroy( sock );
+    }
+    enet_deinitialize();
+    return result == "0.0.0.0" ? std::string() : result;
 }
 
 void request_dedicated( int port )

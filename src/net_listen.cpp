@@ -142,6 +142,16 @@ bool make_local_copy( const std::filesystem::path &user, const std::filesystem::
 }
 } // namespace
 
+bool launch_game( const std::vector<std::string> &args )
+{
+    namespace fs = std::filesystem;
+    const std::string exe = executable_path( "cataclysm-tiles" );
+    const fs::path user = fs::absolute( fs::path( PATH_INFO::user_dir() ) );
+    std::vector<std::string> all = { exe, "--userdir", user.string() + "/" };
+    all.insert( all.end(), args.begin(), args.end() );
+    return spawn( exe, all );
+}
+
 void request_listen( int port )
 {
     lstate().requested = true;
@@ -193,6 +203,7 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     const std::string exe = executable_path( argv0 );
     const std::vector<std::string> args = {
         exe, "--userdir", user.string() + "/", "--world", world,
+        "--mp-max-players", std::to_string( max_players() ),
         "--mp-server", std::to_string( ls.port ), "--mp-listen-child"
     };
     if( !spawn( exe, args ) ) {
