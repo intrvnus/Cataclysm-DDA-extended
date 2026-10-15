@@ -24,6 +24,7 @@
 #include "effect.h"
 #include "enums.h"
 #include "field.h"
+#include "fluid.h"
 #include "field_type.h"
 #include "game.h"
 #include "item.h"
@@ -1854,6 +1855,10 @@ bool monster::attack_at( const tripoint_bub_ms &p )
     // Targeting player location
     if( p == player_character.pos_bub() ) {
         if( sees_player ) {
+            // realtime: the blow lands after a wind-up, if the player is still in reach
+            if( fluid::monster_melee_windup( *this, player_character ) ) {
+                return true;
+            }
             return melee_attack( player_character );
         } else {
             // Creature stumbles into a player it cannot see, briefly becoming aware of their location
@@ -1891,6 +1896,9 @@ bool monster::attack_at( const tripoint_bub_ms &p )
         // way. This is consistent with how it worked previously, but
         // later on not hitting allied NPCs would be cool.
         guy->on_attacked( *this ); // allow NPC hallucination to be one shot by monsters
+        if( net::is_remote_player( *guy ) && fluid::monster_melee_windup( *this, *guy ) ) {
+            return true;
+        }
         return melee_attack( *guy );
     }
 

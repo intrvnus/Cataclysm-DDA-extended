@@ -10,6 +10,7 @@
 #include "point.h"
 
 class Character;
+class monster;
 class Creature;
 class JsonObject;
 class JsonOut;
@@ -408,6 +409,13 @@ void client_bodies( const std::vector<body_sample> &list, int acked_seq, ms_t ar
 /** Client: the host sends body positions (free movement): other players are placed from
  * them, not from their tile steps. */
 bool client_free_movement();
+
+/** Host, phase 6: a monster commits to a melee blow at a player: the blow lands after a short
+ * wind-up (shown as a lunge) and only if the player is still in reach then.  True if handled
+ * (the caller does not attack now). */
+bool monster_melee_windup( monster &z, Character &target );
+/** Host, every frame: blows whose wind-up is over land or miss. */
+void process_monster_windups( ms_t now );
 
 /** Client: fluid mode is on for this session (the host plays fluid and so do we). */
 void client_set_mode( bool on, int my_character_id );

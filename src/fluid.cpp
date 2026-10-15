@@ -37,6 +37,7 @@
 #include "math_defines.h"
 #include "messages.h"
 #include "monster.h"
+#include "mtype.h"
 #include "net_session.h"
 #include "npc.h"
 #include "options.h"
@@ -51,6 +52,7 @@
 #include "units.h"
 
 static const efftype_id effect_incorporeal( "incorporeal" );
+static const efftype_id effect_stunned_fluid( "stunned" );
 static const json_character_flag json_flag_CANNOT_ATTACK( "CANNOT_ATTACK" );
 static const move_mode_id move_mode_run( "run" );
 static const move_mode_id move_mode_walk( "walk" );
@@ -2290,6 +2292,117 @@ void snapshot_after_monsters()
 }
 
 // ---------------------------------------------------------------------------------------
+// monster melee with a wind-up (phase 6, Noah 2026-10-15): the blow lands a moment after the
+// monster commits to it, and only if the player is still in reach then: stepping back dodges.
+
+namespace
+{
+struct monster_windup {
+    weak_ptr_fast<monster> attacker;
+    int target_id = 0;
+    bool target_is_avatar = false;
+    ms_t land_at = 0;
+};
+
+std::vector<monster_windup> &monster_windups()
+{
+    static std::vector<monster_windup> v;
+    return v;
+}
+
+// where a player really is: the free body, else the tile centre
+std::pair<double, double> player_body_pos( const Character &who )
+{
+    const actor_state &st = who.is_avatar() ? avatar_state() : state_of( who.getID().get_value() );
+    if( free_movement() && st.body_valid && st.body_tile == who.pos_abs() ) {
+        return { st.body_x, st.body_y };
+    }
+    return { who.pos_abs().x() + 0.5, who.pos_abs().y() + 0.5 };
+}
+
+Character *find_player( const monster_windup &w )
+{
+    if( w.target_is_avatar ) {
+        return &get_avatar();
+    }
+    return g->find_npc( character_id( w.target_id ) );
+}
+} // namespace
+
+bool monster_melee_windup( monster &z, Character &target )
+{
+    if( !enabled() ) {
+        return false;
+    }
+    std::vector<monster_windup> &v = monster_windups();
+    for( const monster_windup &w : v ) {
+        if( const shared_ptr_fast<monster> m = w.attacker.lock() ) {
+            if( m.get() == &z ) {
+                // still winding up: this turn's attack is that blow
+                z.mod_moves( -z.type->attack_cost );
+                return true;
+            }
+        }
+    }
+    const ms_t now = now_ms();
+    const int attack_ms = z.type->attack_cost * turn_ms() / std::max( 1, z.get_speed() );
+    const int windup = std::clamp( attack_ms / 2, 200, 600 );
+    monster_windup w;
+    w.attacker = g->shared_from( z );
+    w.target_is_avatar = target.is_avatar();
+    w.target_id = target.getID().get_value();
+    w.land_at = now + windup;
+    v.push_back( w );
+    z.mod_moves( -z.type->attack_cost );
+    // the wind-up is seen: a lunge toward the target
+    const tripoint_abs_ms from = z.pos_abs();
+    const int dx = std::clamp( target.pos_abs().x() - from.x(), -1, 1 );
+    const int dy = std::clamp( target.pos_abs().y() - from.y(), -1, 1 );
+    begin_lunge( from, dx, dy, now, windup, windup + 150 );
+    event ev;
+    ev.type = fx_type::swing;
+    ev.actor = 0;
+    ev.from = from;
+    ev.dx = dx;
+    ev.dy = dy;
+    ev.dur_ms = windup + 150;
+    ev.windup_ms = windup;
+    net::host_send_events( { ev } );
+    return true;
+}
+
+void process_monster_windups( ms_t now )
+{
+    std::vector<monster_windup> &v = monster_windups();
+    for( auto iter = v.begin(); iter != v.end(); ) {
+        if( now < iter->land_at ) {
+            ++iter;
+            continue;
+        }
+        const monster_windup w = *iter;
+        iter = v.erase( iter );
+        const shared_ptr_fast<monster> z = w.attacker.lock();
+        Character *target = find_player( w );
+        if( !z || z->is_dead() || target == nullptr || target->is_dead_state() ||
+            z->has_effect( effect_stunned_fluid ) ) {
+            continue;
+        }
+        // in reach when the blow lands: body to body, one tile plus the bodies' width
+        const std::pair<double, double> body = player_body_pos( *target );
+        const double mx = z->pos_abs().x() + 0.5;
+        const double my = z->pos_abs().y() + 0.5;
+        const double dist = std::hypot( body.first - mx, body.second - my );
+        if( dist > 1.0 + 2.0 * tune().body_half || !z->is_adjacent( target, true ) ) {
+            target->add_msg_if_player( m_good, _( "You step out of the %s's reach." ), z->get_name() );
+            continue;
+        }
+        // the moves were spent when it committed to the blow
+        z->mod_moves( z->type->attack_cost );
+        z->melee_attack( *target );
+    }
+}
+
+// ---------------------------------------------------------------------------------------
 // the host frame
 
 void host_frame()
@@ -2306,6 +2419,7 @@ void host_frame()
 
     std::vector<event> events;
     avatar &u = get_avatar();
+    process_monster_windups( now );
 
     input_frame in;
     const bool device = poll_device( in );
