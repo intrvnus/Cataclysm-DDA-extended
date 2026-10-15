@@ -200,7 +200,7 @@ std::string join_info( int port )
     return text;
 }
 
-bool join_now( settings &s, const std::string &address );
+bool join_now( settings &s, const std::string &address, const std::string &server_world = std::string() );
 
 // the world this game loads now (host and play, join)
 std::string &chosen_world()
@@ -211,7 +211,7 @@ std::string &chosen_world()
 
 // ---- host / dedicated server
 
-// true: this game closes (it became the host)
+// true: hosting is set up (play too: chosen_world() is the world this game loads now)
 bool host_menu( settings &s, bool play_too_default )
 {
     std::string world = get( s, "world", "" );
@@ -219,8 +219,9 @@ bool host_menu( settings &s, bool play_too_default )
         const std::vector<std::string> names = world_generator->all_worldnames();
         world = names.empty() ? std::string() : names.front();
     }
-    int port = get_int( s, "port", net::default_port );
-    int players = get_int( s, "players", 4 );
+    // (the file can be edited by hand: the values are checked like typed ones)
+    int port = std::clamp( get_int( s, "port", net::default_port ), 1024, 65535 );
+    int players = std::clamp( get_int( s, "players", 4 ), 1, net::max_clients );
     bool play_too = play_too_default;
 
     enum entry : int { e_world = 0, e_play, e_port, e_players, e_info, e_start, e_rules = 100 };
@@ -228,9 +229,10 @@ bool host_menu( settings &s, bool play_too_default )
         WORLD *w = world.empty() ? nullptr : world_generator->get_world( world );
         uilist menu;
         menu.text = play_too ?
-                    _( "Host a game: the world runs in a server window in the background, you play in this window." ) :
-                    _( "Dedicated server: the world runs in a window of its own; nobody plays on this computer unless "
-                       "they join it like everybody else." );
+                    _( "Host a game: the world runs in a server in the background (a terminal window shows its progress), "
+                       "you play in this window." ) :
+                    _( "Dedicated server: the world runs on its own (a terminal window shows it); nobody plays on this "
+                       "computer unless they join it like everybody else." );
         menu.addentry( e_world, true, 'w', string_format( _( "World: <color_white>%s</color>%s" ),
                        world.empty() ? std::string( _( "(make one)" ) ) : world,
                        w != nullptr && w->world_saves.empty() ? std::string( _( "  (new: everybody makes a character when they join)" ) ) :
@@ -314,10 +316,10 @@ bool host_menu( settings &s, bool play_too_default )
                            world, port );
                     break;
                 }
-                if( query_yn( _( "The server starts in its own window (it saves by itself; close that window to stop it).\n\n%s\n\n"
+                if( query_yn( _( "The server starts in a terminal window of its own (it saves by itself; closing that window saves and stops it).\n\n%s\n\n"
                                  "Join it now from this computer?" ), join_info( port ) ) ) {
                     net::retry_join_while_loading();
-                    return join_now( s, string_format( "127.0.0.1:%d", port ) );
+                    return join_now( s, string_format( "127.0.0.1:%d", port ), world );
                 }
                 return false;
             }
@@ -342,13 +344,27 @@ bool join_menu( settings &s )
 
 // Starts this game again as a client of @p address.  The client needs a world of its own (it only
 // shows the host's world): the last one used, or a new one with the default mods.
-bool join_now( settings &s, const std::string &address )
+bool join_now( settings &s, const std::string &address, const std::string &server_world )
 {
+    // the client's own world (it only shows the host's world); never the world a server on this
+    // computer runs: that folder is the server's
     std::string world = get( s, "client_world", "" );
-    if( world.empty() || !world_generator->has_world( world ) ) {
-        const std::vector<std::string> names = world_generator->all_worldnames();
-        if( !names.empty() ) {
-            world = names.size() == 1 ? names.front() : choose_world( names.front(), false );
+    if( world.empty() || world == server_world || !world_generator->has_world( world ) ) {
+        std::vector<std::string> names = world_generator->all_worldnames();
+        names.erase( std::remove( names.begin(), names.end(), server_world ), names.end() );
+        if( names.size() == 1 ) {
+            world = names.front();
+        } else if( !names.empty() ) {
+            uilist menu;
+            menu.text = _( "Which world shows the game on this computer?  (Only its mods matter; it is not changed.)" );
+            for( size_t i = 0; i < names.size(); ++i ) {
+                menu.addentry( static_cast<int>( i ), true, MENU_AUTOASSIGN, names[i] );
+            }
+            menu.query();
+            if( menu.ret < 0 ) {
+                return false;
+            }
+            world = names[menu.ret];
         } else {
             WORLD *made = world_generator->make_new_world( false );
             world = made != nullptr ? made->world_name : std::string();
@@ -369,6 +385,9 @@ bool join_now( settings &s, const std::string &address )
         port = std::atoi( host.substr( colon + 1 ).c_str() );
         host = host.substr( 0, colon );
     }
+    if( port <= 0 || port > 65535 ) {
+        port = net::default_port;
+    }
     net::request_connect( host, port );
     chosen_world() = world;
     return true;
@@ -383,7 +402,7 @@ std::string open()
         uilist menu;
         menu.text = _( "Multiplayer" );
         menu.addentry( 0, true, 'h', _( "Host a game (you play too)" ) );
-        menu.addentry( 1, true, 'd', _( "Start a dedicated server (runs the world in its own window)" ) );
+        menu.addentry( 1, true, 'd', _( "Start a dedicated server (runs the world on its own)" ) );
         menu.addentry( 2, true, 'j', string_format( _( "Join a game  (last: %s)" ), get( s, "join", "-" ) ) );
         menu.addentry( 3, true, 'i', _( "How does this work?" ) );
         menu.query();
@@ -404,15 +423,16 @@ std::string open()
                 }
                 break;
             case 3:
-                popup( _( "<color_white>Host a game</color>: you play, the world runs in a small server window next to "
-                          "the game (so your menus never stop it for the others).  Closing the game ends the session.\n\n"
-                          "<color_white>Dedicated server</color>: only the world runs, in its own window; players (you too) "
-                          "join it.  It keeps running when everybody leaves and saves by itself.\n\n"
+                popup( _( "<color_white>Host a game</color>: you play in this game; the world runs in a server in the "
+                          "background (so your menus never stop it for the others), its progress shows in a small terminal "
+                          "window.  Leaving the game saves the world and ends the session.\n\n"
+                          "<color_white>Dedicated server</color>: only the world runs, shown in a terminal window; players "
+                          "(you too) join it.  It keeps running when everybody leaves and saves by itself; closing its "
+                          "window saves and stops it.\n\n"
                           "<color_white>Join</color>: enter the host's address.  Your character is made when you join "
                           "the first time and kept on the host; joining again puts you back into it.\n\n"
                           "A new world is fine: the server waits with the world's time until the first player is in.\n\n"
-                          "Everybody needs the same build and the same mods.  Starting a session restarts the game "
-                          "with the right options; that is normal." ) );
+                          "Everybody needs the same build and the same mods." ) );
                 break;
             default:
                 return std::string();
