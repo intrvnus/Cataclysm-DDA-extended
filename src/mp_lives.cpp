@@ -235,21 +235,27 @@ void respawn_here( Character &who )
     // five waves of force, one per second (the first now)
     set_int( who, "mp_pushback_left", 5 );
     set_int( who, "mp_pushback_next", 0 );
-    say( who, true, bed_of( who ) ?
+    say( who, true, get_int( who, "mp_bed_set", 0 ) != 0 ?
          _( "In the split-second before your life is snuffed out, you are remade where you last slept!" ) :
-         _( "In the split-second before your life is snuffed out, you are remade!" ) );
+         _( "In the split-second before your life is snuffed out, you are remade at home!" ) );
     say( who, false, string_format( _( "** You have %s. **" ), lives_text( who ) ) );
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: " << who.get_name() << " respawned here, " <<
                                lives_text( who );
 }
 
+// The respawn point belongs to the character: the bed it last slept in, else its home (where
+// it first came into the world).  Never where it died (Noah: that was an instant second death).
 std::optional<tripoint_abs_ms> bed_of( const Character &who )
 {
-    if( get_int( who, "mp_bed_set", 0 ) == 0 ) {
-        return std::nullopt;
+    if( get_int( who, "mp_bed_set", 0 ) != 0 ) {
+        return tripoint_abs_ms( get_int( who, "mp_bed_x", 0 ), get_int( who, "mp_bed_y", 0 ),
+                                get_int( who, "mp_bed_z", 0 ) );
     }
-    return tripoint_abs_ms( get_int( who, "mp_bed_x", 0 ), get_int( who, "mp_bed_y", 0 ),
-                            get_int( who, "mp_bed_z", 0 ) );
+    if( get_int( who, "mp_home_set", 0 ) != 0 ) {
+        return tripoint_abs_ms( get_int( who, "mp_home_x", 0 ), get_int( who, "mp_home_y", 0 ),
+                                get_int( who, "mp_home_z", 0 ) );
+    }
+    return std::nullopt;
 }
 
 void tick( Character &who )
@@ -258,6 +264,14 @@ void tick( Character &who )
         return;
     }
     init( who );
+    // the home point: where the character first was in the world (respawn without a bed)
+    if( get_int( who, "mp_home_set", 0 ) == 0 && !who.has_effect( effect_downed ) ) {
+        const tripoint_abs_ms at = who.pos_abs();
+        set_int( who, "mp_home_set", 1 );
+        set_int( who, "mp_home_x", at.x() );
+        set_int( who, "mp_home_y", at.y() );
+        set_int( who, "mp_home_z", at.z() );
+    }
     // the respawn point: where the player last slept (Noah, 2026-10-14)
     if( who.in_sleep_state() ) {
         const tripoint_abs_ms at = who.pos_abs();
