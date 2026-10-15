@@ -76,6 +76,7 @@
 #include "messages.h"
 #include "monster.h"
 #include "mp_groups.h"
+#include "mp_stations.h"
 #include "mtype.h"
 #include "npc.h"
 #include "options.h"
@@ -4205,6 +4206,10 @@ void craft_activity_actor::do_turn( player_activity &act, Character &crafter )
     const std::optional<tripoint_bub_ms> location = craft_item.where() == item_location::type::character
             ? std::optional<tripoint_bub_ms>() : std::optional<tripoint_bub_ms>( craft_item.pos_bub( here ) );
     const recipe &rec = craft.get_making();
+    if( location ) {
+        // B3: a craft worked on at a station keeps going there when left alone
+        mp_stations::note_craft_at( here.get_abs( *location ) );
+    }
     if( !use_cached_workbench_multiplier ) {
         cached_workbench_multiplier = crafter.workbench_crafting_speed_multiplier( craft, location );
         use_cached_workbench_multiplier = true;

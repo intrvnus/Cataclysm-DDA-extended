@@ -55,6 +55,7 @@
 #include "map_selector.h"
 #include "mapdata.h"
 #include "messages.h"
+#include "mp_stations.h"
 #include "mutation.h"
 #include "npc.h"
 #include "options.h"
@@ -964,6 +965,21 @@ void Character::start_craft( craft_command &command, const std::optional<tripoin
     item_location craft_in_world = place_craft_or_disassembly( *this, craft, loc );
 
     if( !craft_in_world ) {
+        return;
+    }
+
+    const bool long_enough = making.batch_time( *this, craft.get_making_batch_size(), 1.0f, 0 ) >=
+                             to_moves<int64_t>( 30_minutes );
+    if( mp_stations::queue_mode() && !long_enough ) {
+        // B3: only long recipes go to the station's queue; a short one is simply made now
+        add_msg_if_player( m_info, _( "That is quick to make: you do it yourself." ) );
+    }
+    if( mp_stations::queue_mode() && long_enough && craft_in_world.where() == item_location::type::map ) {
+        // B3: the station makes it on its own, for this player
+        craft_in_world.get_item()->set_var( "mp_queue", getID().get_value() );
+        mp_stations::note_craft_at( craft_in_world.pos_abs() );
+        add_msg_if_player( m_good, _( "You leave the %s with the station: it works on it by itself." ),
+                           craft.tname() );
         return;
     }
 

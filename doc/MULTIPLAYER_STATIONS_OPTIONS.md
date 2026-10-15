@@ -3,7 +3,7 @@
 Roadmap B3: "passive stations take a queue of recipes and work on their own; standing at the
 station and playing a minigame speeds it up". Your decision on record: **stations keep working
 when nobody is around**. Still open (roadmap B3 "Decisions"): which recipes need a station, and
-how crafting time scales. Nothing is built yet; this paper is for choosing.
+how crafting time scales. **Decided (Noah 2026-10-15): option C, built in `src/mp_stations.cpp`** (queue: recipes of 30 minutes or more).
 
 ## What exists today
 - Crafting is an activity of one character; the half-made item ("in progress craft") stays on

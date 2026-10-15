@@ -68,6 +68,7 @@
 #include "mtype.h"
 #include "mutation.h"
 #include "npc.h"
+#include "mp_stations.h"
 #include "net_session.h"
 #include "omdata.h"
 #include "options.h"
@@ -7625,7 +7626,8 @@ void iexamine::workbench_internal( Character &you, const tripoint_bub_ms &examp,
         start_long_craft,
         work_on_craft,
         get_items,
-        undeploy
+        undeploy,
+        queue_craft
     };
 
     amenu.text = string_format( pgettext( "furniture", "What to do at the %s?" ), name );
@@ -7633,6 +7635,10 @@ void iexamine::workbench_internal( Character &you, const tripoint_bub_ms &examp,
     amenu.addentry( repeat_craft,     true,            '2', _( "Recraft last recipe" ) );
     amenu.addentry( start_long_craft, true,            '3', _( "Craft as long as possible" ) );
     amenu.addentry( work_on_craft,    !crafts.empty(), '4', _( "Work on craft or disassembly" ) );
+    if( net::is_host() || net::is_client() ) {
+        // B3: the station makes a long recipe by itself
+        amenu.addentry( queue_craft,  true,            '5', _( "Queue a recipe here (the station works on its own)" ) );
+    }
     if( !part && here.has_items( examp ) ) {
         amenu.addentry( get_items,    items_at_loc,    'g', _( "Get items" ) );
     }
@@ -7673,6 +7679,14 @@ void iexamine::workbench_internal( Character &you, const tripoint_bub_ms &examp,
                 add_msg( m_info, _( "You lack the substance to affect anything." ) );
             } else {
                 you.long_craft( examp );
+            }
+            break;
+        }
+        case queue_craft: {
+            if( in_shell || you.has_effect( effect_incorporeal ) ) {
+                you.add_msg_if_player( m_info, _( "You can't do that now." ) );
+            } else {
+                mp_stations::queue_menu( you, here.get_abs( examp ) );
             }
             break;
         }

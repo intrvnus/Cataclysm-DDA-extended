@@ -65,6 +65,7 @@
 #include "messages.h"
 #include "mission.h"
 #include "mp_groups.h"
+#include "mp_stations.h"
 #include "mp_lives.h"
 #include "mp_test_npc.h"
 #include "monster.h"
@@ -2318,6 +2319,7 @@ void server_on_start()
         listen_handover();
     }
     mp_groups::load();
+    mp_stations::load();
     if( !dedicated() ) {
         mp_groups::on_join( get_avatar() );
     }
@@ -2988,6 +2990,7 @@ void host_save_players()
         return;
     }
     mp_groups::save();
+    mp_stations::save();
     if( !is_host() ) {
         return;
     }
@@ -3235,6 +3238,7 @@ void host_end_of_turn()
     }
     poll();
     update_host_downed();
+    mp_stations::tick();
     if( !net::dedicated() && !host_down().downed ) {
         mp_lives::tick( get_avatar() );
     }
