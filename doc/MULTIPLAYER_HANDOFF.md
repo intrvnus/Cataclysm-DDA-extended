@@ -4,7 +4,42 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Newest: session of 2026-10-14 evening/night (Opus)
+## 0. Newest: overnight session 2026-10-14/15 (Opus, Noah asleep)
+Noah's instructions for the night: delegate to Gemini where possible and review every diff; write
+code for the roadmap and **only compile-check it** (no in-game tests until he asks); keep a morning
+report (Claude Docs: "CDDA Multiplayer – Overnight Report", with a tick-off test checklist) and
+have a fresh Windows Tiles build ready.
+
+### Gemini delegation
+Works through `/root/gemini` (LiteLLM proxy on :4000). Needed `DISABLE_PROMPT_CACHING=1` in the
+Gemini instance's environment (free tier has no context-cache quota; added to
+`delegate-gemini.sh` in the container, **Noah should add it to the setup script**). The free daily
+quota per model is tiny (one Claude Code task = many requests): 3.8/3.7/3.6-flash ran out after two
+tasks; 3.5-flash-lite still worked. Delegated and merged after review: a typo, the README row for
+`freetest.sh`, two `MULTIPLAYER_FLUID.md` sections (network/soft walls, options table).
+
+### Done (and how it was verified)
+| Change | Verified |
+|---|---|
+| Free movement phase 2 test hook `CATA_MP_TEST_FREE` + `tools/mp_tests/freetest.sh`; `trace npc menu`, `trace free bump/soft` lines | Run in game: door, attack, talk, squeeze, vehicle PASS; swim enters water (slow, vanilla swim cost); ledge refused |
+| Soft walls (approved plan): fire / known traps / ledges stop the body, 0.4 s push goes in without a query (`fluid::soft_wall_confirmed`, `game::walk_move`); client bodies step into danger (npc::move_to never would); ledge: host gets the climb-down menu, client a hint to examine | Compile + CI |
+| Free movement phase 4 (network): `bp` message (channel 1, 20 Hz, protocol 3) with the applied input number `q`; client predicts its own body (`predict_free_move`) and reconciles (`client_reconcile`, 100 ms ease, jump over 2 tiles); other players interpolated `FLUID_INTERP_MS` behind and their shadows placed (`net::client_place_shadow`) | Compile + CI; one smoke run (host+client up, door case PASS) |
+| Options `FLUID_SOFT_WALL_MS` (400), `FLUID_BODY_WIDTH` (60 %), `FLUID_INTERP_MS` (100); log line for corrections over 0.3 tiles | Compile + CI |
+| Bugs: client actions acted on the HOST's character: pet/monster menus (`monexamine.cpp`), keg filling / mill / planting / trap examine (`iexamine.cpp`), haul menu, vehicle examine menus (`vehicle_use.cpp`): all use `remote_ui::acting_player()` now | Compile + CI |
+| Client "submap already loaded" errors (saved copy vs host copy) silenced on clients; network batches replaced one by one | Compile + CI |
+| Rain: scent washes out in every bubble; client bodies get wet; sun/snow glare reaches client bodies | Compile + CI |
+| Lives: new character's starting items move into worn containers (`migrate_items_to_storage`) | Compile + CI |
+| `fluid_layout.json` reformatted (repo JSON style; the local build's lint stopped on it) | formatter + JSON equality |
+
+### Open / for Noah
+- Hands-on test of the night's build (checklist in the morning report).
+- Item tick functions that use "the player" (pyromania morale for molotovs/incendiaries, fish
+  trap skill, multicooker hint, music morale) use the host's avatar for client items: gameplay
+  question, not changed.
+- A2 (host menus stop the world for clients) still open; needs a design decision.
+- Weariness "take a break", C4/C6: waiting for Noah. Phase 7: ask first.
+
+## 0b. Previous: session of 2026-10-14 evening/night (Opus)
 The next session's lead is again Claude Opus; it can delegate small, well-scoped tasks to a
 Gemini-backed Claude Code (see `CLAUDE.md`, "Delegating to Gemini").
 Read this section first; sections 1-9 below are the older handoff (still valid unless this section
