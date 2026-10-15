@@ -2242,7 +2242,7 @@ namespace impl
 // Host = server + client (A2): the first time a world is hosted this way the world's
 // character goes to the host's player (as their saved body) and the avatar stays behind as the
 // server's empty, invisible anchor.  Such a world stays a multiplayer world (Noah, 2026-10-15).
-void listen_handover()
+static void listen_handover()
 {
     avatar &u = get_avatar();
     if( u.get_value( "mp_listen_anchor" ).str() == "1" ) {
