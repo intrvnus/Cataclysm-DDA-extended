@@ -94,6 +94,7 @@
 #include "requirements.h"
 #include "translations.h"
 #include "type_id.h"
+#include "worldfactory.h"
 
 static const efftype_id effect_downed( "downed" );
 static const efftype_id effect_pet( "pet" );
@@ -2320,6 +2321,10 @@ void server_on_start()
 {
     if( listen_child() ) {
         listen_handover();
+        // the world is saved: the host's own game may read it now (start_listen_view)
+        if( world_generator->active_world != nullptr ) {
+            mark_world_ready( world_generator->active_world->world_name );
+        }
     }
     mp_groups::load();
     mp_stations::load();

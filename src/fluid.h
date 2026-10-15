@@ -340,6 +340,8 @@ void finish_turn_window();
 bool turn_due();
 /** Reset the clock (new game, load, session start). */
 void reset_clock();
+/** Forgets the last game's effects, prediction, camera and clock (after leaving a game). */
+void reset_session();
 
 /** Around monmove(): records where monsters and NPCs were, then slides them to where they
  * went. The host also sends those slides to the clients through net. */

@@ -86,6 +86,8 @@ bool console_stop_requested();
 void console_stop_done();
 /** This process is the host's own client (started with --mp-host). */
 bool listen_local();
+/** Forgets the client side of the last session (leaving, before hosting or joining again). */
+void client_reset();
 /** The server process this game started is still running (saving after the host left). */
 bool listen_server_running();
 /** The host's session is over (its server ended): back to the main menu. */

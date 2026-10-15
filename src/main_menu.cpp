@@ -745,7 +745,6 @@ bool main_menu::start_queued_world( bool &load_game )
             // the host's own game waits for the world's save to show it (start_listen_view)
             if( g->save() ) {
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: the new world is saved";
-                net::mark_world_ready( queued_world );
             } else {
                 DebugLog( D_ERROR, D_MAIN ) << "Multiplayer server: the new world could not be saved";
             }
@@ -1274,6 +1273,31 @@ bool main_menu::start_listen_view( const std::string &worldname )
         }
         return found;
     };
+    // the server saves the world when it starts and then marks it ready: this game reads it only
+    // after that, never while the server writes it
+    const auto wait_for_server = [&worldname]() {
+        // (the window stays responsive meanwhile; the server's terminal window shows its progress)
+        const auto started = std::chrono::steady_clock::now();
+        int shown = -1;
+        static_popup wait;
+        while( !net::world_ready( worldname ) ) {
+            const int secs = static_cast<int>( std::chrono::duration_cast<std::chrono::seconds>(
+                                                   std::chrono::steady_clock::now() - started ).count() );
+            if( secs >= 300 ) {
+                break;
+            }
+            if( secs != shown ) {
+                shown = secs;
+                wait.message( _( "The server is preparing the world… (%d s)\nIts progress shows in the server window." ),
+                              secs );
+                ui_manager::redraw();
+                refresh_display();
+            }
+            inp_mngr.pump_events();
+            std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+        }
+        return net::world_ready( worldname );
+    };
     std::string created;
     if( world->world_saves.empty() ) {
         avatar &pc = get_avatar();
@@ -1297,32 +1321,15 @@ bool main_menu::start_listen_view( const std::string &worldname )
         pc.serialize( jo );
         created = os.str();
         // the server makes the world (and its placeholder character) meanwhile
-        // (the window stays responsive meanwhile; the server's terminal window shows its progress)
-        const auto started = std::chrono::steady_clock::now();
-        int shown = -1;
-        static_popup wait;
-        while( !net::world_ready( worldname ) ) {
-            const int secs = static_cast<int>( std::chrono::duration_cast<std::chrono::seconds>(
-                                                   std::chrono::steady_clock::now() - started ).count() );
-            if( secs >= 300 ) {
-                break;
-            }
-            if( secs != shown ) {
-                shown = secs;
-                wait.message( _( "The server is preparing the world… (%d s)\nIts progress shows in the server window." ),
-                              secs );
-                ui_manager::redraw();
-                refresh_display();
-            }
-            inp_mngr.pump_events();
-            std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
-        }
-        if( !net::world_ready( worldname ) || saves_on_disk().empty() ) {
+        if( !wait_for_server() || saves_on_disk().empty() ) {
             popup( _( "The server did not finish the world in time.  Look at its window for a message." ) );
             return false;
         }
         // read the world's list of characters again
         world_generator->init();
+    } else if( !wait_for_server() ) {
+        popup( _( "The server did not finish starting in time.  Look at its window for a message." ) );
+        return false;
     }
     world = world_generator->get_world( worldname );
     if( world == nullptr || world->world_saves.empty() ) {

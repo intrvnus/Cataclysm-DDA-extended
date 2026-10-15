@@ -296,6 +296,9 @@ void shutdown()
 {
     bubbles::close_all();
     session_state &s = state();
+    // nothing of this connection is handled later (a reconnect asks for its own again)
+    s.pending = role::none;
+    impl::menu_queue().clear();
     if( s.host == nullptr ) {
         s.current = role::none;
         return;

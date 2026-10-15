@@ -44,6 +44,7 @@
 #include "event.h"
 #include "event_bus.h"
 #include "filesystem.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "game_ui.h"
@@ -968,6 +969,8 @@ int main( int argc, const char *argv[] )
         while( !do_turn() ) {}
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
+        net::client_reset();
+        fluid::reset_session();
         // the host's background server ends with its session
         if( net::listen_child() ) {
             break;
@@ -985,8 +988,9 @@ int main( int argc, const char *argv[] )
                 inp_mngr.pump_events();
                 std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
             }
-            net::listen_end();
         }
+        // no retry or listen state survives into the next game
+        net::listen_end();
         alerts::set_in_game( false );
         stations::reset();
     }

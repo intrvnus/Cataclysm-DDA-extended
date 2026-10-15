@@ -124,6 +124,8 @@ struct client_state {
     bool in_main_input = false;
     bool menu_danger = false;
     int menu_hp_base = -1;
+    // the overmap tile the terrain around was last asked for
+    tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
 };
 
 client_state &cstate()
@@ -2166,7 +2168,7 @@ bool client_do_turn()
     ui_manager::redraw_invalidated();
     // the overmap copy gets the terrain around the player whenever it moves to another tile
     {
-        static tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
+        tripoint_abs_omt &last_omt = cstate().last_omt;
         const tripoint_abs_omt here_omt = get_avatar().pos_abs_omt();
         if( here_omt != last_omt ) {
             last_omt = here_omt;
@@ -2192,6 +2194,23 @@ bool client_do_turn()
     }
     poll();
     return false;
+}
+
+void client_reset()
+{
+    // a new session in the same game (leave, then host or join again) starts clean
+    cstate() = client_state();
+    omap_notes_known().clear();
+    client_bars().clear();
+    music_heard().clear();
+    talk_queue().clear();
+    trade_queue().clear();
+    npc_menu_queue().clear();
+    npc_view_queue().clear();
+    omap_arrived() = false;
+    missions_text().clear();
+    zones_json().clear();
+    last_input_sent() = fluid::input_frame();
 }
 
 } // namespace net

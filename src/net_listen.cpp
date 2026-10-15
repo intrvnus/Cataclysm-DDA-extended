@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -53,10 +54,17 @@ listen_state &lstate()
 std::string executable_path( const char *argv0 )
 {
 #if defined(_WIN32)
-    ( void ) argv0;
-    std::vector<char> buf( 4096 );
-    const unsigned long n = GetModuleFileNameA( nullptr, buf.data(), static_cast<unsigned long>( buf.size() ) );
-    return n > 0 ? std::string( buf.data(), n ) : std::string( argv0 );
+    // UTF-8 like the game's other paths (a folder name with umlauts must work)
+    std::vector<wchar_t> buf( 32768 );
+    const DWORD n = GetModuleFileNameW( nullptr, buf.data(), static_cast<DWORD>( buf.size() ) );
+    if( n == 0 ) {
+        return std::string( argv0 );
+    }
+    const int len = WideCharToMultiByte( CP_UTF8, 0, buf.data(), static_cast<int>( n ), nullptr, 0, nullptr,
+                                         nullptr );
+    std::string out( len, '\0' );
+    WideCharToMultiByte( CP_UTF8, 0, buf.data(), static_cast<int>( n ), out.data(), len, nullptr, nullptr );
+    return out;
 #else
     std::error_code ec;
     const std::filesystem::path self = std::filesystem::read_symlink( "/proc/self/exe", ec );
@@ -97,12 +105,24 @@ bool spawn( const std::string &exe, const std::vector<std::string> &args, bool k
     for( const std::string &a : args ) {
         q.push_back( quoted( a ) );
     }
-    std::vector<const char *> argv;
+    const auto wide = []( const std::string & s ) {
+        const int len = MultiByteToWideChar( CP_UTF8, 0, s.c_str(), static_cast<int>( s.size() ), nullptr, 0 );
+        std::wstring w( len, L'\0' );
+        MultiByteToWideChar( CP_UTF8, 0, s.c_str(), static_cast<int>( s.size() ), w.data(), len );
+        return w;
+    };
+    std::vector<std::wstring> wq;
+    wq.reserve( q.size() );
     for( const std::string &a : q ) {
+        wq.push_back( wide( a ) );
+    }
+    std::vector<const wchar_t *> argv;
+    for( const std::wstring &a : wq ) {
         argv.push_back( a.c_str() );
     }
     argv.push_back( nullptr );
-    const intptr_t h = _spawnv( _P_NOWAIT, exe.c_str(), argv.data() );
+    const std::wstring wexe = wide( exe );
+    const intptr_t h = _wspawnv( _P_NOWAIT, wexe.c_str(), argv.data() );
     if( h != -1 && keep ) {
         server_process = h;
     } else if( h != -1 ) {
@@ -130,7 +150,7 @@ bool has_character( const std::filesystem::path &world )
 {
     std::error_code ec;
     for( const std::filesystem::directory_entry &e : std::filesystem::directory_iterator( world, ec ) ) {
-        const std::string name = e.path().filename().string();
+        const std::string name = e.path().filename().u8string();
         if( e.is_regular_file() && ( e.path().extension() == ".sav" ||
                                      ( name.size() > 9 && name.compare( name.size() - 9, 9, ".sav.zzip" ) == 0 ) ) ) {
             return true;
@@ -145,8 +165,8 @@ bool launch_game( const std::vector<std::string> &args )
 {
     namespace fs = std::filesystem;
     const std::string exe = executable_path( "cataclysm-tiles" );
-    const fs::path user = fs::absolute( fs::path( PATH_INFO::user_dir() ) );
-    std::vector<std::string> all = { exe, "--userdir", user.string() + "/" };
+    const fs::path user = fs::absolute( fs::u8path( PATH_INFO::user_dir() ) );
+    std::vector<std::string> all = { exe, "--userdir", user.u8string() + "/" };
     all.insert( all.end(), args.begin(), args.end() );
     return spawn( exe, all );
 }
@@ -233,18 +253,16 @@ namespace
 {
 std::filesystem::path ready_marker( const std::string &world )
 {
-    return std::filesystem::absolute( std::filesystem::path( PATH_INFO::user_dir() ) ) / "save" / world /
+    return std::filesystem::absolute( std::filesystem::u8path( PATH_INFO::user_dir() ) ) / "save" /
+           std::filesystem::u8path( world ) /
            "mp_server_ready";
 }
 } // namespace
 
 void mark_world_ready( const std::string &world )
 {
-    std::FILE *f = std::fopen( ready_marker( world ).string().c_str(), "w" );
-    if( f != nullptr ) {
-        std::fputs( "ready\n", f );
-        std::fclose( f );
-    }
+    std::ofstream f( ready_marker( world ) );
+    f << "ready\n";
 }
 
 bool world_ready( const std::string &world )
@@ -261,8 +279,8 @@ bool prepare_listen( const std::string &world, const char *argv0 )
         printf( "Multiplayer: --mp-host needs --world <name>; hosting the old way.\n" );
         return false;
     }
-    const fs::path user = fs::absolute( fs::path( PATH_INFO::user_dir() ) );
-    const fs::path world_dir = user / "save" / world;
+    const fs::path user = fs::absolute( fs::u8path( PATH_INFO::user_dir() ) );
+    const fs::path world_dir = user / "save" / fs::u8path( world );
     if( !has_character( world_dir ) ) {
         // a new world: the server makes its anchor, this player makes a character on its copy
         // when the game starts (and the world waits for it)
@@ -273,7 +291,7 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     client_key();
     const std::string exe = executable_path( argv0 );
     const std::vector<std::string> args = {
-        exe, "--userdir", user.string() + "/", "--world", world,
+        exe, "--userdir", user.u8string() + "/", "--world", world,
         "--mp-max-players", std::to_string( max_players() ),
         "--mp-server", std::to_string( ls.port ), "--mp-listen-child"
     };

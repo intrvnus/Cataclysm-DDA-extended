@@ -2728,6 +2728,23 @@ void reset_clock()
     clk().valid = false;
 }
 
+void reset_session()
+{
+    // a new game or multiplayer session in the same run: nothing of the last one carries over
+    reset_clock();
+    slides().clear();
+    lunges().clear();
+    hits().clear();
+    boom_list().clear();
+    aim_line_list().clear();
+    tracer_list().clear();
+    aim_view_rw() = aim_view();
+    melee_view_rw() = melee_view();
+    pred() = prediction();
+    cinfo() = client_info();
+    lead_state() = camera_lead_state();
+}
+
 bool turn_due()
 {
     if( !enabled() ) {
