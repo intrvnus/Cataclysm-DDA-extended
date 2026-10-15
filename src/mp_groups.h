@@ -22,6 +22,13 @@ bool same_group( const Character &a, const Character &b );
 void on_join( Character &who );
 /** A "/group ..." chat line of @p who (the text after "/group"); returns the answer for them. */
 std::string command( Character &who, const std::string &args );
+/** Missions belong to the group of the player who accepted them (kept with the world). */
+void note_mission( int mission_id, const std::string &group );
+/** The group a mission belongs to ("" = the shared group, also for older missions). */
+std::string mission_group( int mission_id );
+/** Mission groups from / to mp_players/mission_groups.json of the world. */
+void load();
+void save();
 } // namespace mp_groups
 
 #endif // CATA_SRC_MP_GROUPS_H

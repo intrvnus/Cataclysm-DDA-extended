@@ -7,6 +7,11 @@
 #include <vector>
 
 #include "avatar.h"
+#include "cata_path.h"
+#include "filesystem.h"
+#include "json.h"
+#include "json_loader.h"
+#include "path_info.h"
 #include "character.h"
 #include "net_session.h"
 #include "npc.h"
@@ -100,6 +105,57 @@ std::string list_groups()
     return text;
 }
 } // namespace
+
+namespace
+{
+std::map<int, std::string> &mission_groups()
+{
+    static std::map<int, std::string> m;
+    return m;
+}
+
+cata_path mission_file()
+{
+    return PATH_INFO::world_base_save_path() / "mp_players" / "mission_groups.json";
+}
+} // namespace
+
+void note_mission( int mission_id, const std::string &group )
+{
+    mission_groups()[mission_id] = group;
+}
+
+std::string mission_group( int mission_id )
+{
+    const auto iter = mission_groups().find( mission_id );
+    return iter == mission_groups().end() ? std::string() : iter->second;
+}
+
+void load()
+{
+    mission_groups().clear();
+    if( !file_exist( mission_file() ) ) {
+        return;
+    }
+    read_from_file_optional_json( mission_file(), []( const JsonValue & jv ) {
+        for( const JsonMember m : jv.get_object() ) {
+            mission_groups()[std::atoi( m.name().c_str() )] = m.get_string();
+        }
+    } );
+}
+
+void save()
+{
+    assure_dir_exist( PATH_INFO::world_base_save_path() / "mp_players" );
+    write_to_file( mission_file(), []( std::ostream & fout ) {
+        JsonOut jo( fout );
+        jo.start_object();
+        for( const auto &e : mission_groups() ) {
+            jo.member( std::to_string( e.first ), e.second );
+        }
+        jo.end_object();
+    }, _( "multiplayer missions" ) );
+}
 
 std::string group_of( const Character &who )
 {

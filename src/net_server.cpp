@@ -2279,6 +2279,7 @@ void server_on_start()
     if( listen_child() ) {
         listen_handover();
     }
+    mp_groups::load();
     if( !dedicated() ) {
         mp_groups::on_join( get_avatar() );
     }
@@ -2445,9 +2446,16 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             jo.member( "text", text );
         } ) );
     } else if( type == "missions_req" && rp->npc_id.is_valid() ) {
-        // the missions are the group's: they are kept on the host's avatar
+        // the missions are kept on the host's avatar; each player sees those of their group (C4)
         std::string text = _( "Missions of the group" ) + std::string( "\n\n" );
-        const std::vector<mission *> active = get_avatar().get_active_missions();
+        const npc *me_body = g->find_npc( rp->npc_id );
+        const std::string my_group = me_body != nullptr ? mp_groups::group_of( *me_body ) : std::string();
+        std::vector<mission *> active;
+        for( mission *m : get_avatar().get_active_missions() ) {
+            if( mp_groups::mission_group( m->get_id() ) == my_group ) {
+                active.push_back( m );
+            }
+        }
         if( active.empty() ) {
             text += _( "No active missions." ) + std::string( "\n" );
         }
@@ -2887,6 +2895,10 @@ void dedicated_turn()
 
 void host_save_players()
 {
+    if( !is_host() ) {
+        return;
+    }
+    mp_groups::save();
     if( !is_host() ) {
         return;
     }
