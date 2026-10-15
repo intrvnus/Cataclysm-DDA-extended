@@ -7473,6 +7473,12 @@ std::optional<int> iuse::remoteveh_tick( Character *p, item *it, const tripoint_
 std::optional<int> iuse::remoteveh( Character *p, item *it, const tripoint_bub_ms &pos )
 {
     map &here = get_map();
+    // multiplayer: remote driving works through the host's own view and controls; a client
+    // using it would take over the host's character
+    if( p != nullptr && !p->is_avatar() && remote_ui::replaying() ) {
+        remote_ui::tell( _( "That is not available in multiplayer yet." ) );
+        return std::nullopt;
+    }
 
     vehicle *remote = g->remoteveh();
 
