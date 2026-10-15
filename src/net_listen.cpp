@@ -1,9 +1,9 @@
 // Host = server + client (A2, Noah 2026-10-15): a multiplayer host starts a dedicated server
 // for the world in the background and joins it as a client, so the host's menus never stop the
-// world for the other players.  The client runs from its own user folder (mp_local/) with a copy
-// of the configuration and the small files of the world, so the two processes never write the
-// same files.  The server hands the world's character over to the host's player (once) and keeps
-// the avatar as its invisible anchor: such a world stays a multiplayer world.
+// world for the other players.  Both run in the same game folder (Noah: no copy of the game): the
+// server owns and saves the world, the host's game only shows it and never writes into it (its
+// map memory has a name of its own, see main_menu).  A world without characters: the host makes a
+// character first, the server makes the world, then the host joins with that character.
 #include "net_session.h"
 
 #include <chrono>
@@ -113,33 +113,6 @@ bool has_character( const std::filesystem::path &world )
     return false;
 }
 
-// The client's copy: the configuration and the small files of the world (options, mods, the
-// character), never the maps (they come from the server).
-bool make_local_copy( const std::filesystem::path &user, const std::filesystem::path &local,
-                      const std::string &world )
-{
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories( local / "config", ec );
-    fs::copy( user / "config", local / "config",
-              fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec );
-    if( ec ) {
-        DebugLog( D_WARNING, D_MAIN ) << "Multiplayer: could not copy the configuration: " << ec.message();
-        return false;
-    }
-    const fs::path from = user / "save" / world;
-    const fs::path to = local / "save" / world;
-    fs::create_directories( to, ec );
-    for( const fs::directory_entry &e : fs::directory_iterator( from, ec ) ) {
-        const std::string name = e.path().filename().string();
-        if( !e.is_regular_file() || ( e.path().extension() != ".json" && name.rfind( '#', 0 ) != 0 ) ) {
-            continue;
-        }
-        std::error_code cec;
-        fs::copy_file( e.path(), to / name, fs::copy_options::overwrite_existing, cec );
-    }
-    return !ec;
-}
 } // namespace
 
 bool launch_game( const std::vector<std::string> &args )
@@ -196,10 +169,6 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     }
     // the identity of this player: the server hands the world's character to it
     client_key();
-    const fs::path local = user / "mp_local";
-    if( !make_local_copy( user, local, world ) ) {
-        return false;
-    }
     const std::string exe = executable_path( argv0 );
     const std::vector<std::string> args = {
         exe, "--userdir", user.string() + "/", "--world", world,
@@ -210,8 +179,6 @@ bool prepare_listen( const std::string &world, const char *argv0 )
         printf( "Multiplayer: could not start the server process; hosting the old way.\n" );
         return false;
     }
-    PATH_INFO::init_user_dir( local.string() + "/" );
-    PATH_INFO::set_standard_filenames();
     ls.local = true;
     request_connect( "127.0.0.1", ls.port );
     return true;

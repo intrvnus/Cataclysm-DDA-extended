@@ -67,8 +67,9 @@ void request_connect( const std::string &address, int port );
 /** Command line --mp-host: host = server + client (A2).  See net_listen.cpp. */
 void request_listen( int port );
 bool listen_requested();
-/** Starts the server for @p world in the background and makes this process its client (own
- * user folder mp_local/).  False if that is not possible (then host the old way). */
+/** Starts the server for @p world in the background and makes this process its client (same
+ * game folder; this game only shows the world, the server owns it).  False if that is not
+ * possible (then host the old way). */
 bool prepare_listen( const std::string &world, const char *argv0 );
 /** This process is the server started by prepare_listen (--mp-listen-child). */
 void set_listen_child();

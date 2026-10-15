@@ -83,6 +83,13 @@ Host and client need this build (network protocol 3).
 - [ ] Options page, fluid section: "Free movement: push time into danger", "body width" and
       "other players' delay" can be changed (keep body width the same on host and clients).
 - [ ] Lives: running out of lives, making a new character and joining again.
+- [ ] Hosting (menu or `--mp-host`) after the 2026-10-15 evening fix: only ONE game window (the
+      server runs hidden); no `mp_local` folder any more (an old one can be deleted); walls, doors
+      and smashing behave like single player; leaving and hosting again works; on a new world the
+      character screen comes first, then "The server is preparing the world…".
+- [ ] No more "You cannot close the …" while walking. Escape opens a small game menu (options,
+      key bindings, debug menu, leave). A message box (e.g. Shift+E with nothing to eat) does not
+      let the character walk on.
 - [ ] Main menu → Multiplayer: host a game from the menu (new world and an existing one), start a
       dedicated server from the menu and join it ("Join it now?"), join from the menu with an
       address; the rules you set show up in the world's options; "How do the others join?" shows

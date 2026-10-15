@@ -3321,6 +3321,19 @@ void host_end_of_turn()
         return;
     }
     poll();
+    if( listen_child() ) {
+        // the hidden server of a host: without anybody connected for 20 minutes (the host's
+        // game never came or crashed) it saves and stops instead of running on unseen
+        static fluid::ms_t last_seen = fluid::now_ms();
+        if( !clients().empty() ) {
+            last_seen = fluid::now_ms();
+        } else if( fluid::now_ms() - last_seen > 20 * 60 * 1000 && g->uquit == QUIT_NO ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: nobody came for 20 minutes, the server saves and stops";
+            if( g->save() ) {
+                g->uquit = QUIT_SAVED;
+            }
+        }
+    }
     update_host_downed();
     mp_stations::tick();
     mp_scores::tick();

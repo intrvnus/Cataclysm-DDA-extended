@@ -316,6 +316,13 @@ static void WinCreate()
 #endif
 #endif
 
+    // Multiplayer: the host's background server shows no window (it stops when the host
+    // leaves); a dedicated server's window starts minimized
+    if( net::listen_child() ) {
+        window_flags |= SDL_WINDOW_HIDDEN;
+    } else if( net::dedicated_requested() ) {
+        window_flags |= SDL_WINDOW_MINIMIZED;
+    }
     ::window.reset( SDL_CreateWindow( "",
                                       SDL_WINDOWPOS_CENTERED_DISPLAY( display ),
                                       SDL_WINDOWPOS_CENTERED_DISPLAY( display ),
@@ -324,6 +331,9 @@ static void WinCreate()
                                       window_flags
                                     ) );
     throwErrorIf( !::window, "SDL_CreateWindow failed" );
+    if( net::dedicated_requested() && !net::listen_child() ) {
+        SDL_SetWindowTitle( ::window.get(), "Cataclysm multiplayer server (close this window to stop it)" );
+    }
 
 #if !defined(__ANDROID__) && !defined(EMSCRIPTEN)
     // On Android SDL seems janky in windowed mode so we're fullscreen all the time.
@@ -4349,7 +4359,8 @@ HWND getWindowHandle()
 
 void set_title( const std::string &title )
 {
-    if( ::window ) {
+    // a dedicated server keeps the title that says what it is
+    if( ::window && !net::dedicated_requested() ) {
         SDL_SetWindowTitle( ::window.get(), title.c_str() );
     }
 }

@@ -561,7 +561,8 @@ bool do_turn()
         // a new world: nothing happens until the first player has made a character and joined
         net::host_end_of_turn();
         std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
-        return false;
+        // (a hidden server nobody joined stops itself, see host_end_of_turn)
+        return g->uquit != QUIT_NO;
     }
     net::dedicated_turn();
     // Experimental fluid mode: a new turn window opens (see fluid.h).

@@ -16,6 +16,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 
 #if defined(EMSCRIPTEN)
 #include <emscripten.h>
@@ -43,6 +44,7 @@
 #include "mapsharing.h"
 #include "messages.h"
 #include "mp_menu.h"
+#include "json_loader.h"
 #include "music.h"
 #include "options.h"
 #include "output.h"
@@ -777,6 +779,12 @@ bool main_menu::opening_screen()
         if( queued == nullptr ) {
             // unknown world name: show the main menu instead of crashing
             popup( _( "World \"%s\" does not exist." ), queued_world );
+        } else if( net::listen_local() ) {
+            // the host's own game: it shows the server's world, the server owns it
+            start = start_listen_view( queued_world );
+            if( start ) {
+                load_game = true;
+            }
         } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
             save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
                                          save_t::from_save_id( queued_save );
@@ -1220,6 +1228,100 @@ bool main_menu::start_new_character( WORLD *world, character_type play_type )
         return false;
     }
     cleanup.cancel();
+    return true;
+}
+
+bool main_menu::start_listen_view( const std::string &worldname )
+{
+    // Multiplayer host (listen mode, Noah 2026-10-15): the server in the background owns the world
+    // and saves it; this game only shows it and never writes into it.  A new world: the player
+    // makes a character first, the server makes the world meanwhile, then that character joins.
+    WORLD *world = world_generator->get_world( worldname );
+    if( world == nullptr ) {
+        return false;
+    }
+    const auto saves_on_disk = [&worldname]() {
+        WORLD *w = world_generator->get_world( worldname );
+        if( w == nullptr ) {
+            return std::vector<std::string>();
+        }
+        // characters: "<name>.sav", or "<name>.sav.zzip" in a compressed world
+        std::vector<std::string> found = get_files_from_path( ".sav", w->folder_path().generic_u8string(),
+                                         false, true );
+        for( const std::string &f : get_files_from_path( ".sav.zzip", w->folder_path().generic_u8string(),
+                false, true ) ) {
+            found.push_back( f );
+        }
+        return found;
+    };
+    std::string created;
+    if( world->world_saves.empty() ) {
+        avatar &pc = get_avatar();
+        on_out_of_scope cleanup( [&pc]() {
+            pc = avatar();
+            world_generator->set_active_world( nullptr );
+        } );
+        g->gamemode = nullptr;
+        world_generator->set_active_world( world );
+        try {
+            g->setup();
+        } catch( const std::exception &err ) {
+            debugmsg( "Error: %s", err.what() );
+            return false;
+        }
+        if( !pc.create( character_type::CUSTOM ) ) {
+            return false;
+        }
+        std::ostringstream os;
+        JsonOut jo( os );
+        pc.serialize( jo );
+        created = os.str();
+        // the server makes the world (and its placeholder character) meanwhile
+        static_popup wait;
+        wait.message( "%s", _( "The server is preparing the world…" ) );
+        ui_manager::redraw();
+        refresh_display();
+        for( int i = 0; i < 3000 && saves_on_disk().empty(); ++i ) {
+            std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+        }
+        if( saves_on_disk().empty() ) {
+            popup( _( "The server did not finish the world in time.  Look at its window for a message." ) );
+            return false;
+        }
+        // read the world's list of characters again
+        world_generator->init();
+    }
+    world = world_generator->get_world( worldname );
+    if( world == nullptr || world->world_saves.empty() ) {
+        popup( _( "The world \"%s\" has no character to show it with." ), worldname );
+        return false;
+    }
+    const save_t save = world->world_saves.front();
+    if( !file_exist( world->folder_path() / ( save.base_path() + ".sav" ) ) &&
+        !file_exist( world->folder_path() / ( save.base_path() + ".sav.zzip" ) ) ) {
+        popup( _( "The character file of \"%s\" is missing; the world can not be shown." ), worldname );
+        return false;
+    }
+    if( !load_game( worldname, save ) ) {
+        return false;
+    }
+    avatar &you = get_avatar();
+    if( !created.empty() ) {
+        // the character made above is the one this player joins with
+        const tripoint_abs_ms at = you.pos_abs();
+        try {
+            JsonValue jv = json_loader::from_string( created );
+            you.deserialize( jv.get_object() );
+        } catch( const std::exception &err ) {
+            debugmsg( "Error: %s", err.what() );
+        }
+        map &here = get_map();
+        if( here.inbounds( at ) ) {
+            you.setpos( here, here.get_bub( at ), false );
+        }
+    }
+    // what this game remembers of the map gets a file of its own (never the server's)
+    you.set_save_id( "mp_view_" + net::client_key().substr( 0, 8 ) );
     return true;
 }
 

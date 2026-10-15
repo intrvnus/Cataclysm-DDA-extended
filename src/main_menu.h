@@ -70,6 +70,8 @@ class main_menu
         // Tab functions. They return whether a game was started or not. The ones that can never
         // start a game have a void return type.
         bool load_game( std::string const &worldname, save_t const &savegame );
+        /** Multiplayer host: show the server's world in this game (see main_menu.cpp). */
+        bool start_listen_view( const std::string &worldname );
         bool new_character_tab();
         /** Creates a character in the world (character creation screen) and starts the game. */
         bool start_new_character( WORLD *world, character_type play_type );

@@ -75,6 +75,7 @@
 #include "mission.h"
 #include "monster.h"
 #include "mtype.h"
+#include "net_session.h"
 #include "npc.h"
 #include "npc_attack.h"
 #include "npc_opinion.h"
@@ -3193,12 +3194,13 @@ void npc::move_to( const tripoint_bub_ms &pt, bool no_bashing, std::set<tripoint
             here.unboard_vehicle( old_pos );
         }
 
-        // Close doors behind self (if you can)
-        if( ( rules.has_flag( ally_rule::close_doors ) && is_player_ally() ) && !is_hallucination() ) {
+        // Close doors behind self (if you can); not a player's own character (its player decides)
+        const bool follower = is_player_ally() && !net::is_remote_player( *this );
+        if( ( rules.has_flag( ally_rule::close_doors ) && follower ) && !is_hallucination() ) {
             doors::close_door( here, *this, old_pos );
         }
         // Lock doors as well
-        if( ( rules.has_flag( ally_rule::lock_doors ) && is_player_ally() ) && !is_hallucination() ) {
+        if( ( rules.has_flag( ally_rule::lock_doors ) && follower ) && !is_hallucination() ) {
             doors::lock_door( here, *this, old_pos );
         }
 
