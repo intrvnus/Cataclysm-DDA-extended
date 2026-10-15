@@ -1,5 +1,7 @@
 #include "mp_groups.h"
 
+#include "mp_scores.h"
+
 #include <algorithm>
 #include <cctype>
 #include <map>
@@ -536,6 +538,9 @@ std::string command( Character &who, const std::string &args )
     const std::string mine = group_of( who );
     if( op.empty() || op == "list" ) {
         return list_groups();
+    }
+    if( op == "stats" ) {
+        return mp_scores::scoreboard();
     }
     if( op == "spar" ) {
         Character *other = player_named( rest );

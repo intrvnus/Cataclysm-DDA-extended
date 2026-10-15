@@ -1,5 +1,7 @@
 #include "mp_lives.h"
 
+#include "mp_scores.h"
+
 #include <algorithm>
 #include <list>
 #include <sstream>
@@ -201,6 +203,8 @@ bool spend_life( Character &who )
         return true;
     }
     if( lives == 0 ) {
+        // gone for good: remembered in the world's memorial (C21)
+        mp_scores::memorial( who );
         return false;
     }
     set_int( who, "mp_lives", lives - 1 );
