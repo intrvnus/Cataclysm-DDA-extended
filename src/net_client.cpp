@@ -74,6 +74,7 @@
 #include "mapbuffer.h"
 #include "memory_fast.h"
 #include "messages.h"
+#include "music.h"
 #include "mp_lives.h"
 #include "mod_engine.h"
 #include "monster.h"
@@ -245,6 +246,13 @@ std::vector<std::pair<tripoint_abs_ms, double>> &client_bars()
 {
     static std::vector<std::pair<tripoint_abs_ms, double>> v;
     return v;
+}
+
+// C13: when the host last said each music track is going
+std::map<int, fluid::ms_t> &music_heard()
+{
+    static std::map<int, fluid::ms_t> m;
+    return m;
 }
 
 void reload_map()
@@ -1912,6 +1920,13 @@ void client_on_message( const JsonObject &msg )
                       static_cast<alerts::level>( std::clamp( msg.get_int( "lvl", 1 ), 0, 2 ) ), source );
     } else if( type == "msg" ) {
         add_msg( m_info, msg.get_string( "text", "" ) );
+    } else if( type == "mus" ) {
+        // C13: music of the own body (mp3 player, instrument, music heard)
+        const int id = msg.get_int( "id", -1 );
+        if( id >= 0 && id < static_cast<int>( music::music_id::LAST ) ) {
+            music::activate_music_id( static_cast<music::music_id>( id ) );
+            music_heard()[id] = fluid::now_ms();
+        }
     } else if( type == "sfx" && msg.has_array( "src" ) ) {
         // a sound the own body heard on the host: played from where it came
         const tripoint_abs_ms src = read_pos( msg.get_array( "src" ) );
@@ -2082,6 +2097,15 @@ bool client_do_turn()
 {
     poll();
     mod_engine::tick();
+    for( auto iter = music_heard().begin(); iter != music_heard().end(); ) {
+        // the host stopped saying so: the music stops
+        if( fluid::now_ms() - iter->second > 3000 ) {
+            music::deactivate_music_id( static_cast<music::music_id>( iter->first ) );
+            iter = music_heard().erase( iter );
+        } else {
+            ++iter;
+        }
+    }
     {
         client_state &cs = cstate();
         if( cs.fluid_on && cs.welcomed && cs.last_host_msg > 0 && !cs.host_wait_shown &&

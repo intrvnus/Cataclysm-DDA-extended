@@ -150,6 +150,9 @@ std::vector<std::pair<tripoint_abs_ms, double>> activity_bars();
 int activity_progress( const Character &who );
 /** B6: the player of this computer is asleep (client: its body on the host). */
 bool own_asleep();
+/** C13 music: the body of a client has music going (its mp3 player, its instrument, music it
+ * hears): the client plays that track (music::music_id) while these keep coming. */
+void music_for( const Character &who, int music_id );
 /** C13: a sound effect the body of a client hears is played on that client's computer, from
  * where it came (volume and direction from the client's own position). */
 void play_sound_for( const Character &who, const std::string &id, const std::string &variant,

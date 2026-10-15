@@ -70,6 +70,7 @@
 #include "mp_groups.h"
 #include "mtype.h"
 #include "music.h"
+#include "net_session.h"
 #include "mutation.h"
 #include "npc.h"
 #include "output.h"
@@ -2596,7 +2597,10 @@ std::optional<int> musical_instrument_actor::use( Character *p, item &it,
     }
 
     // We can play the music now
-    if( remote_ui::acts_as_player( *p ) ) {
+    if( net::is_remote_player( *p ) ) {
+        // a client's instrument plays on the client's computer
+        net::music_for( *p, music::music_id::instrument );
+    } else if( remote_ui::acts_as_player( *p ) ) {
         music::activate_music_id( music::music_id::instrument );
     }
 

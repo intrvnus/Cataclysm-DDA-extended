@@ -3081,6 +3081,26 @@ void alert_player( const Character &who, const std::string &text, int level,
     } ) );
 }
 
+void music_for( const Character &who, int music_id )
+{
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    if( rp == nullptr ) {
+        return;
+    }
+    // at most once a second per track: the client keeps it going for a few seconds
+    static std::map<std::pair<int, int>, fluid::ms_t> last;
+    fluid::ms_t &when = last[ { who.getID().get_value(), music_id }];
+    const fluid::ms_t now = fluid::now_ms();
+    if( now - when < 1000 ) {
+        return;
+    }
+    when = now;
+    impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "mus" );
+        jo.member( "id", music_id );
+    } ) );
+}
+
 void play_sound_for( const Character &who, const std::string &id, const std::string &variant,
                      const std::string &season, bool indoors, bool night,
                      const tripoint_abs_ms &source )

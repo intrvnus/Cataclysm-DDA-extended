@@ -4038,7 +4038,12 @@ std::optional<int> iuse::mp3_on( Character *p, item *, const tripoint_bub_ms &po
 {
     // mp3 player in inventory, we can listen
     play_music( p, pos, 0, 20 );
-    music::activate_music_id( music::music_id::mp3 );
+    if( p != nullptr && net::is_remote_player( *p ) ) {
+        // a client's mp3 player plays on the client's computer, not on the host's
+        net::music_for( *p, music::music_id::mp3 );
+    } else {
+        music::activate_music_id( music::music_id::mp3 );
+    }
     return 1;
 }
 
