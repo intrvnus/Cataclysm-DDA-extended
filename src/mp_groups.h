@@ -5,8 +5,10 @@
 #include <string>
 
 #include "coords_fwd.h"
+#include "npc_opinion.h"
 
 class Character;
+class npc;
 enum class om_vision_level : int8_t;
 
 /**
@@ -34,6 +36,22 @@ std::string mission_group( int mission_id );
  * Whoever joins a group brings their map into it; whoever leaves keeps a copy. */
 void reveal( const Character &who, const tripoint_abs_omt &p );
 om_vision_level seen_by( const Character &who, const tripoint_abs_omt &p );
+/** NPC reputation per group (C4): while it lives, @p other's opinion of the player
+ * (npc::op_of_u) is the one it holds of @p you's group.  The shared group uses op_of_u itself;
+ * the other groups' opinions are kept on the NPC (values "mp_op_<group>"), starting from
+ * nothing.  Used around multiplayer conversations. */
+class opinion_scope
+{
+    public:
+        opinion_scope( const Character &you, npc &other );
+        ~opinion_scope();
+        opinion_scope( const opinion_scope & ) = delete;
+        opinion_scope &operator=( const opinion_scope & ) = delete;
+    private:
+        npc &other;
+        std::string group;
+        npc_opinion stash;
+};
 /** Mission groups and group maps from / to mp_players/ of the world. */
 void load();
 void save();

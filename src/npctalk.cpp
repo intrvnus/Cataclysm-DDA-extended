@@ -96,6 +96,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "mission.h"
+#include "mp_groups.h"
 #include "mongroup.h"
 #include "monster.h"
 #include "mtype.h"
@@ -9326,6 +9327,8 @@ struct remote_conversation::impl {
 remote_conversation::remote_conversation( npc &you, npc &other )
     : p( std::make_unique<impl>( you, other ) )
 {
+    // the NPC answers with its opinion of the speaker's group
+    mp_groups::opinion_scope opinion( you, other );
     std::unique_ptr<talker> beta = get_talker_for( other );
     if( !beta->will_talk_to_u( you, false ) ) {
         return;
@@ -9368,6 +9371,7 @@ int remote_conversation::other_id() const
 bool remote_conversation::turn( turn_data &out )
 {
     impl &m = *p;
+    mp_groups::opinion_scope opinion( m.you, m.other );
     if( finished() ) {
         return false;
     }
@@ -9418,6 +9422,7 @@ bool remote_conversation::turn( turn_data &out )
 void remote_conversation::choose_special( const std::string &action )
 {
     impl &m = *p;
+    mp_groups::opinion_scope opinion( m.you, m.other );
     if( !m.turn_open || finished() ) {
         return;
     }
@@ -9433,6 +9438,7 @@ void remote_conversation::choose_special( const std::string &action )
 void remote_conversation::choose( int index )
 {
     impl &m = *p;
+    mp_groups::opinion_scope opinion( m.you, m.other );
     if( !m.turn_open || finished() ) {
         return;
     }

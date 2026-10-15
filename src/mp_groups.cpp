@@ -209,6 +209,30 @@ void reveal( const Character &who, const tripoint_abs_omt &p )
     }
 }
 
+opinion_scope::opinion_scope( const Character &you, npc &other ) : other( other ),
+    group( net::is_host() ? group_of( you ) : std::string() )
+{
+    if( group.empty() ) {
+        return;
+    }
+    stash = other.op_of_u;
+    npc_opinion op;
+    std::istringstream is( other.get_value( "mp_op_" + group ).str() );
+    is >> op.trust >> op.fear >> op.value >> op.anger >> op.owed >> op.sold;
+    other.op_of_u = is.fail() ? npc_opinion() : op;
+}
+
+opinion_scope::~opinion_scope()
+{
+    if( group.empty() ) {
+        return;
+    }
+    const npc_opinion &op = other.op_of_u;
+    other.set_value( "mp_op_" + group, string_format( "%d %d %d %d %d %d", op.trust, op.fear,
+                     op.value, op.anger, op.owed, op.sold ) );
+    other.op_of_u = stash;
+}
+
 om_vision_level seen_by( const Character &who, const tripoint_abs_omt &p )
 {
     const std::string group = group_of( who );

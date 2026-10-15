@@ -81,6 +81,8 @@ Host and client need this build (network protocol 3).
       loot uses your group's zones.
 - [ ] Groups and the map (M): a player in their own group sees only what their group explored;
       after `/group accept` the group's map shows up; after leaving, the map stays.
+- [ ] Groups and NPCs: an NPC that likes the shared group treats a player of a new group as a
+      stranger in conversation; trading/favours with one group do not change its opinion of another.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport
