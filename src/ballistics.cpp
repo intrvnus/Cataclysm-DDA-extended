@@ -19,6 +19,7 @@
 #include "dispersion.h"
 #include "enums.h"
 #include "explosion.h"
+#include "fluid.h"
 #include "game.h"
 #include "item.h"
 #include "itype.h"
@@ -613,6 +614,10 @@ void projectile_attack( dealt_projectile_attack &attack, const projectile &proj_
             prev_point = tp;
         }
         // Done with the trajectory!
+        if( fluid::enabled() ) {
+            // fluid mode: a tracer from the gun to where the shot ended (for everybody)
+            fluid::note_projectile( here->get_abs( source ), here->get_abs( tp ) );
+        }
         if( first && do_animation && do_draw_line && traj_len > 2 ) {
             t_copy.erase( t_copy.begin() );
             t_copy.resize( traj_len-- );

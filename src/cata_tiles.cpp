@@ -2072,6 +2072,19 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderDrawRect( r, &frame );
     }
 
+    // shots: a bright line from the gun to where the shot ended, fading quickly
+    for( const fluid::tracer_view &t : fluid::tracers() ) {
+        if( t.from.z() != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const point a = to_screen( t.from.x() + 0.5, t.from.y() + 0.5, t.from.z() );
+        const point b = to_screen( t.to.x() + 0.5, t.to.y() + 0.5, t.to.z() );
+        SDL_SetRenderDrawColor( r, 255, 230, 140, static_cast<Uint8>( 230 * t.strength ) );
+        SDL_RenderDrawLine( r, a.x, a.y, b.x, b.y );
+        SDL_RenderDrawLine( r, a.x + 1, a.y, b.x + 1, b.y );
+        SDL_RenderDrawLine( r, a.x, a.y + 1, b.x, b.y + 1 );
+    }
+
     // creatures that were just hit flash white
     for( const std::pair<tripoint_abs_ms, double> &flash : fluid::hit_flashes() ) {
         const fluid::offset so = fluid::sprite_offset( flash.first );

@@ -192,6 +192,20 @@ std::map<tripoint_abs_ms, hit_fx> &hits()
     return m;
 }
 
+struct tracer_fx {
+    tripoint_abs_ms from;
+    tripoint_abs_ms to;
+    ms_t t0 = 0;
+};
+constexpr int tracer_ms = 160;
+
+std::vector<tracer_fx> &tracer_list()
+{
+    static std::vector<tracer_fx> v;
+    return v;
+}
+
+
 aim_view &aim_view_rw()
 {
     static aim_view v;
@@ -452,6 +466,10 @@ offset hit_offset_at( const tripoint_abs_ms &p, ms_t now )
 
 void prune_animations( ms_t now )
 {
+    std::vector<tracer_fx> &tl = tracer_list();
+    tl.erase( std::remove_if( tl.begin(), tl.end(), [now]( const tracer_fx & t ) {
+        return now >= t.t0 + tracer_ms;
+    } ), tl.end() );
     for( auto iter = hits().begin(); iter != hits().end(); ) {
         if( now >= iter->second.t0 + hit_stop_ms + hit_recoil_ms ) {
             iter = hits().erase( iter );
@@ -715,8 +733,16 @@ void update_aim( Character &who, actor_state &st, const input_frame &in, ms_t no
         if( tile_ok ) {
             const tripoint_bub_ms target = here.get_bub( st.aim_tile );
             const double min_recoil = calculate_aim_cap( who, target );
+            // moving spoils the aim (top-down shooter bloom, Noah 2026-10-15): walking keeps it
+            // at 35% of the worst, running at 70%; it only settles while standing
+            const bool moving = now - st.moved_at < 150;
             if( gun->has_flag( flag_id( "ALWAYS_AIMED" ) ) ) {
                 who.recoil = 0.0;
+            } else if( moving ) {
+                const double floor = MAX_RECOIL * ( who.is_running() ? 0.7 : 0.35 );
+                if( who.recoil < floor ) {
+                    who.recoil = std::min( floor, who.recoil + dt * MAX_RECOIL / 400.0 );
+                }
             } else if( idle ) {
                 // aim runs in whole native moves; time is turned into moves
                 double moves = ms_to_moves( who, dt ) + st.aim_move_carry;
@@ -2068,6 +2094,57 @@ std::vector<incoming_blow> incoming_blows()
     return out;
 }
 
+namespace
+{
+// shots of this frame that still have to go to the clients
+std::vector<event> &pending_tracers()
+{
+    static std::vector<event> v;
+    return v;
+}
+
+void add_tracer( const tripoint_abs_ms &from, const tripoint_abs_ms &to, ms_t now )
+{
+    if( from == to ) {
+        return;
+    }
+    tracer_fx t;
+    t.from = from;
+    t.to = to;
+    t.t0 = now;
+    tracer_list().push_back( t );
+}
+} // namespace
+
+void note_projectile( const tripoint_abs_ms &from, const tripoint_abs_ms &to )
+{
+    add_tracer( from, to, now_ms() );
+    if( net::is_host() ) {
+        event ev;
+        ev.type = fx_type::tracer;
+        ev.from = from;
+        ev.to = to;
+        pending_tracers().push_back( ev );
+    }
+}
+
+std::vector<tracer_view> tracers()
+{
+    std::vector<tracer_view> out;
+    const ms_t now = now_ms();
+    for( const tracer_fx &t : tracer_list() ) {
+        const ms_t age = now - t.t0;
+        if( age >= 0 && age < tracer_ms ) {
+            tracer_view v;
+            v.from = t.from;
+            v.to = t.to;
+            v.strength = 1.0 - static_cast<double>( age ) / tracer_ms;
+            out.push_back( v );
+        }
+    }
+    return out;
+}
+
 std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes()
 {
     std::vector<std::pair<tripoint_abs_ms, double>> out;
@@ -2176,7 +2253,7 @@ offset camera_offset()
 
 bool animating()
 {
-    if( !slides().empty() || !lunges().empty() || !hits().empty() || pred().active ||
+    if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || pred().active ||
         aim_view_rw().active ) {
         return true;
     }
@@ -2263,7 +2340,12 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     if( who.activity && cancel_pressed ) {
         focus_minigame::press( who );
     }
-    if( who.activity && who.activity.is_interruptible_with_kb() &&
+    // reloading goes on while walking freely (Noah 2026-10-15); the steps use the moves the
+    // reload would have used, so it takes longer
+    static const activity_id act_reload_free( "ACT_RELOAD" );
+    const bool reloading = who.activity && who.activity.id() == act_reload_free &&
+                           free_movement() && !who.is_running();
+    if( who.activity && who.activity.is_interruptible_with_kb() && !reloading &&
         ( in.move_x != 0 || in.move_y != 0 ) ) {
         who.add_msg_if_player( m_alert, _( "You stop %s." ), who.activity.get_verb().translated() );
         who.cancel_activity();
@@ -2337,6 +2419,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.buffered_is_attack = true;
     }
 
+    if( in.move_x != 0 || in.move_y != 0 ) {
+        st.moved_at = now;
+    }
     // ---- aim and recoil (every frame, also when the character can not act)
     update_aim( who, st, in, now, idle );
 
@@ -2438,6 +2523,12 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             st.stepping = started && who.pos_abs() != before;
         } else {
             st.stepping = false;
+        }
+    } else if( reloading && free && ( in.move_x != 0 || in.move_y != 0 ) &&
+               !who.is_dead_state() && now >= st.ready_at ) {
+        st.body_moving = free_move( who, st, in, body_dt, now, out );
+        if( st.body_moving && who.is_avatar() ) {
+            note_own_step_started();
         }
     } else if( in.move_x == 0 && in.move_y == 0 ) {
         st.stepping = false;
@@ -2776,7 +2867,9 @@ void host_frame()
 
     if( net::is_host() ) {
         net::host_drive_remote_players( now, &events );
+        events.insert( events.end(), pending_tracers().begin(), pending_tracers().end() );
     }
+    pending_tracers().clear();
     if( !events.empty() ) {
         net::host_send_events( events );
     }
@@ -2841,6 +2934,9 @@ void apply_visual_event( const event &ev, ms_t arrival )
             if( ev.hit && ev.to != ev.from ) {
                 register_hit( ev.from, ev.to, ev.dx, ev.dy, arrival );
             }
+            break;
+        case fx_type::tracer:
+            add_tracer( ev.from, ev.to, arrival );
             break;
         case fx_type::shot:
         case fx_type::aim:
@@ -3234,6 +3330,7 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             ci.busy_until = arrival + ev.dur_ms;
             break;
         case fx_type::strike:
+        case fx_type::tracer:
             apply_visual_event( ev, arrival );
             break;
         case fx_type::aim:

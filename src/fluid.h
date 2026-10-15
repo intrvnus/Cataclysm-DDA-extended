@@ -206,6 +206,8 @@ struct actor_state {
     tripoint_abs_ms body_tile;
     ms_t body_last = 0;
     bool body_moving = false;
+    // when movement was last asked for (aim gets worse while moving)
+    ms_t moved_at = -100000;
     // a visual correction that fades out over corr_ms (moves the game made itself: a bump into
     // a squeeze, stairs next door ...), in tiles relative to the body
     double corr_x = 0.0;
@@ -278,7 +280,8 @@ enum class fx_type : int {
     strike,     // the blow landed (hit == true) or hit nothing
     cancel,     // wind-up cancelled
     shot,       // a shot was fired
-    aim         // aim state of a remote player (steadiness for its crosshair)
+    aim,        // aim state of a remote player (steadiness for its crosshair)
+    tracer      // the path of a shot, from -> to
 };
 
 /** Something that happened and that the other players must see. */
@@ -369,6 +372,15 @@ struct incoming_blow {
     double progress = 0.0;
 };
 std::vector<incoming_blow> incoming_blows();
+/** A projectile flew from @p from to @p to: drawn as a fading tracer (and sent to clients). */
+void note_projectile( const tripoint_abs_ms &from, const tripoint_abs_ms &to );
+struct tracer_view {
+    tripoint_abs_ms from;
+    tripoint_abs_ms to;
+    // 1 when fired .. 0 when gone
+    double strength = 0.0;
+};
+std::vector<tracer_view> tracers();
 /** Creatures that were just hit, with the strength of their flash (1..0). */
 std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes();
 
