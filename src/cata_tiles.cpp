@@ -1967,6 +1967,15 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
 
     if( !is_isometric() && fluid::enabled() ) {
         draw_fluid_overlays();
+        if( net::own_asleep() ) {
+            // B6: the screen dims while the own character sleeps (chat and log stay readable)
+            SDL_Renderer *r = renderer.get();
+            SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+            SDL_SetRenderDrawColor( r, 0, 0, 20, 150 );
+            const SDL_Rect area = { dest.x, dest.y, width, height };
+            SDL_RenderFillRect( r, &area );
+            SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
+        }
     }
     if( !is_isometric() && alerts::nonblocking() ) {
         draw_threat_arrow( dest, width, height );

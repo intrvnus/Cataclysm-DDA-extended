@@ -1971,6 +1971,11 @@ void client_peek_message( const std::string &json )
 
 } // namespace impl
 
+bool own_asleep()
+{
+    return is_client() ? cstate().asleep : get_avatar().in_sleep_state();
+}
+
 std::vector<std::pair<tripoint_abs_ms, double>> activity_bars()
 {
     if( is_client() ) {
