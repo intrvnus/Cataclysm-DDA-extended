@@ -2248,7 +2248,6 @@ void snapshot_after_monsters()
     }
     auto &m = before_positions();
     const ms_t now = now_ms();
-    const int dur = std::min( turn_ms(), tune().slide_max_ms );
     std::vector<event> events;
     const auto handle = [&]( Creature & c ) {
         const auto iter = m.find( &c );
@@ -2264,8 +2263,12 @@ void snapshot_after_monsters()
         if( dist > 3 ) {
             return;
         }
-        slides().erase( from );
-        begin_slide( to, from.x() + 0.5, from.y() + 0.5, now, dur );
+        // phase 6: the creature glides for as long as the steps take at its own speed (a slow
+        // zombie does not dash and then wait), continuing from where its sprite is now
+        const int speed = std::max( 1, c.get_speed() );
+        const int dur = std::clamp( dist * 100 * turn_ms() / speed, turn_ms() / 2,
+                                    std::min( 3 * turn_ms(), tune().slide_max_ms ) );
+        begin_slide( from, to, now, dur );
         event ev;
         ev.type = fx_type::step;
         ev.actor = 0;
