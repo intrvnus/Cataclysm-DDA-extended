@@ -731,6 +731,12 @@ void sounds::process_sound_markers( Character *you )
                     net::alert_player( *you, text, static_cast<int>( loud ? alerts::level::warning :
                                        alerts::level::notice ), here.get_abs( pos ) );
                 }
+                if( net::is_remote_player( *you ) && !sound.id.empty() ) {
+                    // C13: the client plays the sound effect itself
+                    net::play_sound_for( *you, sound.id, sound.variant, sound.season,
+                                         !is_creature_outside( *you ), is_night( calendar::turn ),
+                                         here.get_abs( pos ) );
+                }
             }
             continue;
         }

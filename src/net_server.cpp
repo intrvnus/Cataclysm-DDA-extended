@@ -3032,6 +3032,26 @@ void alert_player( const Character &who, const std::string &text, int level,
     } ) );
 }
 
+void play_sound_for( const Character &who, const std::string &id, const std::string &variant,
+                     const std::string &season, bool indoors, bool night,
+                     const tripoint_abs_ms &source )
+{
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    if( rp == nullptr || id.empty() ) {
+        return;
+    }
+    impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "sfx" );
+        jo.member( "id", id );
+        jo.member( "var", variant );
+        jo.member( "sea", season );
+        jo.member( "in", indoors );
+        jo.member( "ni", night );
+        jo.member( "src" );
+        write_pos( jo, source );
+    } ) );
+}
+
 std::vector<npc *> remote_player_npcs()
 {
     std::vector<npc *> result;

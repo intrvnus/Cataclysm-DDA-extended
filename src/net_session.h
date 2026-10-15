@@ -143,6 +143,11 @@ void tell_player( const Character &who, const std::string &text, bool good );
  * client) with the alerts system (sound, coloured message, arrow to @p source). */
 void alert_player( const Character &who, const std::string &text, int level,
                    const std::optional<tripoint_abs_ms> &source );
+/** C13: a sound effect the body of a client hears is played on that client's computer, from
+ * where it came (volume and direction from the client's own position). */
+void play_sound_for( const Character &who, const std::string &id, const std::string &variant,
+                     const std::string &season, bool indoors, bool night,
+                     const tripoint_abs_ms &source );
 /** The player whose character is closest to @p from (the host's avatar or the body of a
  * client).  Monsters use it where the single player used to be "the" player.  Without a
  * session this is the avatar. */

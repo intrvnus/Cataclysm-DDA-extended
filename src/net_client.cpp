@@ -1867,6 +1867,17 @@ void client_on_message( const JsonObject &msg )
                       static_cast<alerts::level>( std::clamp( msg.get_int( "lvl", 1 ), 0, 2 ) ), source );
     } else if( type == "msg" ) {
         add_msg( m_info, msg.get_string( "text", "" ) );
+    } else if( type == "sfx" && msg.has_array( "src" ) ) {
+        // a sound the own body heard on the host: played from where it came
+        const tripoint_abs_ms src = read_pos( msg.get_array( "src" ) );
+        map &here = get_map();
+        if( here.inbounds( src ) ) {
+            const tripoint_bub_ms p = here.get_bub( src );
+            sfx::play_variant_sound( msg.get_string( "id", "" ), msg.get_string( "var", "" ),
+                                     msg.get_string( "sea", "" ), msg.get_bool( "in", false ),
+                                     msg.get_bool( "ni", false ), sfx::get_heard_volume( p ),
+                                     sfx::get_heard_angle( p ) );
+        }
     }
 }
 
