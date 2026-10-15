@@ -87,6 +87,7 @@
 #include "monster.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -13349,6 +13350,15 @@ bool item::detonate( const tripoint_bub_ms &p, std::vector<item> &drops )
     const Creature *source = get_player_character().get_faction()->id == owner
                              ? &get_player_character()
                              : nullptr;
+    if( source == nullptr ) {
+        // multiplayer: the player whose group owns it
+        for( npc *guy : net::remote_player_npcs() ) {
+            if( guy->get_faction() != nullptr && guy->get_faction()->id == owner ) {
+                source = guy;
+                break;
+            }
+        }
+    }
     if( type->explosion.power >= 0 ) {
         explosion_handler::explosion( source, p, type->explosion );
         return true;
