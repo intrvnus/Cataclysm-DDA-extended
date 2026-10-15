@@ -100,6 +100,11 @@ Host and client need this build (network protocol 3).
       does nothing: the listener gets "You learn a little about ..." too (slower).
 - [ ] Auto-travel as a client: on the map (M) pick a place a few tiles away and travel: your
       character walks there by itself; a movement key or a zombie coming stops it.
+- [ ] Eating as a client (something that takes a while, e.g. a can of food): your hunger goes
+      down, not the host's.
+- [ ] Vehicle work as a client (examine a car, install/remove a part): the work runs on your
+      character with your skills and tools; the host's character keeps doing what it did.
+- [ ] Reading a map item (e.g. a road map) as a client: "You learn ..." and the places show up.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport
