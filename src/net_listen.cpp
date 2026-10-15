@@ -304,6 +304,8 @@ bool world_ready( const std::string &world )
 
 bool prepare_listen( const std::string &world, const char *argv0 )
 {
+    // collect the server of an earlier session in this game if it has ended
+    listen_server_running();
     namespace fs = std::filesystem;
     listen_state &ls = lstate();
     if( world.empty() ) {
@@ -391,6 +393,8 @@ void listen_connect_failed()
 
 void listen_tick()
 {
+    // a server that ended after its host gave up is collected (no zombie or open handle)
+    listen_server_running();
     listen_state &ls = lstate();
     if( ls.retry_pending && std::chrono::steady_clock::now() >= ls.retry_at ) {
         ls.retry_pending = false;

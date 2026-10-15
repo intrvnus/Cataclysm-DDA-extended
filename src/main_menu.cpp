@@ -1375,6 +1375,8 @@ bool main_menu::start_listen_view( const std::string &worldname )
     }
     // what this game remembers of the map gets a file of its own (never the server's)
     you.set_save_id( "mp_view_" + net::client_key().substr( 0, 8 ) );
+    // the save's messages are the server's placeholder character's, not this player's
+    Messages::clear_messages();
     return true;
 }
 
