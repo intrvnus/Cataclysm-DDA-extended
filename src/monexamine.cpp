@@ -31,6 +31,7 @@
 #include "mapdata.h"
 #include "messages.h"
 #include "monster.h"
+#include "net_session.h"
 #include "mtype.h"
 #include "output.h"
 #include "pathfinding.h"
@@ -914,9 +915,10 @@ bool monexamine::pet_menu( monster &z )
             }
             break;
         case talk_to:
-            if( remote_ui::replaying() ) {
-                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
-            } else {
+            // multiplayer: a client talks on its own screen
+            if( remote_ui::recording() ) {
+                // a client's own pass: the host starts the conversation on its screen
+            } else if( !net::talk_to_monster( remote_ui::acting_player(), z ) ) {
                 get_avatar().talk_to( get_talker_for( z ) );
             }
             break;
@@ -1041,9 +1043,10 @@ bool monexamine::mfriend_menu( monster &z )
             }
             break;
         case talk_to:
-            if( remote_ui::replaying() ) {
-                remote_ui::tell( _( "That is not available in multiplayer yet." ) );
-            } else {
+            // multiplayer: a client talks on its own screen
+            if( remote_ui::recording() ) {
+                // a client's own pass: the host starts the conversation on its screen
+            } else if( !net::talk_to_monster( remote_ui::acting_player(), z ) ) {
                 get_avatar().talk_to( get_talker_for( z ) );
             }
             break;

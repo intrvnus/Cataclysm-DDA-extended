@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+class monster;
 class npc;
 
 /**
@@ -39,6 +40,8 @@ class remote_conversation
 
         /** @p you is the body of the player.  started() is false if the NPC does not want to talk. */
         remote_conversation( npc &you, npc &other );
+        /** The same with a monster that can talk (mon_flag CONVERSATION). */
+        remote_conversation( npc &you, monster &other );
         ~remote_conversation();
         remote_conversation( const remote_conversation & ) = delete;
         remote_conversation &operator=( const remote_conversation & ) = delete;
@@ -52,6 +55,8 @@ class remote_conversation
         /** One of the side-column commands (look at, size up, assess, check opinion, yell). */
         void choose_special( const std::string &action );
         int other_id() const;
+        /** The one talked to is gone or dead: the conversation must end. */
+        bool partner_gone() const;
 
     private:
         struct impl;

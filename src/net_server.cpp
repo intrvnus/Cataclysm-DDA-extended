@@ -2696,8 +2696,7 @@ bool host_drive_npc( npc &guy )
     remote_player *rp = find_client( guy.getID() );
     if( rp != nullptr && rp->talk ) {
         // the conversation ends when the NPC is gone or the player is down
-        const npc *other = g->find_npc( character_id( rp->talk->other_id() ) );
-        if( other == nullptr || other->is_dead() || rp->downed || guy.is_dead() ) {
+        if( rp->talk->partner_gone() || rp->downed || guy.is_dead() ) {
             end_talk( *rp );
         }
     }
@@ -3119,6 +3118,26 @@ void play_sound_for( const Character &who, const std::string &id, const std::str
         jo.member( "src" );
         write_pos( jo, source );
     } ) );
+}
+
+bool talk_to_monster( Character &who, monster &other )
+{
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    npc *guy = rp != nullptr ? g->find_npc( rp->npc_id ) : nullptr;
+    if( guy == nullptr ) {
+        return false;
+    }
+    if( rp->talk ) {
+        return true;
+    }
+    rp->talk = std::make_unique<remote_conversation>( *guy, other );
+    if( !rp->talk->started() ) {
+        rp->talk.reset();
+        send_text( *rp, string_format( _( "The %s doesn't want to talk to you." ), other.get_name() ) );
+        return true;
+    }
+    send_talk_turn( *rp, *guy );
+    return true;
 }
 
 bool talk_to_npc( Character &who, npc &other )

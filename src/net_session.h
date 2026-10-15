@@ -11,6 +11,7 @@
 #include "fluid.h"
 
 class Character;
+class monster;
 class npc;
 
 /**
@@ -171,6 +172,8 @@ bool bump_npc( npc &guy, npc &other );
 /** Host: @p who (a client's body) starts a conversation with @p other on its own screen.
  * False if @p who is not a client's body (then the caller talks the normal way). */
 bool talk_to_npc( Character &who, npc &other );
+/** The same with a monster that can talk. */
+bool talk_to_monster( Character &who, monster &other );
 /** Where the players are: the host's avatar first, then the body of every connected client.
  * World simulation that used to be anchored on the avatar (hordes, overmap NPCs, spawns)
  * runs around each of these.  Without a session this is just the avatar. */

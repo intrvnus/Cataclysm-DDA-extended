@@ -9311,7 +9311,9 @@ std::vector<std::string> get_all_talk_topic_ids()
 
 struct remote_conversation::impl {
     npc &you;
-    npc &other;
+    // the one talked to: an NPC, or a monster that can talk
+    npc *other_npc = nullptr;
+    weak_ptr_fast<monster> other_mon;
     std::unique_ptr<dialogue> d;
     dialogue_window win;
     std::vector<std::vector<std::string>> journal;
@@ -9321,12 +9323,38 @@ struct remote_conversation::impl {
     // the turn that was sent, answered by choose()
     bool turn_open = false;
 
-    impl( npc &you, npc &other ) : you( you ), other( other ) {}
+    explicit impl( npc &you ) : you( you ) {}
+
+    // an NPC answers with its opinion of the speaker's group (monsters have none)
+    std::unique_ptr<mp_groups::opinion_scope> opinion() const {
+        return other_npc != nullptr ? std::make_unique<mp_groups::opinion_scope>( you, *other_npc ) :
+               nullptr;
+    }
 };
 
-remote_conversation::remote_conversation( npc &you, npc &other )
-    : p( std::make_unique<impl>( you, other ) )
+remote_conversation::remote_conversation( npc &you, monster &other )
+    : p( std::make_unique<impl>( you ) )
 {
+    p->other_mon = g->shared_from( other );
+    std::unique_ptr<talker> beta = get_talker_for( other );
+    if( !beta->will_talk_to_u( you, false ) ) {
+        return;
+    }
+    p->d = std::make_unique<dialogue>( get_talker_for( you ), std::move( beta ),
+                                       std::unordered_map<std::string, std::function<bool( const_dialogue const & )>> {} );
+    dialogue &d = *p->d;
+    for( const std::string &topic_id : d.actor( true )->get_topics( false ) ) {
+        d.add_topic( topic_id );
+    }
+    ui_adaptor ui;
+    p->win.resize( ui );
+    p->ok = !d.topic_stack.empty();
+}
+
+remote_conversation::remote_conversation( npc &you, npc &other )
+    : p( std::make_unique<impl>( you ) )
+{
+    p->other_npc = &other;
     // the NPC answers with its opinion of the speaker's group
     mp_groups::opinion_scope opinion( you, other );
     std::unique_ptr<talker> beta = get_talker_for( other );
@@ -9365,13 +9393,23 @@ bool remote_conversation::finished() const
 
 int remote_conversation::other_id() const
 {
-    return p->other.getID().get_value();
+    return p->other_npc != nullptr ? p->other_npc->getID().get_value() : -1;
+}
+
+bool remote_conversation::partner_gone() const
+{
+    if( p->other_npc != nullptr ) {
+        const npc *other = g->find_npc( p->other_npc->getID() );
+        return other == nullptr || other->is_dead();
+    }
+    const shared_ptr_fast<monster> mon = p->other_mon.lock();
+    return !mon || mon->is_dead();
 }
 
 bool remote_conversation::turn( turn_data &out )
 {
     impl &m = *p;
-    mp_groups::opinion_scope opinion( m.you, m.other );
+    const std::unique_ptr<mp_groups::opinion_scope> opinion = m.opinion();
     if( finished() ) {
         return false;
     }
@@ -9422,7 +9460,7 @@ bool remote_conversation::turn( turn_data &out )
 void remote_conversation::choose_special( const std::string &action )
 {
     impl &m = *p;
-    mp_groups::opinion_scope opinion( m.you, m.other );
+    const std::unique_ptr<mp_groups::opinion_scope> opinion = m.opinion();
     if( !m.turn_open || finished() ) {
         return;
     }
@@ -9438,7 +9476,7 @@ void remote_conversation::choose_special( const std::string &action )
 void remote_conversation::choose( int index )
 {
     impl &m = *p;
-    mp_groups::opinion_scope opinion( m.you, m.other );
+    const std::unique_ptr<mp_groups::opinion_scope> opinion = m.opinion();
     if( !m.turn_open || finished() ) {
         return;
     }

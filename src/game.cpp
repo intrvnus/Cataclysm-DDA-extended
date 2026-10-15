@@ -6467,7 +6467,10 @@ void game::examine( const tripoint_bub_ms &examp, bool with_pickup )
                 }
             } else if( mon->has_flag( mon_flag_CONVERSATION ) && !mon->type->chat_topics.empty() ) {
                 if( mp_player ) {
-                    mp_unavailable();
+                    // a client talks on its own screen
+                    if( !remote_ui::recording() && !net::talk_to_monster( who, *mon ) ) {
+                        mp_unavailable();
+                    }
                 } else {
                     get_avatar().talk_to( get_talker_for( mon ) );
                 }
