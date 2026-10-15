@@ -664,7 +664,7 @@ class lockpick_activity_actor : public activity_actor
         void do_turn( player_activity &, Character & ) override {}
         void finish( player_activity &act, Character &who ) override;
 
-        static std::optional<tripoint_bub_ms> select_location( avatar &you );
+        static std::optional<tripoint_bub_ms> select_location( Character &you );
 
         std::unique_ptr<activity_actor> clone() const override {
             return std::make_unique<lockpick_activity_actor>( *this );

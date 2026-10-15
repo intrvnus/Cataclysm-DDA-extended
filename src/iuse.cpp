@@ -3180,10 +3180,11 @@ std::optional<int> iuse::jackhammer( Character *p, item *it, const tripoint_bub_
 
 std::optional<int> iuse::pick_lock( Character *p, item *it, const tripoint_bub_ms &pos )
 {
-    if( p->is_npc() ) {
+    // the player, or a multiplayer client's body while the host replays its action
+    if( !remote_ui::acts_as_player( *p ) ) {
         return std::nullopt;
     }
-    avatar &you = dynamic_cast<avatar &>( *p );
+    Character &you = *p;
 
     std::optional<tripoint_bub_ms> target;
     // Prompt for a target lock to pick, or use the given tripoint

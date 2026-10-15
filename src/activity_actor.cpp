@@ -90,6 +90,7 @@
 #include "recipe.h"
 #include "requirements.h"
 #include "ret_val.h"
+#include "net_session.h"
 #include "remote_ui.h"
 #include "rng.h"
 #include "safe_reference.h"
@@ -2719,7 +2720,8 @@ void lockpick_activity_actor::finish( player_activity &act, Character &who )
         who.add_msg_if_player( m_bad, _( "The lock stumps your efforts to pick it." ) );
     }
 
-    if( avatar *you = dynamic_cast<avatar *>( &who ) ) {
+    // (the player, or a multiplayer client's body: players learn alike)
+    if( Character *you = who.is_avatar() || net::is_remote_player( who ) ? &who : nullptr ) {
         // Gives another boost to XP, reduced by your skill level.
         // Higher skill levels require more difficult locks to gain a meaningful amount of xp.
         // Again, we're using randomized lock_roll until a defined lock difficulty is implemented.
@@ -2747,7 +2749,7 @@ void lockpick_activity_actor::finish( player_activity &act, Character &who )
                               time_duration::from_moves( act.moves_total ) / duration_proficiency_factor );
 }
 
-std::optional<tripoint_bub_ms> lockpick_activity_actor::select_location( avatar &you )
+std::optional<tripoint_bub_ms> lockpick_activity_actor::select_location( Character &you )
 {
     map &here = get_map();
 
