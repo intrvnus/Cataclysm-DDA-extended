@@ -39,6 +39,7 @@
 #include "get_version.h"
 #include "help.h"
 #include "imgui_demo.h"
+#include "input.h"
 #include "localized_comparator.h"
 #include "mapbuffer.h"
 #include "mapsharing.h"
@@ -705,6 +706,62 @@ void main_menu::load_char_templates()
     std::sort( templates.begin(), templates.end(), localized_compare );
 }
 
+bool main_menu::start_queued_world( bool &load_game )
+{
+    bool start = false;
+    const std::string queued_world = queued_world_to_load;
+    const std::string queued_save = queued_save_id_to_load;
+    queued_world_to_load.clear();
+    queued_save_id_to_load.clear();
+    WORLD *queued = world_generator->get_world( queued_world );
+    if( net::dedicated_requested() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: starting the world \"" << queued_world << "\"";
+    }
+    if( queued == nullptr ) {
+        // unknown world name: show the main menu instead of crashing
+        popup( _( "World \"%s\" does not exist." ), queued_world );
+    } else if( net::listen_local() ) {
+        // the host's own game: it shows the server's world, the server owns it
+        start = start_listen_view( queued_world );
+        if( start ) {
+            load_game = true;
+        }
+    } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
+        save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
+                                     save_t::from_save_id( queued_save );
+        start = main_menu::load_game( queued_world, save_to_load );
+        if( start ) {
+            load_game = true;
+        }
+    } else if( net::dedicated_requested() ) {
+        // a world without characters: the server makes its invisible anchor itself (no
+        // character screen); the players make their characters when they connect, and the
+        // world's time waits for the first of them (net::waiting_for_first_player)
+        start = start_new_character( queued, character_type::NOW );
+        if( start ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: the new world is ready";
+            get_avatar().set_value( "mp_listen_anchor", "1" );
+            get_avatar().set_value( "mp_world_waiting", "1" );
+            // the host's own game waits for the world's save to show it (start_listen_view)
+            if( g->save() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: the new world is saved";
+                net::mark_world_ready( queued_world );
+            } else {
+                DebugLog( D_ERROR, D_MAIN ) << "Multiplayer server: the new world could not be saved";
+            }
+        } else {
+            DebugLog( D_ERROR, D_MAIN ) << "Multiplayer: the server could not set up the new world " <<
+                                        queued_world;
+            printf( "Multiplayer: the server could not set up the new world \"%s\".\n",
+                    queued_world.c_str() );
+        }
+    } else {
+        // empty world: go to character creation like the new game menu does
+        start = start_new_character( queued, character_type::CUSTOM );
+    }
+    return start;
+}
+
 bool main_menu::opening_screen()
 {
     // set holiday based on local system time
@@ -771,45 +828,7 @@ bool main_menu::opening_screen()
     ui.mark_resize();
 
     if( !queued_world_to_load.empty() ) {
-        const std::string queued_world = queued_world_to_load;
-        const std::string queued_save = queued_save_id_to_load;
-        queued_world_to_load.clear();
-        queued_save_id_to_load.clear();
-        WORLD *queued = world_generator->get_world( queued_world );
-        if( queued == nullptr ) {
-            // unknown world name: show the main menu instead of crashing
-            popup( _( "World \"%s\" does not exist." ), queued_world );
-        } else if( net::listen_local() ) {
-            // the host's own game: it shows the server's world, the server owns it
-            start = start_listen_view( queued_world );
-            if( start ) {
-                load_game = true;
-            }
-        } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
-            save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
-                                         save_t::from_save_id( queued_save );
-            start = main_menu::load_game( queued_world, save_to_load );
-            if( start ) {
-                load_game = true;
-            }
-        } else if( net::dedicated_requested() ) {
-            // a world without characters: the server makes its invisible anchor itself (no
-            // character screen); the players make their characters when they connect, and the
-            // world's time waits for the first of them (net::waiting_for_first_player)
-            start = start_new_character( queued, character_type::NOW );
-            if( start ) {
-                get_avatar().set_value( "mp_listen_anchor", "1" );
-                get_avatar().set_value( "mp_world_waiting", "1" );
-            } else {
-                DebugLog( D_ERROR, D_MAIN ) << "Multiplayer: the server could not set up the new world " <<
-                                            queued_world;
-                printf( "Multiplayer: the server could not set up the new world \"%s\".\n",
-                        queued_world.c_str() );
-            }
-        } else {
-            // empty world: go to character creation like the new game menu does
-            start = start_new_character( queued, character_type::CUSTOM );
-        }
+        start = start_queued_world( load_game );
     }
 
 #if defined(EMSCRIPTEN)
@@ -978,9 +997,10 @@ bool main_menu::opening_screen()
                     break;
                 case main_menu_opts::MULTIPLAYER:
                     // host / dedicated server / join without command lines (src/mp_menu.cpp)
-                    if( mp_menu::open() ) {
-                        // a new copy of the game took over with the chosen options
-                        return false;
+                    queued_world_to_load = mp_menu::open();
+                    if( !queued_world_to_load.empty() ) {
+                        // hosting or joining is set up: load its world like a queued one
+                        start = start_queued_world( load_game );
                     }
                     break;
                 case main_menu_opts::QUIT:
@@ -1277,14 +1297,27 @@ bool main_menu::start_listen_view( const std::string &worldname )
         pc.serialize( jo );
         created = os.str();
         // the server makes the world (and its placeholder character) meanwhile
+        // (the window stays responsive meanwhile; the server's terminal window shows its progress)
+        const auto started = std::chrono::steady_clock::now();
+        int shown = -1;
         static_popup wait;
-        wait.message( "%s", _( "The server is preparing the world…" ) );
-        ui_manager::redraw();
-        refresh_display();
-        for( int i = 0; i < 3000 && saves_on_disk().empty(); ++i ) {
-            std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+        while( !net::world_ready( worldname ) ) {
+            const int secs = static_cast<int>( std::chrono::duration_cast<std::chrono::seconds>(
+                                                   std::chrono::steady_clock::now() - started ).count() );
+            if( secs >= 300 ) {
+                break;
+            }
+            if( secs != shown ) {
+                shown = secs;
+                wait.message( _( "The server is preparing the world… (%d s)\nIts progress shows in the server window." ),
+                              secs );
+                ui_manager::redraw();
+                refresh_display();
+            }
+            inp_mngr.pump_events();
+            std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
         }
-        if( saves_on_disk().empty() ) {
+        if( !net::world_ready( worldname ) || saves_on_disk().empty() ) {
             popup( _( "The server did not finish the world in time.  Look at its window for a message." ) );
             return false;
         }

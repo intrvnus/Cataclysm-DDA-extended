@@ -72,6 +72,8 @@ class main_menu
         bool load_game( std::string const &worldname, save_t const &savegame );
         /** Multiplayer host: show the server's world in this game (see main_menu.cpp). */
         bool start_listen_view( const std::string &worldname );
+        /** Loads queued_world_to_load (command line --world, or the Multiplayer menu). */
+        bool start_queued_world( bool &load_game );
         bool new_character_tab();
         /** Creates a character in the world (character creation screen) and starts the game. */
         bool start_new_character( WORLD *world, character_type play_type );

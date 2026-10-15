@@ -169,6 +169,13 @@ void open_server_console()
         FILE *f = nullptr;
         freopen_s( &f, "CONOUT$", "w", stdout );
         freopen_s( &f, "CONOUT$", "w", stderr );
+        // no QuickEdit: a click into the window would pause the server until Escape
+        HANDLE in = CreateFileA( "CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                 nullptr, OPEN_EXISTING, 0, nullptr );
+        DWORD mode = 0;
+        if( in != INVALID_HANDLE_VALUE && GetConsoleMode( in, &mode ) ) {
+            SetConsoleMode( in, ( mode | ENABLE_EXTENDED_FLAGS ) & ~ENABLE_QUICK_EDIT_MODE );
+        }
         SetConsoleTitleA( "Cataclysm multiplayer server (close this window to save and stop it)" );
     }
     SetConsoleCtrlHandler( console_ctrl, TRUE );
@@ -186,6 +193,30 @@ bool console_stop_requested()
 bool listen_local()
 {
     return lstate().local;
+}
+
+namespace
+{
+std::filesystem::path ready_marker( const std::string &world )
+{
+    return std::filesystem::absolute( std::filesystem::path( PATH_INFO::user_dir() ) ) / "save" / world /
+           "mp_server_ready";
+}
+} // namespace
+
+void mark_world_ready( const std::string &world )
+{
+    std::FILE *f = std::fopen( ready_marker( world ).string().c_str(), "w" );
+    if( f != nullptr ) {
+        std::fputs( "ready\n", f );
+        std::fclose( f );
+    }
+}
+
+bool world_ready( const std::string &world )
+{
+    std::error_code ec;
+    return std::filesystem::exists( ready_marker( world ), ec );
 }
 
 bool prepare_listen( const std::string &world, const char *argv0 )
@@ -212,6 +243,9 @@ bool prepare_listen( const std::string &world, const char *argv0 )
         "--mp-max-players", std::to_string( max_players() ),
         "--mp-server", std::to_string( ls.port ), "--mp-listen-child"
     };
+    // the server marks the world when it is saved and can be shown (a new world)
+    std::error_code ec;
+    std::filesystem::remove( ready_marker( world ), ec );
     if( !spawn( exe, args ) ) {
         printf( "Multiplayer: could not start the server process; hosting the old way.\n" );
         return false;

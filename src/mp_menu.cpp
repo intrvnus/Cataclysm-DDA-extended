@@ -1,6 +1,7 @@
 #include "mp_menu.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <map>
 #include <string>
@@ -201,6 +202,13 @@ std::string join_info( int port )
 
 bool join_now( settings &s, const std::string &address );
 
+// the world this game loads now (host and play, join)
+std::string &chosen_world()
+{
+    static std::string w;
+    return w;
+}
+
 // ---- host / dedicated server
 
 // true: this game closes (it became the host)
@@ -286,14 +294,16 @@ bool host_menu( settings &s, bool play_too_default )
                     "--world", world, "--mp-max-players", std::to_string( players )
                 };
                 if( play_too ) {
-                    std::vector<std::string> args = common;
-                    args.emplace_back( "--mp-host" );
-                    args.emplace_back( std::to_string( port ) );
-                    if( !net::launch_game( args ) ) {
-                        popup( _( "The game could not be started again.  Start it with: --world \"%s\" --mp-host %d" ),
+                    // this game becomes the host's client right here (no second game): the server
+                    // starts in the background with its terminal window, then the world loads
+                    net::set_max_players( players );
+                    net::request_listen( port );
+                    if( !net::prepare_listen( world, "cataclysm-tiles" ) ) {
+                        popup( _( "The server could not be started.  Start it with: --world \"%s\" --mp-host %d" ),
                                world, port );
                         break;
                     }
+                    chosen_world() = world;
                     return true;
                 }
                 std::vector<std::string> args = common;
@@ -350,17 +360,23 @@ bool join_now( settings &s, const std::string &address )
     s["join"] = address;
     s["client_world"] = world;
     save_settings( s );
-    if( !net::launch_game( { "--world", world, "--mp-connect", address } ) ) {
-        popup( _( "The game could not be started again.  Start it with: --world \"%s\" --mp-connect %s" ),
-               world, address );
-        return false;
+    // this game joins right here (no second game): connect once the client world is loaded
+    std::string host = address;
+    int port = net::default_port;
+    const size_t colon = host.rfind( ':' );
+    if( colon != std::string::npos ) {
+        port = std::atoi( host.substr( colon + 1 ).c_str() );
+        host = host.substr( 0, colon );
     }
+    net::request_connect( host, port );
+    chosen_world() = world;
     return true;
 }
 } // namespace
 
-bool open()
+std::string open()
 {
+    chosen_world().clear();
     settings s = load_settings();
     while( true ) {
         uilist menu;
@@ -373,17 +389,17 @@ bool open()
         switch( menu.ret ) {
             case 0:
                 if( host_menu( s, true ) ) {
-                    return true;
+                    return chosen_world();
                 }
                 break;
             case 1:
                 if( host_menu( s, false ) ) {
-                    return true;
+                    return chosen_world();
                 }
                 break;
             case 2:
                 if( join_menu( s ) ) {
-                    return true;
+                    return chosen_world();
                 }
                 break;
             case 3:
@@ -398,7 +414,7 @@ bool open()
                           "with the right options; that is normal." ) );
                 break;
             default:
-                return false;
+                return std::string();
         }
     }
 }

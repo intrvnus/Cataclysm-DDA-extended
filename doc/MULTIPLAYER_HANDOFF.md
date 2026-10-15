@@ -4,7 +4,19 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Latest addition (2026-10-15 late): server terminal window
+## 0. Latest addition (2026-10-15 late): one game window, server terminal, new-world freeze
+- Freeze after character creation (new world, host and play): the server never saved the new
+  world, the host's game waited for its `.sav`. Now the server saves right after making it and
+  writes `save/<world>/mp_server_ready`; the host's game waits for that marker (responsive window,
+  seconds shown). Debug popups never show on a server (they blocked it; they go to the log).
+  Verified by running a server headless on an empty world here: loads, saves, marker, listens.
+- One game: Multiplayer → Host / Join no longer restart the game; this game starts the server
+  process (`prepare_listen`) or connects, then loads the world (`main_menu::start_queued_world`).
+  The server uses SDL's `dummy` video driver: it has no game window at all.
+- Server terminal: QuickEdit off (a click no longer pauses the server).
+- Progress lines "Multiplayer server: …" in the log/terminal.
+
+### Earlier the same evening: server terminal window
 Every server process (`--mp-server`: the host's background server and dedicated servers) opens a
 terminal window on Windows (`net::open_server_console`, src/net_listen.cpp) that shows the debug
 log (`debug_echo_to_console`, tee in src/debug.cpp) and writes its own log to

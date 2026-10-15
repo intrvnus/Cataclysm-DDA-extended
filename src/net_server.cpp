@@ -2422,6 +2422,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             }
         }
         rp->start_character = msg.get_string( "char", "" );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: a player joined (" << clients().size() << " connected)";
         // The NPC is spawned at the end of the turn, see host_end_of_turn().
         rp->greeted = true;
     } else if( type == "npc_do" && rp->npc_id.is_valid() ) {

@@ -537,8 +537,9 @@ void realDebugmsg( const char *filename, const char *line, const char *funcname,
 
     // Multiplayer: a popup on the host would stop the world for every player, and on a client it
     // would eat the player's keys (the client's copy of the world is not always consistent); the
-    // message is in the log.
-    if( net::active() ) {
+    // message is in the log.  A server process never shows one (nobody could close it; it shows in
+    // the server's terminal window through the log).
+    if( net::active() || net::dedicated_requested() ) {
         return;
     }
 

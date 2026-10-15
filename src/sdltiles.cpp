@@ -214,6 +214,12 @@ static void InitSDL()
     }
 #endif
 
+    if( net::dedicated_requested() ) {
+        // a server (dedicated or a host's background server) has no game window at all: SDL's
+        // "dummy" video driver draws off screen; the server's terminal window shows its log
+        SDL_SetHint( SDL_HINT_VIDEODRIVER, "dummy" );
+        init_flags &= ~SDL_INIT_AUDIO;
+    }
     ret = SDL_Init( init_flags );
     throwErrorIf( ret != 0, "SDL_Init failed" );
 
@@ -316,10 +322,10 @@ static void WinCreate()
 #endif
 #endif
 
-    // Multiplayer: the host's background server shows no window (it stops when the host
-    // leaves) and neither does a dedicated server: their terminal window shows the log
-    if( net::listen_child() || net::dedicated_requested() ) {
-        window_flags |= SDL_WINDOW_HIDDEN;
+    // Multiplayer: a server's window is off screen (dummy video driver, see InitSDL); plain
+    // windowed so no fullscreen or maximize asks the system for a real display
+    if( net::dedicated_requested() ) {
+        window_flags = SDL_WINDOW_HIDDEN;
     }
     ::window.reset( SDL_CreateWindow( "",
                                       SDL_WINDOWPOS_CENTERED_DISPLAY( display ),
@@ -329,9 +335,6 @@ static void WinCreate()
                                       window_flags
                                     ) );
     throwErrorIf( !::window, "SDL_CreateWindow failed" );
-    if( net::dedicated_requested() && !net::listen_child() ) {
-        SDL_SetWindowTitle( ::window.get(), "Cataclysm multiplayer server (close this window to stop it)" );
-    }
 
 #if !defined(__ANDROID__) && !defined(EMSCRIPTEN)
     // On Android SDL seems janky in windowed mode so we're fullscreen all the time.
@@ -351,7 +354,8 @@ static void WinCreate()
 
     int renderer_id = -1;
 #if !defined(__ANDROID__)
-    bool software_renderer = get_option<std::string>( "RENDERER" ).empty();
+    // the off-screen server window has only the software renderer
+    bool software_renderer = get_option<std::string>( "RENDERER" ).empty() || net::dedicated_requested();
     std::string renderer_name;
     if( software_renderer ) {
         renderer_name = "software";

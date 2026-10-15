@@ -71,6 +71,9 @@ bool listen_requested();
  * game folder; this game only shows the world, the server owns it).  False if that is not
  * possible (then host the old way). */
 bool prepare_listen( const std::string &world, const char *argv0 );
+/** The server: @p world is saved and complete, the host's own game can show it. */
+void mark_world_ready( const std::string &world );
+bool world_ready( const std::string &world );
 /** This process is the server started by prepare_listen (--mp-listen-child). */
 void set_listen_child();
 bool listen_child();

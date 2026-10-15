@@ -800,10 +800,19 @@ void game::setup()
         ui_manager::redraw();
         refresh_display();
 
+        if( net::dedicated_requested() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: loading the game data";
+        }
         load_core_data();
     }
     world_generator->get_mod_manager().check_mods_list( world_generator->active_world );
+    if( net::dedicated_requested() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: loading the world's mods";
+    }
     load_world_modfiles();
+    if( net::dedicated_requested() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: data loaded, setting up the world";
+    }
     // Panel manager needs JSON data to be loaded before init
     panel_manager::get_manager().init();
 
