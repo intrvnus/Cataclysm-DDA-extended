@@ -11,6 +11,8 @@
 #include "imgui/imgui.h"
 #include "input_context.h"
 #include "output.h"
+#include "alerts.h"
+#include "debug.h"
 #include "remote_ui.h"
 #include "string_formatter.h"
 #include "ui_manager.h"
@@ -404,6 +406,20 @@ query_popup::result query_popup::query()
         result res;
         res.wait_input = false;
         res.action = remote_ui::answer( "q" ).value_or( "QUIT" );
+        return res;
+    }
+    if( alerts::unattended() ) {
+        // a server: nobody can answer; "yes" if offered, else the first choice
+        result res;
+        res.wait_input = false;
+        res.action = options.empty() ? std::string( "QUIT" ) : options.front().action;
+        for( const query_option &opt : options ) {
+            if( opt.action == "YES" ) {
+                res.action = opt.action;
+            }
+        }
+        DebugLog( D_INFO, D_MAIN ) << "Unattended server: question \"" << remove_color_tags( text ) <<
+                                   "\" answered " << res.action;
         return res;
     }
     std::shared_ptr<query_popup_impl> ui = create_or_get_impl();

@@ -960,6 +960,11 @@ PopupFlags popup_flag_from_string( const std::string &str )
 
 int popup( const std::string &text, PopupFlags flags )
 {
+    if( alerts::unattended() ) {
+        // a server: nobody is at its window to press a key
+        DebugLog( D_INFO, D_MAIN ) << "Unattended server: " << remove_color_tags( text );
+        return UNKNOWN_UNICODE;
+    }
     // Multiplayer: what the host's copy of a client's action says goes to that player
     if( remote_ui::replaying() ) {
         remote_ui::tell( remove_color_tags( text ) );

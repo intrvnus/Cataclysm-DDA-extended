@@ -97,6 +97,25 @@ const char *sound_file( level lvl )
 
 } // namespace
 
+namespace
+{
+bool &unattended_flag()
+{
+    static bool u = false;
+    return u;
+}
+} // namespace
+
+void set_unattended( bool unattended )
+{
+    unattended_flag() = unattended;
+}
+
+bool unattended()
+{
+    return unattended_flag();
+}
+
 bool nonblocking()
 {
     if( !state().in_game ) {

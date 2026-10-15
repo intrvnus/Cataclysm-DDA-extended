@@ -789,6 +789,11 @@ bool main_menu::opening_screen()
             if( start ) {
                 get_avatar().set_value( "mp_listen_anchor", "1" );
                 get_avatar().set_value( "mp_world_waiting", "1" );
+            } else {
+                DebugLog( D_ERROR, D_MAIN ) << "Multiplayer: the server could not set up the new world " <<
+                                            queued_world;
+                printf( "Multiplayer: the server could not set up the new world \"%s\".\n",
+                        queued_world.c_str() );
             }
         } else {
             // empty world: go to character creation like the new game menu does

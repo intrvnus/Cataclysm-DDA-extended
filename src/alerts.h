@@ -33,6 +33,11 @@ enum class level : int {
 
 /** True while popups and time stops must not block (in game, realtime or multiplayer). */
 bool nonblocking();
+/** A server process (dedicated or the background server of a host): nobody sits at its window,
+ * so questions take their default answer ("yes" / the first choice) and message popups go to
+ * the log instead of waiting for a key. */
+void set_unattended( bool unattended );
+bool unattended();
 /** Set by the game loop: true while a game is running, false in menus/character creation. */
 void set_in_game( bool in_game );
 

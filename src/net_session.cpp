@@ -1,4 +1,6 @@
 #include "net_session.h"
+
+#include "alerts.h"
 #include "bubbles.h"
 
 #include <chrono>
@@ -164,6 +166,8 @@ void request_dedicated( int port )
 {
     request_host( port );
     state().dedicated = true;
+    // nobody sits at a server's window: questions and popups must never wait for a key
+    alerts::set_unattended( true );
 }
 
 bool dedicated()
