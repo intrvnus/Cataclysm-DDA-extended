@@ -3327,6 +3327,19 @@ void host_end_of_turn()
         return;
     }
     poll();
+    // the host's game gave up before joining (listen_cancel): checked once a second by the clock
+    // (the world's time stands still while it waits for the first player)
+    static fluid::ms_t stop_checked = 0;
+    if( listen_child() && g->uquit == QUIT_NO && clients().empty() &&
+        fluid::now_ms() - stop_checked > 1000 ) {
+        stop_checked = fluid::now_ms();
+        if( listen_stop_requested() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the host's game gave up, the server saves and stops";
+            if( g->save() ) {
+                g->uquit = QUIT_SAVED;
+            }
+        }
+    }
     if( console_stop_requested() && g->uquit == QUIT_NO ) {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the server window was closed, the server saves and stops";
         if( g->save() ) {

@@ -27,6 +27,7 @@ extern char **environ;
 
 #include "debug.h"
 #include "path_info.h"
+#include "worldfactory.h"
 
 namespace net
 {
@@ -257,7 +258,37 @@ std::filesystem::path ready_marker( const std::string &world )
            std::filesystem::u8path( world ) /
            "mp_server_ready";
 }
+
+std::filesystem::path stop_marker( const std::string &world )
+{
+    return ready_marker( world ).parent_path() / "mp_server_stop";
+}
+
+std::string &hosted_world()
+{
+    static std::string w;
+    return w;
+}
 } // namespace
+
+void listen_cancel()
+{
+    // the host's game gave up before joining (character screen cancelled, server too slow): its
+    // server saves and stops (it checks for the marker), nothing connects later
+    if( !hosted_world().empty() ) {
+        std::ofstream f( stop_marker( hosted_world() ) );
+        f << "stop\n";
+    }
+    shutdown();
+    listen_end();
+}
+
+bool listen_stop_requested()
+{
+    std::error_code ec;
+    return world_generator != nullptr && world_generator->active_world != nullptr &&
+           std::filesystem::exists( stop_marker( world_generator->active_world->world_name ), ec );
+}
 
 void mark_world_ready( const std::string &world )
 {
@@ -298,6 +329,8 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     // the server marks the world when it is saved and can be shown (a new world)
     std::error_code ec;
     std::filesystem::remove( ready_marker( world ), ec );
+    std::filesystem::remove( stop_marker( world ), ec );
+    hosted_world() = world;
     if( !spawn( exe, args, true ) ) {
         printf( "Multiplayer: could not start the server process; hosting the old way.\n" );
         return false;
@@ -341,6 +374,7 @@ void listen_end()
     // ready for another session from the main menu (the server stopped, see listen_server_running)
     listen_state &ls = lstate();
     ls = listen_state();
+    hosted_world().clear();
 }
 
 void listen_connect_failed()

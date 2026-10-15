@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "flexbuffer_json.h"
 #include "fluid.h"
+#include "game.h"
 #include "json_loader.h"
 #include "messages.h"
 #include "net_protocol.h"
@@ -251,6 +252,12 @@ void start_pending()
         s.host = enet_host_create( &address, max_clients, channel_count, 0, 0 );
         if( s.host == nullptr ) {
             add_msg( m_bad, _( "Multiplayer: could not host on port %d." ), s.pending_port );
+            if( s.dedicated ) {
+                // a server nobody can reach is of no use: it says why and stops
+                DebugLog( D_ERROR, D_MAIN ) << "Multiplayer server: could not listen on port " << s.pending_port <<
+                                            " (another server running, or the port is in use); the server stops";
+                g->uquit = QUIT_NOSAVED;
+            }
             return;
         }
         // C17: the messages are JSON text: both ends compress (ENet's range coder)

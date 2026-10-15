@@ -725,6 +725,9 @@ bool main_menu::start_queued_world( bool &load_game )
         start = start_listen_view( queued_world );
         if( start ) {
             load_game = true;
+        } else {
+            // back to the main menu: the server stops, this game connects nowhere
+            net::listen_cancel();
         }
     } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
         save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
@@ -1283,7 +1286,8 @@ bool main_menu::start_listen_view( const std::string &worldname )
         while( !net::world_ready( worldname ) ) {
             const int secs = static_cast<int>( std::chrono::duration_cast<std::chrono::seconds>(
                                                    std::chrono::steady_clock::now() - started ).count() );
-            if( secs >= 300 ) {
+            if( secs >= 300 || !net::listen_server_running() ) {
+                // (the server process ended: it could not start; its log says why)
                 break;
             }
             if( secs != shown ) {

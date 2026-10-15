@@ -90,6 +90,10 @@ bool listen_local();
 void client_reset();
 /** The server process this game started is still running (saving after the host left). */
 bool listen_server_running();
+/** The host's game gave up before joining: its server stops, the hosting state is cleared. */
+void listen_cancel();
+/** The server: its host's game gave up (listen_cancel). */
+bool listen_stop_requested();
 /** The host's session is over (its server ended): back to the main menu. */
 void listen_end();
 /** The server joined was just started from this computer: retry while it loads its world. */

@@ -553,6 +553,10 @@ bool do_turn()
     alerts::set_in_game( true );
     // Experimental multiplayer: a client only shows the host's world, it simulates nothing.
     net::start_pending();
+    if( net::dedicated_requested() && g->uquit != QUIT_NO ) {
+        // a server that could not start listening stops (it would wait for keys nobody presses)
+        return true;
+    }
     if( net::is_client() ) {
         return net::client_do_turn();
     }
