@@ -127,3 +127,12 @@ for Noah's yes:
 
 Balance note: hit and damage formulas stay vanilla; only *who is in range* changes from "next
 tile" to "within reach distance", and dodging a wind-up by stepping away becomes possible.
+
+**Phase 6 status (2026-10-15, compile + CI only):** approved by Noah and implemented:
+monsters/NPCs glide for the time their steps take at their speed, continuing from where the
+sprite is (`snapshot_after_monsters`); monster melee at players has a 200-600 ms wind-up and lands
+only if the player is still in reach (`monster_melee_windup`, `process_monster_windups`, hook in
+`monster::attack_at`); player melee picks the target by reach distance from the body and a 90
+degree arc toward the cursor (`do_strike`), bump/autoattack swings aim at their creature. Clients
+see monster glides through the existing step events (their duration now follows the speed) and
+the wind-up lunges; no protocol change was needed.
