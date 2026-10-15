@@ -2202,6 +2202,10 @@ void client_reset()
     cstate() = client_state();
     omap_notes_known().clear();
     client_bars().clear();
+    // music the host had started for this player stops with the session
+    for( const auto &heard : music_heard() ) {
+        music::deactivate_music_id( static_cast<music::music_id>( heard.first ) );
+    }
     music_heard().clear();
     talk_queue().clear();
     trade_queue().clear();

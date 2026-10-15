@@ -26,6 +26,7 @@
 #include "lang_stats.h"
 #include "line.h"
 #include "mapsharing.h"
+#include "net_session.h"
 #include "output.h"
 #include "path_info.h"
 #include "point.h"
@@ -4017,7 +4018,11 @@ std::string options_manager::show( bool ingame, const bool world_options_only, b
             refresh_display();
 
             save();
-            if( ingame && world_options_changed ) {
+            if( ingame && world_options_changed && net::is_client() ) {
+                // the world's options are the host's; a player's copy of the world is never saved
+                ACTIVE_WORLD_OPTIONS = WOPTIONS_OLD;
+                ::popup( _( "The world's options are set by the host; your changes there were not kept." ) );
+            } else if( ingame && world_options_changed ) {
                 world_generator->active_world->WORLD_OPTIONS = ACTIVE_WORLD_OPTIONS;
                 world_generator->active_world->save();
             }

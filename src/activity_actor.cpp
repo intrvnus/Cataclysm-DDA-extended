@@ -4209,6 +4209,10 @@ void craft_activity_actor::do_turn( player_activity &act, Character &crafter )
     if( location ) {
         // B3: a craft worked on at a station keeps going there when left alone
         mp_stations::note_craft_at( here.get_abs( *location ) );
+        if( net::is_host() ) {
+            // left alone it goes on at this crafter's speed, not the host's
+            craft.set_var( "mp_crafter", crafter.getID().get_value() );
+        }
     }
     if( !use_cached_workbench_multiplier ) {
         cached_workbench_multiplier = crafter.workbench_crafting_speed_multiplier( craft, location );

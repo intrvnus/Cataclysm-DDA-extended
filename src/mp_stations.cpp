@@ -116,10 +116,20 @@ bool work_station( map &here, const tripoint_abs_ms &where )
             continue;
         }
         Character *crafter = queued ? character_by_id( queued_by ) : nullptr;
-        const Character &ref = crafter != nullptr ? *crafter : static_cast<const Character &>( get_avatar() );
+        // the speed is the one of who queued it or last worked on it (never the host's own
+        // character; a dedicated server's is a placeholder without skills)
+        const Character *worker = crafter != nullptr ? crafter :
+                                  character_by_id( static_cast<int>( craft->get_var( "mp_crafter", -1.0 ) ) );
         const recipe &rec = craft->get_making();
-        const double base_moves = std::max<int64_t>( 1, rec.batch_time( ref, craft->get_making_batch_size(),
-                                  1.0f, 0 ) );
+        double base_moves = craft->get_var( "mp_base_moves", 0.0 );
+        if( worker != nullptr ) {
+            // remembered on the craft: it keeps that speed while its crafter is offline
+            base_moves = std::max<int64_t>( 1, rec.batch_time( *worker, craft->get_making_batch_size(), 1.0f, 0 ) );
+            craft->set_var( "mp_base_moves", base_moves );
+        } else if( base_moves <= 0 ) {
+            base_moves = std::max<int64_t>( 1, rec.batch_time( get_avatar(), craft->get_making_batch_size(), 1.0f,
+                                            0 ) );
+        }
         const double share = queued ? queue_share : unattended_share;
         const double delta = share * speed * tick_turns * 100.0 / base_moves * counter_full;
         const int cap = queued ? counter_full : unattended_cap;

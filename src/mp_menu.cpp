@@ -98,7 +98,7 @@ const std::vector<rule> &rules()
         },
         { "MP_PVP", { { "false", _( "off" ) }, { "true", _( "on" ) } }, _( "Players can hurt other groups (PvP)" ) },
         { "MP_FRIENDLY_FIRE", { { "true", _( "on" ) }, { "false", _( "off" ) } }, _( "Friendly fire" ) },
-        { "MP_CLIENT_DEBUG", { { "true", _( "on" ) }, { "false", _( "off" ) } }, _( "Debug menu for players" ) },
+        { "MP_CLIENT_DEBUG", { { "true", _( "on" ) }, { "false", _( "off" ) } }, _( "Debug menu for clients" ) },
     };
     return r;
 }
