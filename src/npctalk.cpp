@@ -102,6 +102,7 @@
 #include "mod_engine.h"
 #include "music.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "npc_class.h"
 #include "npc_opinion.h"
