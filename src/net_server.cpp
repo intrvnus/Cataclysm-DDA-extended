@@ -1103,13 +1103,31 @@ npc *spawn_remote_npc( remote_player &rp )
             guy->name = rp.name;
         }
     }
+    // the next character of a player who ran out of lives starts at the old one's bed or home
+    std::optional<tripoint_abs_ms> next_home;
+    if( !returning && valid_key( rp.key ) ) {
+        const cata_path home_file = PATH_INFO::world_base_save_path() / "mp_players" /
+                                    ( rp.key + ".home" );
+        if( file_exist( home_file ) ) {
+            read_from_file( home_file, [&]( std::istream & fin ) {
+                int x = 0;
+                int y = 0;
+                int z = 0;
+                if( fin >> x >> y >> z ) {
+                    next_home = tripoint_abs_ms( x, y, z );
+                }
+            } );
+            remove_file( home_file.get_unrelative_path() );
+        }
+    }
+    const bool go_home = next_home.has_value();
     // a fresh id in this world, whatever the save said
-    const tripoint_abs_ms left_at = guy->pos_abs();
+    const tripoint_abs_ms left_at = go_home ? *next_home : guy->pos_abs();
     guy->setID( g->assign_npc_id(), true );
     tripoint_abs_ms start_at = here.get_abs( spot );
     map *own_bubble = nullptr;
-    if( returning && bubbles::enabled() ) {
-        // back where they left, in a reality bubble of their own, wherever that is
+    if( ( returning || go_home ) && bubbles::enabled() ) {
+        // back where they left (or home), in a reality bubble of their own, wherever that is
         own_bubble = &bubbles::open_for( left_at, guy->getID().get_value() );
         swap_map swap( *own_bubble );
         tripoint_bub_ms best = own_bubble->get_bub( left_at );
@@ -1122,7 +1140,7 @@ npc *spawn_remote_npc( remote_player &rp )
             }
         }
         start_at = own_bubble->get_abs( best );
-    } else if( buddy != nullptr && !returning ) {
+    } else if( buddy != nullptr && !returning && !go_home ) {
         map &bm = bubbles::map_for( *buddy );
         swap_map swap( bm );
         const tripoint_bub_ms at = buddy->pos_bub( bm );
@@ -1132,7 +1150,7 @@ npc *spawn_remote_npc( remote_player &rp )
                 break;
             }
         }
-    } else if( returning ) {
+    } else if( returning || go_home ) {
         // back where they left, if that place is loaded and free (else next to the host)
         if( here.inbounds( left_at ) ) {
             const tripoint_bub_ms p = here.get_bub( left_at );
@@ -1942,9 +1960,18 @@ bool update_downed( remote_player &rp, npc &guy )
         }
         rp.allow_death = true;
         rp.out_of_lives = true;
-        // dead for good: the next character starts fresh
+        // dead for good: the next character starts fresh, at this one's bed or home
         if( valid_key( rp.key ) && file_exist( player_file( rp.key ) ) ) {
             remove_file( player_file( rp.key ).get_unrelative_path() );
+        }
+        if( valid_key( rp.key ) ) {
+            if( const std::optional<tripoint_abs_ms> home = mp_lives::bed_of( guy ) ) {
+                assure_dir_exist( PATH_INFO::world_base_save_path() / "mp_players" );
+                write_to_file( PATH_INFO::world_base_save_path() / "mp_players" / ( rp.key + ".home" ),
+                [&]( std::ostream & fout ) {
+                    fout << home->x() << " " << home->y() << " " << home->z();
+                }, _( "multiplayer player" ) );
+            }
         }
         send_text( rp, _( "Nobody came to help.  You died, and you have no extra life left." ) );
         alerts::warn( string_format( _( "%s died for good." ), name ), alerts::level::danger,
@@ -2027,7 +2054,23 @@ void respawn_host_avatar()
     u.remove_effect( effect_downed );
     u.cancel_activity();
     popup( _( "You have no extra life left.  Make a new character to go on playing.\n\n(While you make it, the game waits for the other players.)" ) );
+    // the new character starts at the old one's bed or home, not where it died
+    const std::optional<tripoint_abs_ms> start = mp_lives::bed_of( u );
     mp_lives::make_new_character( u );
+    if( start && *start != u.pos_abs() ) {
+        g->place_player_overmap( coords::project_to<coords::omt>( *start ) );
+        map &now = get_map();
+        tripoint_bub_ms spot = now.get_bub( *start );
+        if( !now.passable( spot ) || get_creature_tracker().creature_at( spot ) != nullptr ) {
+            for( const tripoint_bub_ms &p : now.points_in_radius( spot, 4 ) ) {
+                if( now.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
+                    spot = p;
+                    break;
+                }
+            }
+        }
+        u.setpos( now, spot );
+    }
     u.set_moves( 0 );
     fluid::avatar_state() = fluid::actor_state();
     DebugLog( D_INFO, D_MAIN ) << "Multiplayer: host goes on as the new character " << u.get_name();

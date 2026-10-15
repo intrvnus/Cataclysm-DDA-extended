@@ -345,6 +345,9 @@ void make_new_character( avatar &u )
     }
     u.setID( own_id, true );
     u.setpos( here, pos );
+    // the old character died: its "dead" cache would stay set (the loaded hit points do not
+    // clear it) and the new character could not act
+    u.recalc_hp();
     u.add_profession_items();
     // like a new game: the starting items go from the raw inventory into worn containers
     u.migrate_items_to_storage( true );
