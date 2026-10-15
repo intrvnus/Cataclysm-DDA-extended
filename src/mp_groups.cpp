@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <map>
+#include <set>
 #include <sstream>
 #include <vector>
 
@@ -17,7 +18,9 @@
 #include "game.h"
 #include "net_session.h"
 #include "npc.h"
+#include "omdata.h"
 #include "options.h"
+#include "overmapbuffer.h"
 #include "string_formatter.h"
 #include "translations.h"
 
@@ -34,6 +37,40 @@ std::map<int, std::string> &invites()
 }
 
 const faction_id faction_shared( "your_followers" );
+
+// overmap tiles known to each group other than the shared one
+std::map<std::string, std::set<tripoint_abs_omt>> &group_maps()
+{
+    static std::map<std::string, std::set<tripoint_abs_omt>> m;
+    return m;
+}
+
+// the knowledge of group @p from is added to group @p to
+void copy_knowledge( const std::string &from, const std::string &to )
+{
+    if( from == to ) {
+        return;
+    }
+    if( from.empty() ) {
+        // the shared group's map is the world's overmap: too big to copy; the new group starts
+        // with what the player saw since (the world's map stays readable in the shared group)
+        return;
+    }
+    const auto iter = group_maps().find( from );
+    if( iter == group_maps().end() ) {
+        return;
+    }
+    if( to.empty() ) {
+        for( const tripoint_abs_omt &p : iter->second ) {
+            if( overmap_buffer.seen( p ) < om_vision_level::details ) {
+                overmap_buffer.set_seen( p, om_vision_level::details );
+            }
+        }
+    } else {
+        std::set<tripoint_abs_omt> &dest = group_maps()[to];
+        dest.insert( iter->second.begin(), iter->second.end() );
+    }
+}
 
 // The faction of a group: the shared group is the player faction; every other group gets a copy
 // of it (made once, kept with the world), so monsters and NPCs see its members as players, while
@@ -71,6 +108,7 @@ bool is_leader( const Character &who )
 
 void set_group( Character &who, const std::string &group, bool leader )
 {
+    copy_knowledge( who.get_value( "mp_group" ).str(), group );
     who.set_value( "mp_group", group );
     who.set_value( "mp_group_leader", leader ? "1" : "0" );
     apply_faction( who );
@@ -152,7 +190,35 @@ cata_path mission_file()
 {
     return PATH_INFO::world_base_save_path() / "mp_players" / "mission_groups.json";
 }
+
+cata_path map_file()
+{
+    return PATH_INFO::world_base_save_path() / "mp_players" / "group_maps.json";
+}
 } // namespace
+
+void reveal( const Character &who, const tripoint_abs_omt &p )
+{
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        if( overmap_buffer.seen( p ) < om_vision_level::details ) {
+            overmap_buffer.set_seen( p, om_vision_level::details );
+        }
+    } else {
+        group_maps()[group].insert( p );
+    }
+}
+
+om_vision_level seen_by( const Character &who, const tripoint_abs_omt &p )
+{
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        return overmap_buffer.seen( p );
+    }
+    const auto iter = group_maps().find( group );
+    return iter != group_maps().end() && iter->second.count( p ) > 0 ? om_vision_level::details :
+           om_vision_level::unseen;
+}
 
 void note_mission( int mission_id, const std::string &group )
 {
@@ -167,6 +233,20 @@ std::string mission_group( int mission_id )
 
 void load()
 {
+    group_maps().clear();
+    if( file_exist( map_file() ) ) {
+        read_from_file_optional_json( map_file(), []( const JsonValue & jv ) {
+            for( const JsonMember m : jv.get_object() ) {
+                std::set<tripoint_abs_omt> &known = group_maps()[m.name()];
+                for( JsonArray a : m.get_array() ) {
+                    const int x = a.next_int();
+                    const int y = a.next_int();
+                    const int z = a.next_int();
+                    known.emplace( x, y, z );
+                }
+            }
+        } );
+    }
     mission_groups().clear();
     if( !file_exist( mission_file() ) ) {
         return;
@@ -189,6 +269,23 @@ void save()
         }
         jo.end_object();
     }, _( "multiplayer missions" ) );
+    write_to_file( map_file(), []( std::ostream & fout ) {
+        JsonOut jo( fout );
+        jo.start_object();
+        for( const auto &e : group_maps() ) {
+            jo.member( e.first );
+            jo.start_array();
+            for( const tripoint_abs_omt &p : e.second ) {
+                jo.start_array();
+                jo.write( p.x() );
+                jo.write( p.y() );
+                jo.write( p.z() );
+                jo.end_array();
+            }
+            jo.end_array();
+        }
+        jo.end_object();
+    }, _( "multiplayer group maps" ) );
 }
 
 std::string group_of( const Character &who )
@@ -300,6 +397,11 @@ std::string command( Character &who, const std::string &args )
                 c->set_value( "mp_group", rest );
                 apply_faction( *c );
             }
+        }
+        const auto map_iter = group_maps().find( mine );
+        if( map_iter != group_maps().end() ) {
+            group_maps()[rest] = std::move( map_iter->second );
+            group_maps().erase( mine );
         }
         return string_format( _( "The group is called %s now." ), rest );
     }

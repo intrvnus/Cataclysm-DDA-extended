@@ -79,6 +79,8 @@ Host and client need this build (network protocol 3).
       stealing; your own group's members can take them freely.
 - [ ] Groups and zones: a zone made in the zone menu (`Y`) is seen by your group only; sorting
       loot uses your group's zones.
+- [ ] Groups and the map (M): a player in their own group sees only what their group explored;
+      after `/group accept` the group's map shows up; after leaving, the map stays.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport

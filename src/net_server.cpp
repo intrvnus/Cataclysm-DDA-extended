@@ -2521,7 +2521,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             for( int dy = -r; dy <= r; dy++ ) {
                 for( int dx = -r; dx <= r; dx++ ) {
                     const tripoint_abs_omt q = c + point_rel_omt( dx, dy );
-                    const om_vision_level lv = overmap_buffer.seen( q );
+                    const om_vision_level lv = mp_groups::seen_by( *guy, q );
                     if( lv == om_vision_level::unseen ) {
                         cells.push_back( -1 );
                         levels.push_back( 0 );
@@ -3194,14 +3194,11 @@ void host_end_of_turn()
             test_downed_cycle( rp, *guy );
         }
         if( guy != nullptr && guy->pos_abs_omt() != rp.last_omt ) {
-            // overmap knowledge is shared by all players: what anybody sees is known to everybody
+            // overmap knowledge is shared inside a group (the shared group: the world's map)
             rp.last_omt = guy->pos_abs_omt();
             for( int dy = -2; dy <= 2; dy++ ) {
                 for( int dx = -2; dx <= 2; dx++ ) {
-                    const tripoint_abs_omt q = rp.last_omt + point_rel_omt( dx, dy );
-                    if( overmap_buffer.seen( q ) < om_vision_level::details ) {
-                        overmap_buffer.set_seen( q, om_vision_level::details );
-                    }
+                    mp_groups::reveal( *guy, rp.last_omt + point_rel_omt( dx, dy ) );
                 }
             }
         }
