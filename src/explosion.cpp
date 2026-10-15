@@ -40,6 +40,7 @@
 #include "line.h"
 #include "make_static.h"
 #include "map.h"
+#include "mp_groups.h"
 #include "map_iterator.h"
 #include "map_scale_constants.h"
 #include "map_selector.h"
@@ -371,6 +372,11 @@ static void do_blast( map *m, const Creature *source, const tripoint_bub_ms &p, 
             continue;
         }
 
+        // multiplayer server rules (C16): PvP / friendly fire
+        if( source != nullptr && mp_groups::protected_from( *source, *pl ) ) {
+            continue;
+        }
+
         // Print messages for all NPCs
         if( bubble_map.inbounds( pt_abs ) ) {
             pl->add_msg_player_or_npc( m_bad, _( "You're caught in the explosion!" ),
@@ -471,7 +477,8 @@ static std::vector<tripoint_bub_ms> shrapnel( map *m, const Creature *source,
         int damage = ballistic_damage( cloud.velocity, fragment_mass );
         const tripoint_abs_ms abs_target = m->get_abs( target );
         Creature *critter = creatures.creature_at( abs_target );
-        if( damage > 0 && critter && !critter->is_dead_state() ) {
+        if( damage > 0 && critter && !critter->is_dead_state() &&
+            !( source != nullptr && mp_groups::protected_from( *source, *critter ) ) ) {
             std::poisson_distribution<> d( cloud.density );
             int hits = d( rng_get_engine() );
             dealt_projectile_attack frag;
