@@ -103,6 +103,8 @@ Host and client need this build (network protocol 3).
 - [ ] Timed actions as a client after the 2026-10-15 change ("activities run with the body as the
       player"): picking up several items, butchering, crafting, disassembling, reloading: the
       items/results end up on your character; nothing pops up on the host.
+- [ ] Progress bars: during a timed action (pulping, butchering, reading) a small green bar fills
+      above the character; other players see yours too.
 - [ ] Eating as a client (something that takes a while, e.g. a can of food): your hunger goes
       down, not the host's.
 - [ ] Vehicle work as a client (examine a car, install/remove a part): the work runs on your

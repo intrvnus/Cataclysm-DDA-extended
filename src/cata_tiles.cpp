@@ -58,6 +58,7 @@
 #include "line.h"
 #include "magic_enchantment.h"
 #include "map.h"
+#include "net_session.h"
 #include "math_defines.h"
 #include "map_extras.h"
 #include "map_memory.h"
@@ -2137,6 +2138,23 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderDrawLine( r, a.x, a.y, b.x, b.y );
         SDL_RenderDrawLine( r, a.x + 1, a.y, b.x + 1, b.y );
         SDL_RenderDrawLine( r, a.x, a.y + 1, b.x, b.y + 1 );
+    }
+
+    // B7: a small progress bar above everybody doing a timed action
+    for( const std::pair<tripoint_abs_ms, double> &bar : net::activity_bars() ) {
+        if( bar.first.z() != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const fluid::offset so = fluid::sprite_offset( bar.first );
+        const point at = to_screen( bar.first.x() + so.x, bar.first.y() + so.y, bar.first.z() );
+        const int w = std::max( 8, tile_width * 4 / 5 );
+        const int h = std::max( 2, tile_height / 10 );
+        SDL_Rect back = { at.x + ( tile_width - w ) / 2, at.y - h - 2, w, h };
+        SDL_SetRenderDrawColor( r, 20, 20, 20, 200 );
+        SDL_RenderFillRect( r, &back );
+        SDL_Rect fill = { back.x, back.y, static_cast<int>( w * std::clamp( bar.second, 0.0, 1.0 ) ), h };
+        SDL_SetRenderDrawColor( r, 90, 220, 90, 230 );
+        SDL_RenderFillRect( r, &fill );
     }
 
     // creatures that were just hit flash white

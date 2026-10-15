@@ -143,6 +143,11 @@ void tell_player( const Character &who, const std::string &text, bool good );
  * client) with the alerts system (sound, coloured message, arrow to @p source). */
 void alert_player( const Character &who, const std::string &text, int level,
                    const std::optional<tripoint_abs_ms> &source );
+/** B7: characters doing a timed action and how far along they are (0..1), for the progress
+ * bars above them.  Clients: from the host's state; otherwise from the characters here. */
+std::vector<std::pair<tripoint_abs_ms, double>> activity_bars();
+/** 0..1000 progress of @p who's timed action, -1 if none (or no known length). */
+int activity_progress( const Character &who );
 /** C13: a sound effect the body of a client hears is played on that client's computer, from
  * where it came (volume and direction from the client's own position). */
 void play_sound_for( const Character &who, const std::string &id, const std::string &variant,

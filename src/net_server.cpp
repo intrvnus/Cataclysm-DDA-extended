@@ -1296,6 +1296,7 @@ void send_state( remote_player &rp, const npc &guy )
         // what changes quickly while moving (the full character only comes every few seconds)
         jo.member( "mm", guy.current_movement_mode().str() );
         jo.member( "stam", guy.get_stamina() );
+        jo.member( "ap", activity_progress( guy ) );
         jo.member( "hp" );
         jo.start_object();
         for( const bodypart_id &bp : guy.get_all_body_parts() ) {
@@ -1313,6 +1314,7 @@ void send_state( remote_player &rp, const npc &guy )
             jo.member( "name", u.get_name() );
             jo.member( "pos" );
             write_pos( jo, u.pos_abs() );
+            jo.member( "ap", activity_progress( u ) );
             jo.end_object();
         }
         // the other players and every ordinary NPC in the reality bubble
@@ -1325,6 +1327,7 @@ void send_state( remote_player &rp, const npc &guy )
             jo.member( "name", np.get_name() );
             jo.member( "pos" );
             write_pos( jo, np.pos_abs() );
+            jo.member( "ap", activity_progress( np ) );
             jo.end_object();
         }
         jo.end_array();
@@ -3075,6 +3078,16 @@ void play_sound_for( const Character &who, const std::string &id, const std::str
         jo.member( "src" );
         write_pos( jo, source );
     } ) );
+}
+
+int activity_progress( const Character &who )
+{
+    const player_activity &act = who.activity;
+    if( !act || act.moves_total <= 0 ) {
+        return -1;
+    }
+    return std::clamp( static_cast<int>( 1000LL * ( act.moves_total - act.moves_left ) /
+                                          act.moves_total ), 0, 1000 );
 }
 
 std::vector<npc *> remote_player_npcs()

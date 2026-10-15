@@ -240,6 +240,13 @@ void send_note_changes()
     } ) );
 }
 
+// B7: progress bars of the last state from the host
+std::vector<std::pair<tripoint_abs_ms, double>> &client_bars()
+{
+    static std::vector<std::pair<tripoint_abs_ms, double>> v;
+    return v;
+}
+
 void reload_map()
 {
     map &here = get_map();
@@ -335,9 +342,17 @@ void apply_state( const JsonObject &msg )
 
     map &now = get_map();
     std::set<int> seen_ids;
+    std::vector<std::pair<tripoint_abs_ms, double>> &bars = client_bars();
+    bars.clear();
+    if( you.get_int( "ap", -1 ) >= 0 && you.has_array( "pos" ) ) {
+        bars.emplace_back( read_pos( you.get_array( "pos" ) ), you.get_int( "ap", 0 ) / 1000.0 );
+    }
     for( JsonObject other : msg.get_array( "others" ) ) {
         other.allow_omitted_members();
         const tripoint_abs_ms p = read_pos( other.get_array( "pos" ) );
+        if( other.get_int( "ap", -1 ) >= 0 ) {
+            bars.emplace_back( p, other.get_int( "ap", 0 ) / 1000.0 );
+        }
         const int host_id = other.get_int( "id" );
         seen_ids.insert( host_id );
         npc *guy = shadow_for( host_id, other.get_string( "name", "" ), p );
@@ -1955,6 +1970,23 @@ void client_peek_message( const std::string &json )
 }
 
 } // namespace impl
+
+std::vector<std::pair<tripoint_abs_ms, double>> activity_bars()
+{
+    if( is_client() ) {
+        return client_bars();
+    }
+    std::vector<std::pair<tripoint_abs_ms, double>> out;
+    map &here = get_map();
+    for( const Character *c : g->get_characters_if( []( const Character & guy ) {
+    return guy.activity && guy.activity.moves_total > 0;
+} ) ) {
+        if( here.inbounds( c->pos_abs() ) ) {
+            out.emplace_back( c->pos_abs(), activity_progress( *c ) / 1000.0 );
+        }
+    }
+    return out;
+}
 
 bool input_idle()
 {
