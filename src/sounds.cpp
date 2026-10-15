@@ -2132,6 +2132,9 @@ void sfx::do_low_stamina_sfx() { }
 void sfx::do_obstacle( const std::string & ) { }
 void sfx::play_variant_sound( const std::string &, const std::string &, const std::string &,
                               const std::optional<bool> &, const std::optional<bool> &, int ) { }
+void sfx::play_variant_sound( const std::string &, const std::string &, const std::string &,
+                              const std::optional<bool> &, const std::optional<bool> &, int, units::angle,
+                              double, double ) { }
 /*@}*/
 
 #endif // if defined(SDL_SOUND)
