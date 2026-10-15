@@ -1163,8 +1163,8 @@ npc *spawn_remote_npc( remote_player &rp )
     }
     guy->spawn_at_precise( start_at );
     overmap_buffer.insert_npc( guy );
-    mp_groups::on_join( *guy );
     guy->set_fac( faction_your_followers );
+    mp_groups::on_join( *guy );
     guy->set_attitude( NPCATT_NULL );
     guy->mission = NPC_MISSION_NULL;
     guy->set_value( "mp_remote_player", "1" );

@@ -13,6 +13,8 @@
 #include "json_loader.h"
 #include "path_info.h"
 #include "character.h"
+#include "faction.h"
+#include "game.h"
 #include "net_session.h"
 #include "npc.h"
 #include "options.h"
@@ -31,6 +33,37 @@ std::map<int, std::string> &invites()
     return m;
 }
 
+const faction_id faction_shared( "your_followers" );
+
+// The faction of a group: the shared group is the player faction; every other group gets a copy
+// of it (made once, kept with the world), so monsters and NPCs see its members as players, while
+// ownership (and with it theft) follows the group.
+faction_id faction_for( const std::string &group )
+{
+    if( group.empty() ) {
+        return faction_shared;
+    }
+    std::string id = "mp_grp_";
+    for( const char c : group ) {
+        id += std::isalnum( static_cast<unsigned char>( c ) ) ? static_cast<char>( std::tolower(
+                    static_cast<unsigned char>( c ) ) ) : '_';
+    }
+    const faction_id fid( id );
+    if( g->faction_manager_ptr->get( fid, false ) == nullptr ) {
+        g->faction_manager_ptr->add_new_faction( group, fid, faction_shared );
+    }
+    return fid;
+}
+
+// a client's body takes the faction of its group (the host's own character keeps the player
+// faction: the engine ties the avatar to it)
+void apply_faction( Character &who )
+{
+    if( npc *guy = dynamic_cast<npc *>( &who ) ) {
+        guy->set_fac( faction_for( group_of( who ) ) );
+    }
+}
+
 bool is_leader( const Character &who )
 {
     return who.get_value( "mp_group_leader" ).str() == "1";
@@ -40,6 +73,7 @@ void set_group( Character &who, const std::string &group, bool leader )
 {
     who.set_value( "mp_group", group );
     who.set_value( "mp_group_leader", leader ? "1" : "0" );
+    apply_faction( who );
 }
 
 // every player in the world: the host's character (not the dedicated server's anchor) and the
@@ -169,13 +203,14 @@ bool same_group( const Character &a, const Character &b )
 
 void on_join( Character &who )
 {
-    if( !who.get_value( "mp_group" ).str().empty() || who.get_value( "mp_group_set" ).str() == "1" ) {
-        return;
+    if( who.get_value( "mp_group_set" ).str() != "1" && who.get_value( "mp_group" ).str().empty() ) {
+        who.set_value( "mp_group_set", "1" );
+        if( get_option<std::string>( "MP_GROUPING" ) == "solo" ) {
+            set_group( who, who.get_name(), true );
+        }
     }
-    who.set_value( "mp_group_set", "1" );
-    if( get_option<std::string>( "MP_GROUPING" ) == "solo" ) {
-        set_group( who, who.get_name(), true );
-    }
+    // a saved body comes back in the faction of its group
+    apply_faction( who );
 }
 
 std::string command( Character &who, const std::string &args )
@@ -263,6 +298,7 @@ std::string command( Character &who, const std::string &args )
         for( Character *c : players() ) {
             if( group_of( *c ) == mine ) {
                 c->set_value( "mp_group", rest );
+                apply_faction( *c );
             }
         }
         return string_format( _( "The group is called %s now." ), rest );
