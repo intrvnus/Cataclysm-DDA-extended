@@ -66,6 +66,10 @@ background and joins it as a client. Warnings = real-time question boxes that cl
   (`run_activity` in `net_server.cpp`), so `get_player_character()` inside activities is the
   body. Before, e.g. eating fed the host and activity code that used "the player" acted on the
   host. Watch for activities that now cancel because they asked a question.
+- More standing-rule fixes (compile only): eating start/finish, vehicle work, map reading,
+  drop actions, construction helpers, intercoms (conversation on the client), haul toggle,
+  bionic activation checks, item cook-off source; B6 dim screen while asleep; B7 progress bars.
+  B3 stations: options paper `MULTIPLAYER_STATIONS_OPTIONS.md` (waiting for Noah).
 - Gemini: the proxy's default model (`gemini-2.5-flash`) failed with 404; started with
   `GEMINI_MODEL=gemini-3.5-flash-lite`. One docs task delegated and merged after review.
 
