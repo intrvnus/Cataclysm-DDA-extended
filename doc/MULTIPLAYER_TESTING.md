@@ -93,6 +93,8 @@ Host and client need this build (network protocol 3).
       the ground; costs stamina, "too winded" when out.
 - [ ] Shooting: tracers from the gun to where the shot ended (also for other players' shots);
       the aim circle grows while walking (more while running) and shrinks while standing.
+- [ ] Ranged monsters: a spitter/boomer/turret draws a red aim line (dashed, then solid) and you get
+      "takes aim at you" before it fires; ducking out of sight dodges.
 - [ ] Reloading while walking (free movement, not running): the reload goes on, a bit slower.
 - [ ] Waiting (`|`) in multiplayer is a short break that takes away weariness; walking alone no
       longer makes you weary.

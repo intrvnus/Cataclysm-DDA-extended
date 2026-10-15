@@ -281,7 +281,8 @@ enum class fx_type : int {
     cancel,     // wind-up cancelled
     shot,       // a shot was fired
     aim,        // aim state of a remote player (steadiness for its crosshair)
-    tracer      // the path of a shot, from -> to
+    tracer,     // the path of a shot, from -> to
+    aimline     // a monster takes aim: from -> to for dur_ms
 };
 
 /** Something that happened and that the other players must see. */
@@ -381,6 +382,19 @@ struct tracer_view {
     double strength = 0.0;
 };
 std::vector<tracer_view> tracers();
+/** A monster takes aim at @p to (B9): a red aim line for @p dur_ms, also on the clients. */
+void monster_aims( const tripoint_abs_ms &from, const tripoint_abs_ms &to, int dur_ms );
+struct aim_line_view {
+    tripoint_abs_ms from;
+    tripoint_abs_ms to;
+    // 0 when the aim starts .. 1 when it fires
+    double progress = 0.0;
+};
+std::vector<aim_line_view> monster_aim_lines();
+/** Ranged monster attacks on players (B9 [C]): the first call starts a visible aim of
+ * ranged_windup_ms and returns false; once it has run out the attack may go (true).  Attacks on
+ * NPCs and monsters are not delayed. */
+bool ranged_windup_ready( monster &z, const std::string &attack );
 /** Creatures that were just hit, with the strength of their flash (1..0). */
 std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes();
 

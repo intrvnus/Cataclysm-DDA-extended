@@ -3,6 +3,7 @@
 #include "net_session.h"
 
 #include <algorithm>
+#include <set>
 #include <cfloat>
 #include <climits>
 #include <cmath>
@@ -25,6 +26,7 @@
 #include "enums.h"
 #include "field.h"
 #include "fluid.h"
+#include "mattack_actors.h"
 #include "field_type.h"
 #include "game.h"
 #include "item.h"
@@ -99,6 +101,23 @@ static const ter_str_id ter_t_lava( "t_lava" );
 static const ter_str_id ter_t_pit( "t_pit" );
 static const ter_str_id ter_t_pit_glass( "t_pit_glass" );
 static const ter_str_id ter_t_pit_spiked( "t_pit_spiked" );
+
+namespace
+{
+// ranged attacks that get a visible aim in fluid mode (gun monsters that already warn the
+// player with their targeting delay are left as they are)
+bool mp_ranged_attack( const std::string &name, const mattack_actor &actor )
+{
+    static const std::set<std::string> ranged = {
+        "ACID", "ACID_BARF", "BOOMER", "BOOMER_GLOW", "SPIT_SAP", "SHOCKSTORM", "PULL_METAL_WEAPON"
+    };
+    if( ranged.count( name ) > 0 ) {
+        return true;
+    }
+    const gun_actor *gun = dynamic_cast<const gun_actor *>( &actor );
+    return gun != nullptr && !gun->require_targeting_player;
+}
+} // namespace
 
 bool monster::is_immune_field( const field_type_id &fid ) const
 {
@@ -890,6 +909,11 @@ void monster::move()
             // Cooldowns are decremented in monster::process_turn
 
             if( local_attack_data.cooldown == 0 && !pacified && !is_hallucination() ) {
+                // fluid / multiplayer (B9): ranged attacks on players are aimed visibly first
+                if( mp_ranged_attack( special_name, *sp_type.second ) &&
+                    !fluid::ranged_windup_ready( *this, special_name ) ) {
+                    continue;
+                }
                 if( !sp_type.second->call( *this ) ) {
                     add_msg_debug( debugmode::DF_MATTACK, "Attack failed" );
                     continue;

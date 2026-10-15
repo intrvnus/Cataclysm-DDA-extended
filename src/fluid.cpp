@@ -16,6 +16,7 @@
 
 #include "action.h"
 #include "avatar.h"
+#include "alerts.h"
 #include "avatar_action.h"
 #include "calendar.h"
 #include "character.h"
@@ -198,6 +199,20 @@ struct tracer_fx {
     ms_t t0 = 0;
 };
 constexpr int tracer_ms = 160;
+
+struct aim_line_fx {
+    tripoint_abs_ms from;
+    tripoint_abs_ms to;
+    ms_t t0 = 0;
+    int dur = 1;
+};
+
+std::vector<aim_line_fx> &aim_line_list()
+{
+    static std::vector<aim_line_fx> v;
+    return v;
+}
+
 
 std::vector<tracer_fx> &tracer_list()
 {
@@ -466,6 +481,10 @@ offset hit_offset_at( const tripoint_abs_ms &p, ms_t now )
 
 void prune_animations( ms_t now )
 {
+    std::vector<aim_line_fx> &al = aim_line_list();
+    al.erase( std::remove_if( al.begin(), al.end(), [now]( const aim_line_fx & a ) {
+        return now >= a.t0 + a.dur;
+    } ), al.end() );
     std::vector<tracer_fx> &tl = tracer_list();
     tl.erase( std::remove_if( tl.begin(), tl.end(), [now]( const tracer_fx & t ) {
         return now >= t.t0 + tracer_ms;
@@ -2145,6 +2164,109 @@ std::vector<tracer_view> tracers()
     return out;
 }
 
+namespace
+{
+void add_aim_line( const tripoint_abs_ms &from, const tripoint_abs_ms &to, ms_t t0, int dur )
+{
+    std::vector<aim_line_fx> &v = aim_line_list();
+    // one line per shooter
+    v.erase( std::remove_if( v.begin(), v.end(), [&from]( const aim_line_fx & a ) {
+        return a.from == from;
+    } ), v.end() );
+    aim_line_fx a;
+    a.from = from;
+    a.to = to;
+    a.t0 = t0;
+    a.dur = std::max( 1, dur );
+    v.push_back( a );
+}
+
+struct ranged_windup {
+    weak_ptr_fast<monster> attacker;
+    std::string attack;
+    ms_t ready_at = 0;
+};
+
+std::vector<ranged_windup> &ranged_windups()
+{
+    static std::vector<ranged_windup> v;
+    return v;
+}
+constexpr int ranged_windup_ms = 800;
+} // namespace
+
+void monster_aims( const tripoint_abs_ms &from, const tripoint_abs_ms &to, int dur_ms )
+{
+    const ms_t now = now_ms();
+    add_aim_line( from, to, now, dur_ms );
+    if( net::is_host() ) {
+        event ev;
+        ev.type = fx_type::aimline;
+        ev.from = from;
+        ev.to = to;
+        ev.dur_ms = dur_ms;
+        pending_tracers().push_back( ev );
+    }
+}
+
+std::vector<aim_line_view> monster_aim_lines()
+{
+    std::vector<aim_line_view> out;
+    const ms_t now = now_ms();
+    for( const aim_line_fx &a : aim_line_list() ) {
+        if( now >= a.t0 && now < a.t0 + a.dur ) {
+            aim_line_view v;
+            v.from = a.from;
+            v.to = a.to;
+            v.progress = static_cast<double>( now - a.t0 ) / a.dur;
+            out.push_back( v );
+        }
+    }
+    return out;
+}
+
+bool ranged_windup_ready( monster &z, const std::string &attack )
+{
+    if( !enabled() ) {
+        return true;
+    }
+    Creature *target = z.attack_target();
+    const Character *ch = target != nullptr ? target->as_character() : nullptr;
+    if( ch == nullptr || !( ch->is_avatar() || net::is_remote_player( *ch ) ) ||
+        !z.sees( get_map(), *target ) ) {
+        return true;
+    }
+    const ms_t now = now_ms();
+    std::vector<ranged_windup> &v = ranged_windups();
+    for( auto iter = v.begin(); iter != v.end(); ) {
+        const shared_ptr_fast<monster> m = iter->attacker.lock();
+        if( !m || now > iter->ready_at + 3000 ) {
+            // gone, or the chance passed long ago: start over
+            iter = v.erase( iter );
+            continue;
+        }
+        if( m.get() == &z && iter->attack == attack ) {
+            if( now < iter->ready_at ) {
+                return false;
+            }
+            v.erase( iter );
+            return true;
+        }
+        ++iter;
+    }
+    ranged_windup w;
+    w.attacker = g->shared_from( z );
+    w.attack = attack;
+    w.ready_at = now + ranged_windup_ms;
+    v.push_back( w );
+    monster_aims( z.pos_abs(), target->pos_abs(), ranged_windup_ms );
+    if( ch->is_avatar() || net::is_remote_player( *ch ) ) {
+        net::alert_player( *ch, string_format( _( "The %s takes aim at you!" ), z.name() ),
+                           static_cast<int>( alerts::level::danger ), z.pos_abs() );
+    }
+    return false;
+}
+
 std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes()
 {
     std::vector<std::pair<tripoint_abs_ms, double>> out;
@@ -2253,7 +2375,7 @@ offset camera_offset()
 
 bool animating()
 {
-    if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || pred().active ||
+    if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || !aim_line_list().empty() || pred().active ||
         aim_view_rw().active ) {
         return true;
     }
@@ -2938,6 +3060,9 @@ void apply_visual_event( const event &ev, ms_t arrival )
         case fx_type::tracer:
             add_tracer( ev.from, ev.to, arrival );
             break;
+        case fx_type::aimline:
+            add_aim_line( ev.from, ev.to, arrival, ev.dur_ms );
+            break;
         case fx_type::shot:
         case fx_type::aim:
             break;
@@ -3331,6 +3456,7 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             break;
         case fx_type::strike:
         case fx_type::tracer:
+        case fx_type::aimline:
             apply_visual_event( ev, arrival );
             break;
         case fx_type::aim:

@@ -1246,6 +1246,7 @@ bool gun_actor::try_target( monster &z, Creature &target ) const
             add_msg_debug( debugmode::DF_MATTACK, "%s targeted", target.disp_name() );
             z.add_effect( effect_targeted, time_duration::from_turns( targeting_timeout ) );
             if( realtime && target_is_player ) {
+                fluid::monster_aims( z.pos_abs(), target.pos_abs(), 2000 );
                 net::alert_player( *target.as_character(),
                                    string_format( _( "Hostile detected!  The %s is aiming at you!" ), z.name() ),
                                    static_cast<int>( alerts::level::danger ), z.pos_abs() );

@@ -2072,6 +2072,32 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderDrawRect( r, &frame );
     }
 
+    // monsters taking aim (B9): a red line to the target, solid and brighter as the shot nears
+    for( const fluid::aim_line_view &al : fluid::monster_aim_lines() ) {
+        if( al.from.z() != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const point a = to_screen( al.from.x() + 0.5, al.from.y() + 0.5, al.from.z() );
+        const point b = to_screen( al.to.x() + 0.5, al.to.y() + 0.5, al.to.z() );
+        const Uint8 alpha = static_cast<Uint8>( 90 + 150 * al.progress );
+        SDL_SetRenderDrawColor( r, 255, 20, 20, alpha );
+        // dashed at first, solid in the last third
+        const double len = std::max( 1.0, std::hypot( b.x - a.x, b.y - a.y ) );
+        const int dash = al.progress > 0.66 ? 0 : 6;
+        if( dash == 0 ) {
+            SDL_RenderDrawLine( r, a.x, a.y, b.x, b.y );
+            SDL_RenderDrawLine( r, a.x + 1, a.y, b.x + 1, b.y );
+        } else {
+            for( double d = 0.0; d < len; d += 2.0 * dash ) {
+                const double e = std::min( len, d + dash );
+                SDL_RenderDrawLine( r, a.x + static_cast<int>( ( b.x - a.x ) * d / len ),
+                                    a.y + static_cast<int>( ( b.y - a.y ) * d / len ),
+                                    a.x + static_cast<int>( ( b.x - a.x ) * e / len ),
+                                    a.y + static_cast<int>( ( b.y - a.y ) * e / len ) );
+            }
+        }
+    }
+
     // shots: a bright line from the gun to where the shot ended, fading quickly
     for( const fluid::tracer_view &t : fluid::tracers() ) {
         if( t.from.z() != get_avatar().pos_abs().z() ) {
