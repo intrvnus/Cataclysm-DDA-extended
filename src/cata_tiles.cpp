@@ -2050,6 +2050,39 @@ void cata_tiles::draw_fluid_overlays()
     SDL_Renderer *r = renderer.get();
     SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
 
+    // monsters winding up a blow: the tile they will hit glows red, stronger as the blow nears,
+    // and the attacker gets a red frame (step out of the red tile to dodge)
+    for( const fluid::incoming_blow &blow : fluid::incoming_blows() ) {
+        if( blow.tile.z() != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const point tl = to_screen( blow.tile.x(), blow.tile.y(), blow.tile.z() );
+        SDL_Rect rect = { tl.x, tl.y, tile_width, tile_height };
+        SDL_SetRenderDrawColor( r, 255, 30, 20, static_cast<Uint8>( 50 + 120 * blow.progress ) );
+        SDL_RenderFillRect( r, &rect );
+        const Uint8 edge = static_cast<Uint8>( 150 + 105 * blow.progress );
+        SDL_SetRenderDrawColor( r, 255, 70, 40, edge );
+        SDL_RenderDrawRect( r, &rect );
+        rect = { rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2 };
+        SDL_RenderDrawRect( r, &rect );
+        const fluid::offset so = fluid::sprite_offset( blow.from );
+        const point at = to_screen( blow.from.x() + so.x, blow.from.y() + so.y, blow.from.z() );
+        SDL_Rect frame = { at.x, at.y, tile_width, tile_height };
+        SDL_SetRenderDrawColor( r, 255, 60, 30, edge );
+        SDL_RenderDrawRect( r, &frame );
+    }
+
+    // creatures that were just hit flash white
+    for( const std::pair<tripoint_abs_ms, double> &flash : fluid::hit_flashes() ) {
+        const fluid::offset so = fluid::sprite_offset( flash.first );
+        const point at = to_screen( flash.first.x() + so.x, flash.first.y() + so.y, flash.first.z() );
+        SDL_Rect rect = { at.x, at.y, tile_width, tile_height };
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_ADD );
+        SDL_SetRenderDrawColor( r, 255, 255, 255, static_cast<Uint8>( 170 * flash.second ) );
+        SDL_RenderFillRect( r, &rect );
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+    }
+
     // the tile that is about to be hit
     const fluid::melee_view &mv = fluid::local_melee_view();
     if( mv.active ) {

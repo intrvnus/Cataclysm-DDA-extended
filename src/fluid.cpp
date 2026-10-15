@@ -157,7 +157,22 @@ struct lunge {
     ms_t t0 = 0;
     int windup = 0;
     int total = 0;
+    // hit-stop: the lunge holds still for stop_ms from stop_at (0 = none)
+    ms_t stop_at = 0;
+    int stop_ms = 0;
 };
+
+// a creature that was hit: it flashes, shakes during the hit-stop and is knocked back a little
+// (drawn only), from the direction (dx, dy)
+struct hit_fx {
+    int dx = 0;
+    int dy = 0;
+    ms_t t0 = 0;
+};
+constexpr int hit_stop_ms = 60;
+constexpr int hit_recoil_ms = 180;
+constexpr int hit_flash_ms = 120;
+constexpr double hit_recoil_tiles = 0.22;
 
 std::map<tripoint_abs_ms, slide> &slides()
 {
@@ -168,6 +183,12 @@ std::map<tripoint_abs_ms, slide> &slides()
 std::map<tripoint_abs_ms, lunge> &lunges()
 {
     static std::map<tripoint_abs_ms, lunge> m;
+    return m;
+}
+
+std::map<tripoint_abs_ms, hit_fx> &hits()
+{
+    static std::map<tripoint_abs_ms, hit_fx> m;
     return m;
 }
 
@@ -376,7 +397,11 @@ offset lunge_offset_at( const tripoint_abs_ms &p, ms_t now )
     }
     const double ux = l.dx / len;
     const double uy = l.dy / len;
-    const double t = static_cast<double>( now - l.t0 );
+    double t = static_cast<double>( now - l.t0 );
+    if( l.stop_ms > 0 && now >= l.stop_at ) {
+        // hit-stop: hold the pose of the moment the blow connected
+        t = now < l.stop_at + l.stop_ms ? static_cast<double>( l.stop_at - l.t0 ) : t - l.stop_ms;
+    }
     double amount = 0.0;
     constexpr double strike_ms = 70.0;
     if( t < l.windup ) {
@@ -396,8 +421,44 @@ offset lunge_offset_at( const tripoint_abs_ms &p, ms_t now )
     return o;
 }
 
+offset hit_offset_at( const tripoint_abs_ms &p, ms_t now )
+{
+    const auto iter = hits().find( p );
+    if( iter == hits().end() || now < iter->second.t0 ) {
+        return offset();
+    }
+    const hit_fx &h = iter->second;
+    const double len = std::hypot( h.dx, h.dy );
+    if( len < 0.5 ) {
+        return offset();
+    }
+    const double ux = h.dx / len;
+    const double uy = h.dy / len;
+    const double t = static_cast<double>( now - h.t0 );
+    double amount = 0.0;
+    double shake = 0.0;
+    if( t < hit_stop_ms ) {
+        amount = hit_recoil_tiles * ease_out( t / hit_stop_ms );
+        // a short shake across the direction of the blow
+        shake = ( static_cast<int>( t / 20 ) % 2 == 0 ? 0.05 : -0.05 );
+    } else if( t < hit_stop_ms + hit_recoil_ms ) {
+        amount = hit_recoil_tiles * ( 1.0 - ease_out( ( t - hit_stop_ms ) / hit_recoil_ms ) );
+    }
+    offset o;
+    o.x = ux * amount - uy * shake;
+    o.y = uy * amount + ux * shake;
+    return o;
+}
+
 void prune_animations( ms_t now )
 {
+    for( auto iter = hits().begin(); iter != hits().end(); ) {
+        if( now >= iter->second.t0 + hit_stop_ms + hit_recoil_ms ) {
+            iter = hits().erase( iter );
+        } else {
+            ++iter;
+        }
+    }
     for( auto iter = slides().begin(); iter != slides().end(); ) {
         if( now >= iter->second.t0 + iter->second.dur ) {
             iter = slides().erase( iter );
@@ -878,6 +939,65 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     emit( out, ev );
 }
 
+// Pushes @p target one tile in direction (dx, dy) if that tile is free and can be walked on
+// (never into walls, other creatures or ledges: no extra damage).  True if it moved.
+bool push_creature( Creature &target, int dx, int dy, ms_t now, std::vector<event> *out )
+{
+    map &here = get_map();
+    const tripoint_abs_ms from = target.pos_abs();
+    const tripoint_abs_ms to = from + tripoint_rel_ms( dx, dy, 0 );
+    if( ( dx == 0 && dy == 0 ) || !here.inbounds( to ) ) {
+        return false;
+    }
+    const tripoint_bub_ms to_bub = here.get_bub( to );
+    if( !here.passable( to_bub ) || here.has_flag( ter_furn_flag::TFLAG_NO_FLOOR, to_bub ) ||
+        get_creature_tracker().creature_at( to ) != nullptr ) {
+        return false;
+    }
+    target.knock_back_to( to_bub );
+    if( target.pos_abs() != to ) {
+        return false;
+    }
+    constexpr int push_ms = 140;
+    begin_slide( from, to, now, push_ms );
+    event ev;
+    ev.type = fx_type::step;
+    ev.from = from;
+    ev.to = to;
+    ev.dur_ms = push_ms;
+    emit( out, ev );
+    return true;
+}
+
+// Knockback of a melee hit (Noah 2026-10-15): heavy blunt weapons can push what they hit one tile
+// back.  Chance: 10% per kg of the weapon plus 2% per strength above 8, at most 50%; only
+// bash weapons of at least 1 kg, only targets up to human size.  World option
+// FLUID_MELEE_KNOCKBACK.
+void melee_knockback( Character &who, Creature &target, int dx, int dy, ms_t now,
+                      std::vector<event> *out )
+{
+    if( !get_option<bool>( "FLUID_MELEE_KNOCKBACK" ) || target.is_dead_state() ||
+        target.get_size() > creature_size::medium ) {
+        return;
+    }
+    item_location weapon = who.used_weapon();
+    if( !weapon ) {
+        return;
+    }
+    static const damage_type_id dt_bash( "bash" );
+    static const damage_type_id dt_cut( "cut" );
+    static const damage_type_id dt_stab( "stab" );
+    const int bash = weapon->damage_melee( dt_bash );
+    const double kg = units::to_kilogram( weapon->weight() );
+    if( kg < 1.0 || bash < std::max( weapon->damage_melee( dt_cut ), weapon->damage_melee( dt_stab ) ) ) {
+        return;
+    }
+    const int chance = std::clamp( static_cast<int>( kg * 10 ) + 2 * ( who.get_str() - 8 ), 0, 50 );
+    if( x_in_y( chance, 100 ) ) {
+        push_creature( target, dx, dy, now, out );
+    }
+}
+
 // The blow lands: whoever is there now is hit, the direction can still be steered a little.
 void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 std::vector<event> *out )
@@ -974,10 +1094,17 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
     ev.type = fx_type::strike;
     ev.actor = who.getID().get_value();
     ev.from = pos;
+    ev.to = target != nullptr ? target->pos_abs() : pos;
     ev.dx = dir.first;
     ev.dy = dir.second;
     ev.hit = hit;
+    if( hit && target != nullptr ) {
+        register_hit( pos, ev.to, dir.first, dir.second, now );
+    }
     emit( out, ev );
+    if( hit && target != nullptr && best_cheb <= 1 ) {
+        melee_knockback( who, *target, dir.first, dir.second, now, out );
+    }
 }
 
 // ---- steps -------------------------------------------------------------------------------
@@ -1837,6 +1964,57 @@ void end_lunge( const tripoint_abs_ms &at )
     lunges().erase( at );
 }
 
+void register_hit( const tripoint_abs_ms &attacker, const tripoint_abs_ms &target, int dx, int dy,
+                   ms_t now )
+{
+    const auto iter = lunges().find( attacker );
+    if( iter != lunges().end() && iter->second.stop_ms == 0 ) {
+        iter->second.stop_at = now;
+        iter->second.stop_ms = hit_stop_ms;
+        iter->second.total += hit_stop_ms;
+    }
+    hit_fx h;
+    h.dx = dx;
+    h.dy = dy;
+    h.t0 = now;
+    hits()[target] = h;
+}
+
+std::vector<incoming_blow> incoming_blows()
+{
+    std::vector<incoming_blow> out;
+    const ms_t now = now_ms();
+    creature_tracker &creatures = get_creature_tracker();
+    for( const std::pair<const tripoint_abs_ms, lunge> &e : lunges() ) {
+        const lunge &l = e.second;
+        if( now < l.t0 || now >= l.t0 + l.windup || ( l.dx == 0 && l.dy == 0 ) ) {
+            continue;
+        }
+        if( creatures.creature_at<monster>( e.first ) == nullptr ) {
+            continue;
+        }
+        incoming_blow b;
+        b.from = e.first;
+        b.tile = e.first + tripoint_rel_ms( l.dx, l.dy, 0 );
+        b.progress = std::clamp( static_cast<double>( now - l.t0 ) / std::max( 1, l.windup ), 0.0, 1.0 );
+        out.push_back( b );
+    }
+    return out;
+}
+
+std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes()
+{
+    std::vector<std::pair<tripoint_abs_ms, double>> out;
+    const ms_t now = now_ms();
+    for( const std::pair<const tripoint_abs_ms, hit_fx> &e : hits() ) {
+        const ms_t t = now - e.second.t0;
+        if( t >= 0 && t < hit_flash_ms ) {
+            out.emplace_back( e.first, 1.0 - static_cast<double>( t ) / hit_flash_ms );
+        }
+    }
+    return out;
+}
+
 namespace
 {
 // The draw offset of a player's body standing on @p p, if there is a fresh one.
@@ -1853,7 +2031,8 @@ const body_draw *body_draw_at( const tripoint_abs_ms &p, ms_t now )
 
 offset sprite_offset( const tripoint_abs_ms &p )
 {
-    if( slides().empty() && lunges().empty() && !pred().active && body_draws().empty() ) {
+    if( slides().empty() && lunges().empty() && hits().empty() && !pred().active &&
+        body_draws().empty() ) {
         return offset();
     }
     const ms_t now = now_ms();
@@ -1864,8 +2043,9 @@ offset sprite_offset( const tripoint_abs_ms &p )
         a = travel_offset_at( p, now );
     }
     const offset b = lunge_offset_at( p, now );
-    a.x += b.x;
-    a.y += b.y;
+    const offset h = hit_offset_at( p, now );
+    a.x += b.x + h.x;
+    a.y += b.y + h.y;
     return a;
 }
 
@@ -1930,7 +2110,8 @@ offset camera_offset()
 
 bool animating()
 {
-    if( !slides().empty() || !lunges().empty() || pred().active || aim_view_rw().active ) {
+    if( !slides().empty() || !lunges().empty() || !hits().empty() || pred().active ||
+        aim_view_rw().active ) {
         return true;
     }
     const ms_t now = now_ms();
@@ -2445,7 +2626,19 @@ void process_monster_windups( ms_t now )
         }
         // the moves were spent when it committed to the blow
         z->mod_moves( z->type->attack_cost );
+        const int hp_before = target->get_hp();
         z->melee_attack( *target );
+        if( target->get_hp() < hp_before ) {
+            event ev;
+            ev.type = fx_type::strike;
+            ev.from = z->pos_abs();
+            ev.to = target->pos_abs();
+            ev.dx = std::clamp( ev.to.x() - ev.from.x(), -1, 1 );
+            ev.dy = std::clamp( ev.to.y() - ev.from.y(), -1, 1 );
+            ev.hit = true;
+            register_hit( ev.from, ev.to, ev.dx, ev.dy, now );
+            net::host_send_events( { ev } );
+        }
     }
 }
 
@@ -2566,6 +2759,10 @@ void apply_visual_event( const event &ev, ms_t arrival )
             end_lunge( ev.from );
             break;
         case fx_type::strike:
+            if( ev.hit && ev.to != ev.from ) {
+                register_hit( ev.from, ev.to, ev.dx, ev.dy, arrival );
+            }
+            break;
         case fx_type::shot:
         case fx_type::aim:
             break;
@@ -2958,6 +3155,8 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             ci.busy_until = arrival + ev.dur_ms;
             break;
         case fx_type::strike:
+            apply_visual_event( ev, arrival );
+            break;
         case fx_type::aim:
             break;
     }

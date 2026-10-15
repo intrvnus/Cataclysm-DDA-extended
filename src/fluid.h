@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "coordinates.h"
@@ -354,6 +355,19 @@ void begin_slide( const tripoint_abs_ms &from, const tripoint_abs_ms &to, ms_t t
 void begin_lunge( const tripoint_abs_ms &at, int dx, int dy, ms_t t0, int windup_ms, int total_ms );
 /** Cancels a lunge. */
 void end_lunge( const tripoint_abs_ms &at );
+/** A blow connected: the attacker's lunge holds for a moment (hit-stop), the target flashes,
+ * shakes and is drawn knocked back a little. */
+void register_hit( const tripoint_abs_ms &attacker, const tripoint_abs_ms &target, int dx, int dy,
+                   ms_t now );
+/** A monster winding up a blow: the tile it will hit and how far the wind-up is (0..1). */
+struct incoming_blow {
+    tripoint_abs_ms from;
+    tripoint_abs_ms tile;
+    double progress = 0.0;
+};
+std::vector<incoming_blow> incoming_blows();
+/** Creatures that were just hit, with the strength of their flash (1..0). */
+std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes();
 
 /** Where the sprite of whatever is on @p p is drawn, relative to the tile centre, in tiles. */
 offset sprite_offset( const tripoint_abs_ms &p );

@@ -1685,6 +1685,11 @@ void options_manager::add_options_general()
            );
         get_option( "FLUID_BODY_WIDTH" ).setPrerequisite( "FLUID_FREE_MOVEMENT" );
 
+        add( "FLUID_MELEE_KNOCKBACK", page_id, to_translation( "Melee knockback" ),
+             to_translation( "Heavy blunt weapons (1 kg or more, mostly bash damage) can push what they hit one tile back: 10% per kg plus 2% per strength above 8, at most 50%.  Only creatures up to human size, only onto a free tile.  Hosts decide for the whole session." ),
+             true
+           );
+
         add( "FLUID_INTERP_MS", page_id, to_translation( "Free movement: other players' delay (ms)" ),
              to_translation( "Multiplayer clients draw the other players this many milliseconds in the past, gliding between the positions the host sends.  Higher is smoother on a bad connection, lower is more current.  Only affects your own screen." ),
              50, 400, 100
