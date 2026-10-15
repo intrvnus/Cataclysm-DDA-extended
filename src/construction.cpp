@@ -2483,7 +2483,7 @@ int construction::adjusted_time() const
     int final_time = time;
     int assistants = 0;
 
-    for( Character *elem : get_avatar().get_crafting_helpers() ) {
+    for( Character *elem : get_player_character().get_crafting_helpers() ) {
         if( elem->meets_skill_requirements( *this ) ) {
             assistants++;
         }

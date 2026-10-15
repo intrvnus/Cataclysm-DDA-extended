@@ -15655,7 +15655,8 @@ bool item::on_drop( const tripoint_bub_ms &pos, map &m )
         set_flag( flag_DIRTY );
     }
 
-    avatar &player_character = get_avatar();
+    // the one dropping it (multiplayer: a client's body during its action)
+    Character &player_character = get_player_character();
 
     return type->drop_action && type->drop_action.call( &player_character, *this, &m, pos );
 }
