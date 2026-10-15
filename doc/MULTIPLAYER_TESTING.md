@@ -53,6 +53,26 @@ or thirsty. At 0 you cannot sprint until 30% is back.
 7. **Down and out:** get downed (a friend helps you up by walking into you), bleed out (new body).
 8. Leave and rejoin: you should be back where you were, with your things.
 
+## New in the build of 2026-10-15 (please check)
+
+Host and client need this build (network protocol 3).
+
+- [ ] Free movement, solo: walk, run, diagonals, sliding along walls, slipping round corners.
+- [ ] Fire, a known trap or a roof edge stops you at the edge; keep pushing about 0.4 s to go in
+      (roof edge: the climb-down menu opens). No "Really step into ...?" question any more.
+- [ ] Client: your own character moves at once and smoothly, also when sprinting; walls and closed
+      doors do not make it jump back and forth.
+- [ ] Client: other players glide smoothly (they are drawn about 0.1 s in the past).
+- [ ] Client: at a roof edge you are told to examine it (e) to climb down.
+- [ ] Client: examining a pet (mount it, give it a bag or armor, tie it), filling a keg, loading a
+      mill, the haul menu and the menus of a vehicle work on your own character, not the host's.
+- [ ] Client: rain makes you wet, bright sun or snow can dazzle you (as for the host).
+- [ ] Client: when the host opens a menu you get "The world waits: the host is busy", and
+      "The world goes on." afterwards.
+- [ ] Options page, fluid section: "Free movement: push time into danger", "body width" and
+      "other players' delay" can be changed (keep body width the same on host and clients).
+- [ ] Lives: running out of lives, making a new character and joining again.
+
 ## When something breaks
 
 Send me (or write down): what you did, what you expected, what happened, and the debug logs:
