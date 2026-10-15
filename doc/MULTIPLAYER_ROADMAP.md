@@ -6,6 +6,7 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 
 | Topic | State |
 |---|---|
+| Hosting: one game window + server terminal window (log, `config/debug_server.log`; closing saves and stops) | Done 2026-10-15 late, compiled (Linux + Windows build 38801399730), not run in game |
 | Client menus (record/replay), missions/zones/map/chat/F4 list, driving, passengers, grab (furniture and vehicles), construction, downed/respawn, dedicated server, reconnect, compression | **Done, run in game** (see `MULTIPLAYER_OVERNIGHT_REPORT.md`) |
 | Dialogue side commands (look at/size up/assess/opinion/yell) | Done, run in game |
 | Monsters/specials/turret friend-or-foe target the nearest player | Done (compiled, regression sweep passes) |
