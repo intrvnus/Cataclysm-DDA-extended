@@ -3696,7 +3696,8 @@ std::unique_ptr<activity_actor> open_gate_activity_actor::deserialize( JsonValue
 void consume_activity_actor::start( player_activity &act, Character &guy )
 {
     int moves = 0;
-    Character &player_character = get_player_character();
+    // the one eating (multiplayer: a client's body, started outside its action)
+    Character &player_character = guy;
     if( consume_location ) {
         ret_val<edible_rating> ret = player_character.will_eat( *consume_location, true );
         if( !ret.success() ) {
