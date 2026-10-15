@@ -17,6 +17,8 @@ namespace mp_scores
 {
 /** Host: listen to the game's events (once). */
 void start();
+/** Host, once per turn: time-based milestones (days survived). */
+void tick();
 /** The scoreboard of everybody present. */
 std::string scoreboard();
 /** @p who is gone for good (no life left): their line in the memorial. */

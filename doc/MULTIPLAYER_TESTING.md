@@ -88,6 +88,8 @@ Host and client need this build (network protocol 3).
       (not on the host's); it stops a few seconds after you switch it off.
 - [ ] A talking monster examined as a client: the conversation opens on your screen.
 - [ ] Translocators as a client: activate two gates, translocate: you arrive at the other one.
+- [ ] Achievements as a client: killing your first zombie gives "Achievement: One down, billions
+      to go…" on your screen; `/stats` counts your achievements and days.
 - [ ] `/stats` in the chat: kills, skill levels, lives lost for every player. Missions screen:
       "(yours)" / "(taken by ...)" and the group's and your own completed/failed.
 - [ ] Groups: in the chat (F2) `/group create Red` on one client, `/group invite <name>` and

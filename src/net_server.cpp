@@ -3323,6 +3323,7 @@ void host_end_of_turn()
     poll();
     update_host_downed();
     mp_stations::tick();
+    mp_scores::tick();
     if( !net::dedicated() && !host_down().downed ) {
         mp_lives::tick( get_avatar() );
     }
