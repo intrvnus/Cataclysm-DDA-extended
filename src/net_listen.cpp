@@ -219,6 +219,8 @@ void open_server_console()
         FILE *f = nullptr;
         freopen_s( &f, "CONOUT$", "w", stdout );
         freopen_s( &f, "CONOUT$", "w", stderr );
+        // every line shows at once (the window is the server's live log)
+        std::setvbuf( stdout, nullptr, _IONBF, 0 );
         // no QuickEdit: a click into the window would pause the server until Escape
         HANDLE in = CreateFileA( "CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
                                  nullptr, OPEN_EXISTING, 0, nullptr );
