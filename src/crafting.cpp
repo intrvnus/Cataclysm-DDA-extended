@@ -66,6 +66,7 @@
 #include "proficiency.h"
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "ret_val.h"
 #include "rng.h"
@@ -1804,7 +1805,8 @@ comp_selection<item_comp> Character::select_item_component( const std::vector<it
         return is_preferred_component( it ) && filter( it );
     };
 
-    Character &player_character = get_player_character();
+    // the player choosing (in multiplayer the host may be replaying a client's body here)
+    Character &player_character = remote_ui::acting_player();
     std::vector<std::pair<item_comp, std::optional<nc_color>>> player_has;
     std::vector<std::pair<item_comp, std::optional<nc_color>>> map_has;
     std::vector<std::pair<item_comp, std::optional<nc_color>>> mixed;
@@ -2662,7 +2664,8 @@ bool Character::disassemble( item_location target, bool interactive, bool disass
         return false;
     }
 
-    avatar &player_character = get_avatar();
+    // multiplayer: the player whose action this is (a client's body while the host replays it)
+    Character &player_character = remote_ui::acting_player();
     const recipe &r = ( obj.typeId() == itype_disassembly ) ? obj.get_making() :
                       recipe_dictionary::get_uncraft( obj.typeId() );
     if( !obj.is_owned_by( player_character, true ) ) {
