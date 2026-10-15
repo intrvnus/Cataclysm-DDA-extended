@@ -64,8 +64,9 @@ Host and client need this build (network protocol 3).
       doors do not make it jump back and forth.
 - [ ] Client: other players glide smoothly (they are drawn about 0.1 s in the past).
 - [ ] Client: at a roof edge you are told to examine it (e) to climb down.
-- [ ] Client: examining a pet (mount it, give it a bag or armor, tie it), filling a keg, loading a
-      mill, the haul menu and the menus of a vehicle work on your own character, not the host's.
+- [ ] Client: a washing machine / dishwasher in a vehicle uses your detergent, examining a known
+      trap works for you, building planks from a log puts them at your feet, and you can pick locks.
+- [ ] Client riding a horse or mech: throwing and firing an energy weapon do not crash the host.
 - [ ] Client: rain makes you wet, bright sun or snow can dazzle you (as for the host).
 - [ ] Client: when the host opens a menu you get "The world waits: the host is busy", and
       "The world goes on." afterwards.
