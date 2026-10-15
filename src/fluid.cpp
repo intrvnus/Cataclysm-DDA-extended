@@ -1229,6 +1229,11 @@ int body_step_cost( const Character &who, const tripoint_abs_ms &from, const tri
         return std::max( 1, who.swim_speed() );
     }
     int mc = here.combined_movecost( f, t );
+    if( f.x() != t.x() && f.y() != t.y() && trigdist ) {
+        // the same speed in every direction (Noah, decision 2): the native cost of a diagonal
+        // step is 1.41x that of a straight one
+        mc = mc * 50 / 71;
+    }
     if( mc <= 0 ) {
         // standing somewhere odd (the own tile is not passable): plain ground
         mc = 100;
