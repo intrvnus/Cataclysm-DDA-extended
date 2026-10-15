@@ -916,6 +916,29 @@ void run_npc_view()
 
 // Reads one key (or times out) and sends the matching command to the host.
 // Returns true if the player wants to leave the game.
+// the debug menu for testing: chosen here, run by the host for this body
+void client_debug_menu()
+{
+    const std::optional<debug_menu::debug_menu_index> dbg = debug_menu::choose();
+    if( !dbg ) {
+        return;
+    }
+    switch( debug_menu::where_in_multiplayer( *dbg ) ) {
+        case debug_menu::debug_where::local:
+            debug_menu::run( *dbg );
+            break;
+        case debug_menu::debug_where::not_in_multiplayer:
+            add_msg( m_info, _( "Not available in multiplayer." ) );
+            break;
+        case debug_menu::debug_where::server:
+            send_ui( "debug", [dbg] {
+                remote_ui::record( "dbg", std::to_string( static_cast<int>( *dbg ) ) );
+                debug_menu::run( *dbg );
+            } );
+            break;
+    }
+}
+
 bool handle_input()
 {
     if( !npc_view_queue().empty() ) {
@@ -1152,28 +1175,9 @@ bool handle_input()
         case ACTION_TOGGLE_DEBUG_MODE:
             add_msg( m_info, _( "Not available in multiplayer." ) );
             break;
-        case ACTION_DEBUG: {
-            // the debug menu for testing: chosen here, run by the host for this body
-            const std::optional<debug_menu::debug_menu_index> dbg = debug_menu::choose();
-            if( !dbg ) {
-                break;
-            }
-            switch( debug_menu::where_in_multiplayer( *dbg ) ) {
-                case debug_menu::debug_where::local:
-                    debug_menu::run( *dbg );
-                    break;
-                case debug_menu::debug_where::not_in_multiplayer:
-                    add_msg( m_info, _( "Not available in multiplayer." ) );
-                    break;
-                case debug_menu::debug_where::server:
-                    send_ui( "debug", [dbg] {
-                        remote_ui::record( "dbg", std::to_string( static_cast<int>( *dbg ) ) );
-                        debug_menu::run( *dbg );
-                    } );
-                    break;
-            }
+        case ACTION_DEBUG:
+            client_debug_menu();
             break;
-        }
         case ACTION_CAST_SPELL:
         case ACTION_RECAST_SPELL: {
             // C18: the spell is chosen here, aimed at the mouse (like shooting); the host casts it
@@ -1517,10 +1521,30 @@ bool handle_input()
         case ACTION_LOOK:
             g->look_around();
             break;
-        case ACTION_MAIN_MENU:
+        case ACTION_MAIN_MENU: {
+            // the game menu of a player (the world itself runs on the server)
+            uilist menu;
+            menu.text = _( "Game menu" );
+            menu.addentry( 0, true, 'o', _( "Options" ) );
+            menu.addentry( 1, true, 'k', _( "Key bindings" ) );
+            menu.addentry( 2, true, 'd', _( "Debug menu" ) );
+            menu.addentry( 3, true, 'l', _( "Leave the game (your character is saved on the server)" ) );
+            menu.addentry( 4, true, 'b', _( "Back to the game" ) );
+            menu.query();
+            if( menu.ret == 0 ) {
+                get_options().show( true );
+            } else if( menu.ret == 1 ) {
+                input_context ctx = get_default_mode_input_context();
+                ctx.display_menu();
+            } else if( menu.ret == 2 ) {
+                client_debug_menu();
+            } else if( menu.ret == 3 ) {
+                return true;
+            }
+            break;
+        }
         case ACTION_SAVE:
-            if( query_yn( _( "Leave the multiplayer game?  This world is only a view of the host's "
-                             "world and will not be saved." ) ) ) {
+            if( query_yn( _( "Leave the multiplayer game?  Your character is saved on the server." ) ) ) {
                 return true;
             }
             break;
@@ -2008,6 +2032,16 @@ std::vector<std::pair<tripoint_abs_ms, double>> activity_bars()
     return out;
 }
 
+namespace
+{
+// the last input frame sent to the host
+fluid::input_frame &last_input_sent()
+{
+    static fluid::input_frame last;
+    return last;
+}
+} // namespace
+
 bool input_idle()
 {
     client_state &cs = cstate();
@@ -2029,6 +2063,19 @@ bool input_idle()
         cs.menu_hp_base = hp;
     }
     impl::menu_poll();
+    // a menu or message is open: the own character must not keep walking (or swinging) with
+    // the keys that were held when it opened; the press counters stay, so this is no click
+    fluid::input_frame released = last_input_sent();
+    if( released.move_x != 0 || released.move_y != 0 || released.primary || released.secondary ||
+        released.sprint ) {
+        released.move_x = 0;
+        released.move_y = 0;
+        released.primary = false;
+        released.secondary = false;
+        released.sprint = false;
+        released.cancel = false;
+        client_send_input( released );
+    }
     return cs.menu_danger;
 }
 
@@ -2039,7 +2086,7 @@ int client_send_input( const fluid::input_frame &in )
         return -1;
     }
     static int seq = 0;
-    static fluid::input_frame last;
+    fluid::input_frame &last = last_input_sent();
     static fluid::ms_t last_at = -100000;
     const fluid::ms_t now = fluid::now_ms();
     const bool buttons = in.move_x != last.move_x || in.move_y != last.move_y ||
