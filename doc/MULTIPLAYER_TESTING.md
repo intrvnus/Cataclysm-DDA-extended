@@ -73,6 +73,16 @@ Host and client need this build (network protocol 3).
 - [ ] Options page, fluid section: "Free movement: push time into danger", "body width" and
       "other players' delay" can be changed (keep body width the same on host and clients).
 - [ ] Lives: running out of lives, making a new character and joining again.
+- [ ] Groups: in the chat (F2) `/group create Red` on one client, `/group invite <name>` and
+      `/group accept` on another, `/group` lists the groups. F4 shows health only for your group.
+- [ ] Groups and items: a player of another group taking items from your group's base counts as
+      stealing; your own group's members can take them freely.
+- [ ] Groups and zones: a zone made in the zone menu (`Y`) is seen by your group only; sorting
+      loot uses your group's zones.
+- [ ] Groups and missions: a mission accepted by one group is not listed for another group.
+- [ ] Recruited NPC follows the player who recruited it, not the nearest player.
+- [ ] Waiting (`|`) in multiplayer is a short break that takes away weariness; walking alone no
+      longer makes you weary.
 
 ## When something breaks
 
