@@ -6,6 +6,9 @@ Multiplayer / fluid mode work happens on the branch `claude/fluid-proto`. Before
 asking, say how every change was verified, keep the roadmap STATUS current, never push to
 `intrvnus-mod`, no PR, no force push, no Windows build unless Noah asks.
 
+## Quality rule from Noah (2026-10-15)
+Quality over quantity: never take the easier option because it is less work. When a clean solution and a shortcut both exist, take the harder, cleaner one if it makes the product better (example of what not to do: hosting by copying the game into a second folder and running a second game window). If a shortcut is truly unavoidable, say so and ask first.
+
 ## Standing rule from Noah (2026-10-15)
 Anything that should affect a client (its body, its items, its actions) but affects the host's
 character instead is a bug: fix it right away without asking. Effects of an item use the item's
