@@ -951,7 +951,8 @@ void haul_menu()
 
 static void haul_toggle()
 {
-    get_avatar().toggle_hauling();
+    // multiplayer: the player whose action this is
+    remote_ui::acting_player().toggle_hauling();
 }
 
 void smash_menu()
