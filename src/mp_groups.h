@@ -38,6 +38,11 @@ bool pvp_target( const Character &attacker, const Creature &victim );
 /** C20: a trap @p who placed at @p pos (on the current map) becomes known to every other
  * player of their group. */
 void share_trap( const Character &who, const tripoint_bub_ms &pos );
+/** B5 sparring: @p a and @p b (players of the same group) both asked to spar with each other
+ * ("/spar <name>") in the last 10 minutes: melee between them trains instead of hurting. */
+bool sparring( const Creature &a, const Creature &b );
+/** A sparring blow of @p attacker on @p partner: skill practice, no damage. */
+void spar_hit( Character &attacker, Character &partner );
 /** A "/group ..." chat line of @p who (the text after "/group"); returns the answer for them. */
 std::string command( Character &who, const std::string &args );
 /** Missions belong to the group of the player who accepted them (kept with the world). */

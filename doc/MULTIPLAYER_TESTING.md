@@ -82,6 +82,8 @@ Host and client need this build (network protocol 3).
       here": pick a long recipe (30 min+), the components go, the station makes it alone and you
       get "The station finished your ...", the item lies on the workbench. A short recipe is just
       made by you.
+- [ ] Sparring: two players of one group both type `/spar <other name>`; hitting each other
+      gives "You spar with ..." and no damage; skills go up slowly (character sheet).
 - [ ] Groups: in the chat (F2) `/group create Red` on one client, `/group invite <name>` and
       `/group accept` on another, `/group` lists the groups. F4 shows health only for your group.
 - [ ] Groups and items: a player of another group taking items from your group's base counts as

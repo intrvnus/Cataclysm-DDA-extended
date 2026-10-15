@@ -2436,10 +2436,11 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         if( text.size() > 200 ) {
             text.resize( 200 );
         }
-        if( text.rfind( "/group", 0 ) == 0 ) {
-            // C4: group commands go to the group system, not to everybody
+        if( text.rfind( "/group", 0 ) == 0 || text.rfind( "/spar", 0 ) == 0 ) {
+            // C4: group commands go to the group system, not to everybody (B5: /spar too)
             if( npc *me = g->find_npc( rp->npc_id ) ) {
-                send_text( *rp, mp_groups::command( *me, text.substr( 6 ) ) );
+                send_text( *rp, mp_groups::command( *me, text.rfind( "/spar", 0 ) == 0 ? "spar" + text.substr( 5 ) :
+                                                    text.substr( 6 ) ) );
             }
         } else if( !text.empty() ) {
             const std::string line = string_format( "%s: %s", rp->name, text );
@@ -3217,8 +3218,9 @@ void host_chat( const std::string &text_in )
     if( text.empty() ) {
         return;
     }
-    if( text.rfind( "/group", 0 ) == 0 ) {
-        add_msg( m_info, "%s", mp_groups::command( get_avatar(), text.substr( 6 ) ) );
+    if( text.rfind( "/group", 0 ) == 0 || text.rfind( "/spar", 0 ) == 0 ) {
+        add_msg( m_info, "%s", mp_groups::command( get_avatar(), text.rfind( "/spar", 0 ) == 0 ?
+                 "spar" + text.substr( 5 ) : text.substr( 6 ) ) );
         return;
     }
     const std::string line = string_format( "%s: %s", get_avatar().get_name(), text );

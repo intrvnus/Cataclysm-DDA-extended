@@ -619,7 +619,7 @@ bool is_valid_target( const Character &who, const Creature &c )
     if( c.is_dead_state() || &c == &who ) {
         return false;
     }
-    if( mp_groups::pvp_target( who, c ) ) {
+    if( mp_groups::pvp_target( who, c ) || mp_groups::sparring( who, c ) ) {
         return true;
     }
     const Creature::Attitude att = who.attitude_to( c );
@@ -1199,7 +1199,11 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
     bool hit = false;
     if( target != nullptr ) {
         native_scope scope( who );
-        if( best_cheb > 1 ) {
+        if( mp_groups::sparring( who, *target ) ) {
+            // B5: a sparring blow trains, it does not hurt
+            mp_groups::spar_hit( who, *target->as_character() );
+            hit = true;
+        } else if( best_cheb > 1 ) {
             // a reach weapon past the neighbouring tiles
             who.reach_attack( get_map().get_bub( target->pos_abs() ) );
             hit = true;
@@ -1234,7 +1238,7 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
         register_hit( pos, ev.to, dir.first, dir.second, now );
     }
     emit( out, ev );
-    if( hit && target != nullptr && best_cheb <= 1 ) {
+    if( hit && target != nullptr && best_cheb <= 1 && !mp_groups::sparring( who, *target ) ) {
         melee_knockback( who, *target, dir.first, dir.second, now, out );
     }
 }

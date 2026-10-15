@@ -15,6 +15,11 @@
 #include "map_scale_constants.h"
 #include "path_info.h"
 #include "character.h"
+#include "messages.h"
+#include "skill.h"
+#include "item_location.h"
+#include "item.h"
+#include "calendar.h"
 #include "faction.h"
 #include "game.h"
 #include "net_session.h"
@@ -428,6 +433,51 @@ void share_trap( const Character &who, const tripoint_bub_ms &pos )
     }
 }
 
+namespace
+{
+struct spar_request {
+    int partner = 0;
+    time_point until;
+};
+
+std::map<int, spar_request> &spar_requests()
+{
+    static std::map<int, spar_request> m;
+    return m;
+}
+
+bool wants_to_spar( int who, int partner )
+{
+    const auto iter = spar_requests().find( who );
+    return iter != spar_requests().end() && iter->second.partner == partner &&
+           calendar::turn <= iter->second.until;
+}
+} // namespace
+
+bool sparring( const Creature &a, const Creature &b )
+{
+    if( &a == &b || !is_player( a ) || !is_player( b ) ) {
+        return false;
+    }
+    const int ia = a.as_character()->getID().get_value();
+    const int ib = b.as_character()->getID().get_value();
+    return wants_to_spar( ia, ib ) && wants_to_spar( ib, ia ) &&
+           same_group( *a.as_character(), *b.as_character() );
+}
+
+void spar_hit( Character &attacker, Character &partner )
+{
+    static const skill_id skill_dodge( "dodge" );
+    item_location weapon = attacker.used_weapon();
+    const skill_id used = weapon ? weapon->melee_skill() : skill_id( "unarmed" );
+    attacker.practice( used, 4 );
+    attacker.practice( skill_id( "melee" ), 2 );
+    partner.practice( skill_dodge, 3 );
+    attacker.mod_stamina( -100 );
+    attacker.add_msg_if_player( m_good, _( "You spar with %s." ), partner.get_name() );
+    partner.add_msg_if_player( m_info, _( "%s lands a sparring blow." ), attacker.get_name() );
+}
+
 bool is_player( const Creature &who )
 {
     const Character *ch = who.as_character();
@@ -486,6 +536,26 @@ std::string command( Character &who, const std::string &args )
     const std::string mine = group_of( who );
     if( op.empty() || op == "list" ) {
         return list_groups();
+    }
+    if( op == "spar" ) {
+        Character *other = player_named( rest );
+        if( other == nullptr || other == &who ) {
+            return _( "Usage: /spar <player> (both of you, same group): melee trains instead of hurting for 10 minutes." );
+        }
+        if( !same_group( who, *other ) ) {
+            return string_format( _( "%s is not in your group." ), other->get_name() );
+        }
+        spar_request &req = spar_requests()[who.getID().get_value()];
+        req.partner = other->getID().get_value();
+        req.until = calendar::turn + 10_minutes;
+        if( wants_to_spar( other->getID().get_value(), who.getID().get_value() ) ) {
+            net::tell_player( *other, string_format( _( "You spar with %s now (10 minutes)." ), who.get_name() ),
+                              true );
+            return string_format( _( "You spar with %s now (10 minutes)." ), other->get_name() );
+        }
+        net::tell_player( *other, string_format( _( "%s wants to spar.  Type /spar %s to agree." ),
+                          who.get_name(), who.get_name() ), true );
+        return string_format( _( "You asked %s to spar." ), other->get_name() );
     }
     if( op == "create" ) {
         if( rest.empty() || rest.size() > 30 ) {
