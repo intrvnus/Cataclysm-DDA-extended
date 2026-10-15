@@ -123,12 +123,33 @@ faction_id faction_for( const std::string &group )
     return fid;
 }
 
+// the faction a group got when it was founded: kept on its members ("mp_group_fac"), so a
+// rename keeps what the group owns
+faction_id group_faction( const Character &who )
+{
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        return faction_shared;
+    }
+    const std::string stored = who.get_value( "mp_group_fac" ).str();
+    if( !stored.empty() ) {
+        return faction_id( stored );
+    }
+    return faction_for( group );
+}
+
 // a client's body takes the faction of its group (the host's own character keeps the player
 // faction: the engine ties the avatar to it)
 void apply_faction( Character &who )
 {
+    const faction_id fid = group_faction( who );
+    if( group_of( who ).empty() ) {
+        who.remove_value( "mp_group_fac" );
+    } else {
+        who.set_value( "mp_group_fac", fid.str() );
+    }
     if( npc *guy = dynamic_cast<npc *>( &who ) ) {
-        guy->set_fac( faction_for( group_of( who ) ) );
+        guy->set_fac( fid );
     }
 }
 
@@ -137,10 +158,21 @@ bool is_leader( const Character &who )
     return who.get_value( "mp_group_leader" ).str() == "1";
 }
 
+std::vector<Character *> players();
+
 void set_group( Character &who, const std::string &group, bool leader )
 {
     copy_knowledge( who.get_value( "mp_group" ).str(), group );
     who.set_value( "mp_group", group );
+    who.remove_value( "mp_group_fac" );
+    for( const Character *c : players() ) {
+        // joining a group that exists: its faction (founding a new one: made from the name)
+        if( c != &who && !group.empty() && group_of( *c ) == group &&
+            !c->get_value( "mp_group_fac" ).str().empty() ) {
+            who.set_value( "mp_group_fac", c->get_value( "mp_group_fac" ).str() );
+            break;
+        }
+    }
     who.set_value( "mp_group_leader", leader ? "1" : "0" );
     apply_faction( who );
 }
