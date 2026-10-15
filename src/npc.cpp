@@ -3193,9 +3193,26 @@ void npc::add_msg_if_npc( const std::string &msg ) const
     add_msg( replace_with_npc_name( msg ) );
 }
 
-void npc::add_msg_player_or_npc( const std::string &/*player_msg*/,
+void npc::add_msg_if_player( const std::string &msg ) const
+{
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, msg, true );
+    }
+}
+
+void npc::add_msg_if_player( const game_message_params &type, const std::string &msg ) const
+{
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, msg, type.type != m_bad && type.type != m_warning );
+    }
+}
+
+void npc::add_msg_player_or_npc( const std::string &player_msg,
                                  const std::string &npc_msg ) const
 {
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, player_msg, true );
+    }
     add_msg_if_player_sees( *this, replace_with_npc_name( npc_msg ) );
 }
 
@@ -3205,25 +3222,36 @@ void npc::add_msg_if_npc( const game_message_params &params, const std::string &
 }
 
 void npc::add_msg_player_or_npc( const game_message_params &params,
-                                 const std::string &/*player_msg*/,
+                                 const std::string &player_msg,
                                  const std::string &npc_msg ) const
 {
     const map &here = get_map();
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, player_msg, params.type != m_bad && params.type != m_warning );
+    }
 
     if( get_player_view().sees( here, *this ) ) {
         add_msg( params, replace_with_npc_name( npc_msg ) );
     }
 }
 
-void npc::add_msg_player_or_say( const std::string &/*player_msg*/,
+void npc::add_msg_player_or_say( const std::string &player_msg,
                                  const std::string &npc_speech ) const
 {
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, player_msg, true );
+        return;
+    }
     say( npc_speech );
 }
 
-void npc::add_msg_player_or_say( const game_message_params &/*params*/,
-                                 const std::string &/*player_msg*/, const std::string &npc_speech ) const
+void npc::add_msg_player_or_say( const game_message_params &params,
+                                 const std::string &player_msg, const std::string &npc_speech ) const
 {
+    if( net::is_remote_player( *this ) ) {
+        net::tell_player( *this, player_msg, params.type != m_bad && params.type != m_warning );
+        return;
+    }
     say( npc_speech );
 }
 
