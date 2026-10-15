@@ -299,7 +299,9 @@ void doors::close_door( map &m, Creature &who, const tripoint_bub_ms &closep )
         const int inside_closable = veh->next_part_to_close( vpart );
         const int openable = veh->next_part_to_open( vpart );
         if( closable >= 0 ) {
-            if( !veh->handle_potential_theft( get_avatar() ) ) {
+            // the one closing it (multiplayer: may be a client's body)
+            const Character *closer = who.as_character();
+            if( !veh->handle_potential_theft( closer != nullptr ? *closer : get_avatar() ) ) {
                 return;
             }
             Character *ch = who.as_character();
