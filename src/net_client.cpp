@@ -110,6 +110,10 @@ struct client_state {
     int my_id = 0;
     // host character id -> NPC on this client that shows that player
     std::map<int, character_id> shadows;
+    // fluid mode: when the host was last heard from; a host menu stops its world (A2), the
+    // player is told instead of wondering why everything froze
+    fluid::ms_t last_host_msg = 0;
+    bool host_wait_shown = false;
 };
 
 client_state &cstate()
@@ -1589,6 +1593,11 @@ void client_on_disconnect()
 void client_on_message( const JsonObject &msg )
 {
     const std::string type = msg.get_string( "t", "" );
+    cstate().last_host_msg = fluid::now_ms();
+    if( cstate().host_wait_shown ) {
+        cstate().host_wait_shown = false;
+        add_msg( m_info, _( "The world goes on." ) );
+    }
     if( type == "welcome" ) {
         const bool respawn = cstate().welcomed;
         cstate().welcomed = true;
@@ -1797,6 +1806,14 @@ bool client_do_turn()
 {
     poll();
     mod_engine::tick();
+    {
+        client_state &cs = cstate();
+        if( cs.fluid_on && cs.welcomed && cs.last_host_msg > 0 && !cs.host_wait_shown &&
+            fluid::now_ms() - cs.last_host_msg > 2000 ) {
+            cs.host_wait_shown = true;
+            add_msg( m_warning, _( "The world waits: the host is busy (probably in a menu)." ) );
+        }
+    }
     fluid::client_frame();
     mp_test_mapmem_client();
     ui_manager::redraw_invalidated();
