@@ -998,6 +998,72 @@ void melee_knockback( Character &who, Creature &target, int dx, int dy, ms_t now
     }
 }
 
+// Shove (Noah 2026-10-15, after Project Zomboid): a quick push of the creature in front, no
+// damage.  Creatures up to human size are pushed one tile back (onto a free tile) and may fall:
+// 20% + 4% per strength above 8 (5..60%), small ones 20% more; bigger creatures only stagger.
+// Costs 300 stamina and 450 ms.  Returns the time it takes, 0 if nothing happened.
+int shove( Character &who, actor_state &st, double dx, double dy, ms_t t0, std::vector<event> *out )
+{
+    static const efftype_id effect_downed_shove( "downed" );
+    constexpr int shove_ms = 450;
+    constexpr int shove_stamina = 300;
+    if( std::abs( dx ) + std::abs( dy ) < 1e-6 ) {
+        return 0;
+    }
+    if( who.get_stamina() < shove_stamina ) {
+        who.add_msg_if_player( m_bad, _( "You are too winded to shove." ) );
+        return 250;
+    }
+    std::pair<int, int> dir = snap8( dx, dy );
+    Creature *target = assist_target( who, dx, dy, dir );
+    const tripoint_abs_ms pos = who.pos_abs();
+    who.mod_stamina( -shove_stamina );
+    begin_lunge( pos, dir.first, dir.second, t0, 0, 220 );
+    event sw;
+    sw.type = fx_type::swing;
+    sw.actor = who.getID().get_value();
+    sw.from = pos;
+    sw.dx = dir.first;
+    sw.dy = dir.second;
+    sw.dur_ms = 220;
+    emit( out, sw );
+    st.face_dx = dir.first;
+    st.face_dy = dir.second;
+    if( target == nullptr ) {
+        return shove_ms;
+    }
+    event ev;
+    ev.type = fx_type::strike;
+    ev.actor = who.getID().get_value();
+    ev.from = pos;
+    ev.to = target->pos_abs();
+    ev.dx = dir.first;
+    ev.dy = dir.second;
+    ev.hit = true;
+    register_hit( pos, ev.to, dir.first, dir.second, t0 );
+    emit( out, ev );
+    if( target->get_size() > creature_size::medium ) {
+        who.add_msg_if_player( m_info, _( "You shove the %s, but it hardly moves." ), target->disp_name() );
+        return shove_ms;
+    }
+    const bool pushed = push_creature( *target, dir.first, dir.second, t0, out );
+    int fall = std::clamp( 20 + 4 * ( who.get_str() - 8 ), 5, 60 );
+    if( target->get_size() < creature_size::medium ) {
+        fall += 20;
+    }
+    if( x_in_y( fall, 100 ) ) {
+        target->add_effect( effect_downed_shove, 1_turns, true );
+        who.add_msg_if_player( m_good, _( "You shove the %s to the ground!" ), target->disp_name() );
+    } else if( pushed ) {
+        who.add_msg_if_player( m_info, _( "You shove the %s back." ), target->disp_name() );
+    } else {
+        who.add_msg_if_player( m_info, _( "You shove the %s." ), target->disp_name() );
+    }
+    // a pushed creature loses a moment
+    target->mod_moves( -50 );
+    return shove_ms;
+}
+
 // The blow lands: whoever is there now is hit, the direction can still be steered a little.
 void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 std::vector<event> *out )
@@ -2211,12 +2277,15 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.seen_primary_presses = in.primary_presses;
         st.seen_secondary_presses = in.secondary_presses;
         st.seen_throw_presses = in.throw_presses;
+        st.seen_shove_presses = in.shove_presses;
         st.prev_primary = in.primary;
         st.prev_secondary = in.secondary;
         st.aim_last = now;
     }
     const bool throw_pressed = in.throw_presses != st.seen_throw_presses;
     st.seen_throw_presses = in.throw_presses;
+    const bool shove_pressed = in.shove_presses != st.seen_shove_presses;
+    st.seen_shove_presses = in.shove_presses;
     const bool primary_pressed = in.primary_presses != st.seen_primary_presses ||
                                  ( in.primary && !st.prev_primary );
     const bool secondary_pressed = in.secondary_presses != st.seen_secondary_presses ||
@@ -2277,7 +2346,17 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         const ms_t t0 = ( now - st.ready_at < 50 && st.ready_at > 0 ) ? st.ready_at : now;
         bool started = false;
 
-        if( throw_pressed ) {
+        if( shove_pressed ) {
+            const std::pair<double, double> sd = have_dir ? std::make_pair( cdx, cdy ) :
+                                                 std::make_pair( static_cast<double>( st.face_dx ), static_cast<double>( st.face_dy ) );
+            const int dur = shove( who, st, sd.first, sd.second, t0, out );
+            if( dur > 0 ) {
+                st.ready_at = t0 + dur;
+                started = true;
+            }
+        }
+
+        if( !started && throw_pressed ) {
             const int dur = throw_at_cursor( who, in, now, out );
             if( dur > 0 ) {
                 st.ready_at = t0 + dur;

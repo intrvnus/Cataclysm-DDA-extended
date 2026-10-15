@@ -19,5 +19,12 @@
     "name": "Steady the aim (keyboard alternative to the right mouse button)",
     "category": "FLUID",
     "bindings": [  ]
+  },
+  {
+    "type": "keybinding",
+    "id": "FLUID_SHOVE",
+    "name": "Shove the creature in front (also the middle mouse button)",
+    "category": "FLUID",
+    "bindings": [ { "input_method": "keyboard_any", "key": "f" } ]
   }
 ]

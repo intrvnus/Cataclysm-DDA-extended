@@ -156,6 +156,8 @@ struct input_frame {
     int secondary_presses = 0;
     // presses of the throw key (throws the wielded item at the cursor)
     int throw_presses = 0;
+    // presses of the shove key / middle mouse button
+    int shove_presses = 0;
     // cancels a wind-up / drops the aim
     bool cancel = false;
     // held: sprint (B4)
@@ -264,6 +266,7 @@ struct actor_state {
     int seen_primary_presses = 0;
     int seen_secondary_presses = 0;
     int seen_throw_presses = 0;
+    int seen_shove_presses = 0;
     bool prev_primary = false;
     bool prev_secondary = false;
     bool initialised = false;

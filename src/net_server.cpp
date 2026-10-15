@@ -2583,6 +2583,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         f.primary_presses = msg.get_int( "pc", 0 );
         f.secondary_presses = msg.get_int( "sc", 0 );
         f.throw_presses = msg.get_int( "tc", 0 );
+        f.shove_presses = msg.get_int( "vc", 0 );
         f.cancel = msg.get_bool( "c", false );
         f.sprint = msg.get_bool( "sp", false );
         f.cursor_valid = msg.get_bool( "cv", false );
@@ -2595,6 +2596,7 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             st.seen_primary_presses = f.primary_presses;
             st.seen_secondary_presses = f.secondary_presses;
             st.seen_throw_presses = f.throw_presses;
+            st.seen_shove_presses = f.shove_presses;
             st.prev_primary = f.primary;
             st.prev_secondary = f.secondary;
             st.initialised = true;

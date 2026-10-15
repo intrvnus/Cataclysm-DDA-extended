@@ -76,13 +76,15 @@ enum bit : unsigned {
     bit_secondary = 1u << 9,
     bit_cancel = 1u << 10,
     bit_primary_alt = 1u << 11,
-    bit_secondary_alt = 1u << 12
+    bit_secondary_alt = 1u << 12,
+    bit_shove = 1u << 13
 };
 
 struct device_state {
     int primary_presses = 0;
     int secondary_presses = 0;
     int throw_presses = 0;
+    int shove_presses = 0;
     // raw bits (8 movement keys + buttons) of the last poll
     unsigned last_raw = 0;
     // bits that were pressed while a classic action ran: ignored until released
@@ -92,6 +94,7 @@ struct device_state {
     std::vector<int> cancel_keys;
     std::vector<int> primary_keys;
     std::vector<int> secondary_keys;
+    std::vector<int> shove_keys;
     ms_t refreshed = -100000;
 };
 
@@ -342,6 +345,7 @@ void refresh_bindings( device_state &d, ms_t now )
     collect( "FLUID_CANCEL", "FLUID", d.cancel_keys );
     collect( "FLUID_PRIMARY", "FLUID", d.primary_keys );
     collect( "FLUID_SECONDARY", "FLUID", d.secondary_keys );
+    collect( "FLUID_SHOVE", "FLUID", d.shove_keys );
 }
 
 bool any_down( const Uint8 *keys, const std::vector<int> &list )
@@ -368,6 +372,9 @@ unsigned read_raw( device_state &d )
     }
     if( buttons & SDL_BUTTON( SDL_BUTTON_RIGHT ) ) {
         raw |= bit_secondary;
+    }
+    if( ( buttons & SDL_BUTTON( SDL_BUTTON_MIDDLE ) ) || any_down( keys, d.shove_keys ) ) {
+        raw |= bit_shove;
     }
     if( any_down( keys, d.cancel_keys ) ) {
         raw |= bit_cancel;
@@ -454,8 +461,12 @@ void note_classic_action( int action )
     } else if( action == ACTION_THROW || action == ACTION_THROW_WIELDED ) {
         ++d.throw_presses;
     } else if( action == ACTION_FIRE ) {
-        // the fire key is the left mouse button for the keyboard
-        ++d.primary_presses;
+        // the fire key is the left mouse button for the keyboard, unless it is the shove key
+        // (f by default)
+        refresh_bindings( d, now_ms() );
+        if( !any_down( SDL_GetKeyboardState( nullptr ), d.shove_keys ) ) {
+            ++d.primary_presses;
+        }
     }
 }
 
@@ -495,6 +506,7 @@ bool device_key( int key )
         return std::find( list.begin(), list.end(), static_cast<int>( sc ) ) != list.end();
     };
     return has( d.cancel_keys ) || has( d.primary_keys ) || has( d.secondary_keys ) ||
+           has( d.shove_keys ) ||
            std::any_of( d.move_keys.begin(), d.move_keys.end(), has );
 }
 
@@ -506,6 +518,9 @@ bool poll_device( input_frame &out )
     // a suppressed bit stays suppressed until it was seen released
     d.suppressed &= raw;
     raw &= ~d.suppressed;
+    if( ( raw & bit_shove ) && !( d.last_raw & bit_shove ) ) {
+        ++d.shove_presses;
+    }
     d.last_raw = raw;
 
     const std::pair<int, int> dir = resolver().resolve( raw, now_ms() );
@@ -519,6 +534,7 @@ bool poll_device( input_frame &out )
     out.primary_presses = d.primary_presses;
     out.secondary_presses = d.secondary_presses;
     out.throw_presses = d.throw_presses;
+    out.shove_presses = d.shove_presses;
     out.cursor_valid = false;
     read_cursor( out );
     return true;

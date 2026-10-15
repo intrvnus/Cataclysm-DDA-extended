@@ -1877,6 +1877,7 @@ int client_send_input( const fluid::input_frame &in )
                          in.primary_presses != last.primary_presses ||
                          in.secondary_presses != last.secondary_presses ||
                          in.throw_presses != last.throw_presses ||
+                         in.shove_presses != last.shove_presses ||
                          in.cursor_valid != last.cursor_valid;
     const double moved = std::abs( in.cursor_x - last.cursor_x ) + std::abs( in.cursor_y - last.cursor_y );
     const bool send = ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
@@ -1897,6 +1898,7 @@ int client_send_input( const fluid::input_frame &in )
         jo.member( "pc", in.primary_presses );
         jo.member( "sc", in.secondary_presses );
         jo.member( "tc", in.throw_presses );
+        jo.member( "vc", in.shove_presses );
         jo.member( "c", in.cancel );
         jo.member( "sp", in.sprint );
         jo.member( "cv", in.cursor_valid );
