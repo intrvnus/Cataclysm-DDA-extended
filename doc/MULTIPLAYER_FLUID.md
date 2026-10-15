@@ -212,6 +212,18 @@ shows menus. Handled:
 2. Click-to-travel (`ACTION_SELECT` on a far tile) is disabled in fluid mode (swallowed).
 3. Iso tilesets: cursor and camera are disabled.
 
+### Combat feel and telegraphs (2026-10-15)
+
+* Monster melee wind-up warning: while a monster winds up a blow, the tile it will hit is filled red (stronger as the blow nears) and the attacker gets a red frame. Code: `fluid::incoming_blows()`, drawn in `cata_tiles::draw_fluid_overlays()`.
+* Hit feedback: when a blow connects, the attacker's lunge holds for 60 ms (hit-stop), the target flashes white for 120 ms and is drawn knocked back 0.22 tile for 180 ms. Code: `fluid::register_hit()`. Clients get it from the "strike" event, which now carries the target tile in "to".
+* Melee knockback (world option `FLUID_MELEE_KNOCKBACK`, on): bash weapons of at least 1 kg can push a target up to medium size one free tile back; chance 10% per kg plus 2% per strength above 8, at most 50%.
+* Shove: key `FLUID_SHOVE` (`f`) or the middle mouse button. Pushes the creature in front one free tile back, may knock it down (20% + 4% per strength above 8, 5..60%, +20% for small creatures), no damage, 300 stamina, 450 ms. Input frame field `shove_presses`, sent as `"vc"`.
+* Shooting: every projectile draws a 160 ms tracer (`fluid::note_projectile()`, event type `"tracer"`). Aim bloom: while moving the aim stays at 35% of the worst (running 70%) and only settles while standing.
+* Reloading is not cancelled by walking in free movement (not while running).
+* Ranged monsters: acid/sap spitters, boomers, shockstorm, metal pull and gun monsters without a targeting delay aim for 0.8 s at a player before their attack (`fluid::ranged_windup_ready()`); a red aim line is drawn (event type `"aimline"`). Turrets' existing ~2 s targeting delay draws the same line.
+* Explosions: in fluid mode a 350 ms growing, fading flash replaces the blocking explosion animation (`fluid::note_explosion()`, event type `"boom"`).
+* New event types are appended to `fx_type` in `fluid.h`: `tracer`, `aimline`, `boom`.
+
 ## Keyboard layouts
 
 Switch: option `FLUID_WASD_LAYOUT` (Options > Fluid), or call
@@ -291,6 +303,10 @@ If you rebase onto newer m1 work, conflicts are expected in `net_server.cpp`, `n
 | `FLUID_BODY_WIDTH` | 60 | Free movement: body width in % of a tile. 30-95 |
 | `FLUID_INTERP_MS` | 100 | Free movement, client only: other players are drawn this far in the past. 50-400 |
 | `FLUID_WASD_LAYOUT` | off | Experimental keyboard layout |
+| `FLUID_MELEE_KNOCKBACK` | on | heavy blunt weapons can push targets back |
+| `MP_PVP` | off | players may hurt players of other groups |
+| `MP_FRIENDLY_FIRE` | on | shots and explosions can hurt the own group |
+| `MP_CLIENT_DEBUG` | on | clients may use the debug menu on their own character |
 
 ## Tuning knobs (`fluid::tuning`, compile time for now)
 
