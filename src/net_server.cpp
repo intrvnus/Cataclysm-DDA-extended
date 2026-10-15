@@ -3080,6 +3080,17 @@ void play_sound_for( const Character &who, const std::string &id, const std::str
     } ) );
 }
 
+bool talk_to_npc( Character &who, npc &other )
+{
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    npc *guy = rp != nullptr ? g->find_npc( rp->npc_id ) : nullptr;
+    if( guy == nullptr ) {
+        return false;
+    }
+    start_talk( *rp, *guy, &other );
+    return true;
+}
+
 int activity_progress( const Character &who )
 {
     const player_activity &act = who.activity;

@@ -68,6 +68,7 @@
 #include "mtype.h"
 #include "mutation.h"
 #include "npc.h"
+#include "net_session.h"
 #include "omdata.h"
 #include "options.h"
 #include "output.h"
@@ -1737,7 +1738,10 @@ void iexamine::intercom_balthazar( Character &you, const tripoint_bub_ms &examp 
         you.add_msg_if_player( m_info, _( "No one responds." ) );
     } else {
         // TODO: This needs to be converted a talker_console or something
-        get_avatar().talk_to( get_talker_for( *intercom_npcs.front() ), false );
+        // multiplayer: a client talks on its own screen
+        if( !net::talk_to_npc( you, *intercom_npcs.front() ) ) {
+            get_avatar().talk_to( get_talker_for( *intercom_npcs.front() ), false );
+        }
     }
 }
 
@@ -1750,7 +1754,10 @@ void iexamine::intercom( Character &you, const tripoint_bub_ms &examp )
         you.add_msg_if_player( m_info, _( "No one responds." ) );
     } else {
         // TODO: This needs to be converted a talker_console or something
-        get_avatar().talk_to( get_talker_for( *intercom_npcs.front() ), false );
+        // multiplayer: a client talks on its own screen
+        if( !net::talk_to_npc( you, *intercom_npcs.front() ) ) {
+            get_avatar().talk_to( get_talker_for( *intercom_npcs.front() ), false );
+        }
     }
 }
 
