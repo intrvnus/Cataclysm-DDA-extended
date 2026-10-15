@@ -1522,6 +1522,27 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     if( len < 0.5 ) {
         return false;
     }
+    // holding furniture or a vehicle: tile steps along the grab line (free movement would cross
+    // the tile edges one axis at a time, which counts as a step sideways and lets go)
+    if( who.grab_point != tripoint_rel_ms::zero ) {
+        if( now < st.ready_at ) {
+            return false;
+        }
+        const tripoint_abs_ms before = who.pos_abs();
+        start_step( who, st, in.move_x, in.move_y, now, now, out );
+        const tripoint_abs_ms after = who.pos_abs();
+        if( after != before ) {
+            const double old_x = st.body_x;
+            const double old_y = st.body_y;
+            slides().erase( after );
+            st.body_x = after.x() + 0.5;
+            st.body_y = after.y() + 0.5;
+            st.body_tile = after;
+            body_set_correction( st, old_x, old_y, now, std::max( 40, static_cast<int>( st.ready_at - now ) ) );
+            return true;
+        }
+        return false;
+    }
     const double ux = in.move_x / len;
     const double uy = in.move_y / len;
     st.face_dx = in.move_x;
@@ -2553,6 +2574,9 @@ void client_free_frame( const input_frame &in, int seq, ms_t now )
     fc.last = now;
     if( u.controlling_vehicle || u.in_vehicle ) {
         // riding: the vehicle moves the character, the body stays on its tile
+        body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
+    } else if( u.grab_point != tripoint_rel_ms::zero ) {
+        // dragging moves in tile steps on the host: follow them, do not predict
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
     } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
         // (a downed or sleeping body does not move on the host: predicting it would only be
