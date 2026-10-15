@@ -55,7 +55,7 @@ background and joins it as a client. Warnings = real-time question boxes that cl
   pyromania, granade, geiger counter, RC controller use the item's user; music reaches every
   player's body through the NPC loop).
 - A2: done (host = server + client). Weariness "take a break", C4/C6: done (see roadmap STATUS).
-  Phase 7: ask first.
+  Phase 7 (= roadmap section D step 7): done 2026-10-15 on Noah's go.
 
 ### Later on 2026-10-15 (Opus, Noah away; compile only)
 - Debug menu for clients; combat feel (wind-up tiles, hit-stop, knockback, shove, tracers, aim
@@ -69,7 +69,7 @@ background and joins it as a client. Warnings = real-time question boxes that cl
 - More standing-rule fixes (compile only): eating start/finish, vehicle work, map reading,
   drop actions, construction helpers, intercoms (conversation on the client), haul toggle,
   bionic activation checks, item cook-off source; B6 dim screen while asleep; B7 progress bars.
-  B3 stations: options paper `MULTIPLAYER_STATIONS_OPTIONS.md` (waiting for Noah).
+  B3 stations: built as option C (`src/mp_stations.cpp`) after Noah's go.
 - Gemini: the proxy's default model (`gemini-2.5-flash`) failed with 404; started with
   `GEMINI_MODEL=gemini-3.5-flash-lite`. One docs task delegated and merged after review.
 
@@ -310,14 +310,14 @@ compile; **UNIT** = `cata_test`.
    Known: rain scent decay only on the main bubble; `build_map_cache` static previous-position
    shared by maps (cosmetic); cache sync is a blunt per-turn invalidation for overlapping bubbles.
 4. **C4 faction rework / C6 basecamps**: options paper `MULTIPLAYER_FACTIONS_OPTIONS.md` has 12
-   decisions; **waiting for Noah**. Do not start before he answers.
-5. **Weariness "take a break"** action: needs Noah's approval (gameplay change).
+   decisions; answered and built 2026-10-15 (see roadmap STATUS).
+5. **Weariness "take a break"** action: approved and built (wait key in multiplayer).
 6. **Network deltas** (send only changed map parts): optional, bandwidth only.
 7. **Starting a world with no character** crashed (build #1, `--mp-host`); fixed in `main_menu.cpp`
    (empty world goes to character creation; `--mp-server` shows a message, open question for Noah
    whether it should create a character itself). In a new Windows build only.
 8. Docs: keep `MULTIPLAYER.md` / roadmap in step; say classic MP targeting is not used.
-9. **Phase 7**: not started; consult Noah first.
+9. **Phase 7**: done (B3 stations, B5 sparring/group reading, B6 sleep screen).
 
 ## 7. Windows builds
 - Workflow `.github/workflows/noah-windows-build.yml` ("Windows Tiles build (manual)"), MSVC,

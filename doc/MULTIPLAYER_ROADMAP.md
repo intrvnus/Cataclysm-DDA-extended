@@ -1,6 +1,6 @@
 # Multiplayer roadmap (to-do list for discussion)
 
-## STATUS (read this first; updated 2026-10-15 night, Opus overnight session)
+## STATUS (read this first; updated 2026-10-15 evening)
 Handoff for the next session: `MULTIPLAYER_HANDOFF.md` (section 0 is the newest); Gemini delegation: `CLAUDE.md`.
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
@@ -39,9 +39,9 @@ Branches: `claude/fluid-proto` (the line; contains everything below since 2026-1
 | **Noah's test of 2026-10-15 + decisions** (compile + CI only) | Host = server + client (`--mp-host`; old mode `--mp-host-classic`); question boxes back (no "do it again to confirm"; fixed the options screen), menus back out on danger on clients; WASD in menus; soft-wall warnings, client climb-down menu; diagonal as fast as straight; dragging furniture in free movement; smoothed camera; item effects use the item's user; client body messages reach the client; lives: respawn at bed/home, new character can act and starts at the old one's bed/home. Phase 6 (approved): monsters/NPCs glide by speed, monster melee wind-up (step back to dodge), player melee by reach and 90 degree arc: compile + CI only. Next: weariness break, C4 factions/C6. |
 | Phase 7 (= step 7 of section D: B3 + B5 + B6) | Approved by Noah 2026-10-15: B3 stations, B5 sparring/group reading, B6 sleep screen done (compile only). |
 
-## Noah's test findings, build #1 (2026-10-14): OPEN, read before anything else
-Noah's own words (lightly formatted, meaning unchanged). Nothing in this block is fixed yet unless
-it says so; Noah asked for **no more fixes before the handoff to Opus**, only for the roadmap.
+## Noah's test findings, build #1 (2026-10-14): all handled (history)
+Noah's own words (lightly formatted, meaning unchanged). Every point below has since been fixed or
+decided; see "Work on the findings" and the STATUS table. Kept for the record.
 
 1. **Timed actions need to be implemented.** For example smashing (pulping) a zombie corpse stays
    basically stuck at 0%.
@@ -133,9 +133,9 @@ Other open items found on the way (not from Noah's test):
   pointer for an unknown world name) in the `--world` start path. A fix is committed on
   `claude/fluid-proto` (empty world goes to character creation; unknown world name shows a popup;
   `--mp-server` on an empty world shows a message because a dedicated server needs a character).
-  It reaches Noah only with a new Windows build, which he has to ask for. Until then: create a
-  character in the world first. Open decision for Noah: should a dedicated server on a world
-  without a character create one automatically instead of refusing?
+  Since 2026-10-15 (Noah's decision): a server on a world without characters makes its own
+  invisible anchor and the players make their characters on their own screens; the world's time
+  waits for the first of them.
 - The scripted NPC scenes (disarm, steal, use item, sort armor for friend, console, repeat craft,
   workout), pets, saved map memory, created zones editing: see the handoff, section 6.
 
@@ -266,11 +266,8 @@ when a batch is worth playing.
   mode cycling/reset, thief mode. Wait is refused on purpose (the world does not stop).
   Test helpers: `CATA_MP_TEST_NPC` (an NPC beside every joining player), `CATA_MP_TEST_STAIRS`
   (a joining player stands on the nearest stairs).
-* **Not done: separate reality bubbles (C2).** The game simulates one reality bubble around
-  the host's avatar; a player's body only exists while it is inside it (any floor, within
-  roughly 60 tiles). Giving every player their own simulated area needs several maps
-  simulated at once, which this engine does not support; it needs its own design (options:
-  a tether distance with a warning, or a dedicated server that follows the player group).
+* **Done since: separate reality bubbles (C2).** Every player far from the others gets a
+  simulated area of their own (`src/bubbles.cpp`, `MULTIPLAYER_BUBBLES_SPIKE.md`); see STATUS.
 * **Done (compiled, not run in game):** the item action menu (`*`-style, host runs the chosen use), haul toggle, diary, option toggles (auto-pickup etc.) and the panel manager.
 * **Since done (see STATUS):** vehicles (C3), spells (C18), construction, zones/loot/haul/grab,
   overmap map and notes, missions/factions, "use item on" and "sort armor" for NPCs, dialogue
