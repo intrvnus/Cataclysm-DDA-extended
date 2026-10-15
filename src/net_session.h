@@ -82,8 +82,16 @@ bool listen_child();
 void open_server_console();
 /** The server's terminal window was closed: save and stop. */
 bool console_stop_requested();
+/** The server saved after its window was closed: the window may close now. */
+void console_stop_done();
 /** This process is the host's own client (started with --mp-host). */
 bool listen_local();
+/** The server process this game started is still running (saving after the host left). */
+bool listen_server_running();
+/** The host's session is over (its server ended): back to the main menu. */
+void listen_end();
+/** The server joined was just started from this computer: retry while it loads its world. */
+void retry_join_while_loading();
 /** The host's own client could not reach its server (still loading): try again soon. */
 void listen_connect_failed();
 /** Once per frame: a planned new connection attempt of the host's own client. */

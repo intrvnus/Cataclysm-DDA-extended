@@ -3327,6 +3327,7 @@ void host_end_of_turn()
         if( g->save() ) {
             g->uquit = QUIT_SAVED;
         }
+        console_stop_done();
     }
     if( listen_child() ) {
         // the hidden server of a host: without anybody connected for 20 minutes (the host's

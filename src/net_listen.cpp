@@ -6,6 +6,7 @@
 // character first, the server makes the world, then the host joins with that character.
 #include "net_session.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -18,6 +19,7 @@
 #include "platform_win.h"
 #else
 #include <spawn.h>
+#include <sys/wait.h>
 #include <unistd.h>
 extern char **environ;
 #endif
@@ -35,6 +37,8 @@ struct listen_state {
     int port = default_port;
     bool local = false;
     bool child = false;
+    // joining a server that was just started (it may still be loading): keep trying
+    bool retry_join = false;
     bool retry_pending = false;
     std::chrono::steady_clock::time_point retry_at;
     int retries = 0;
@@ -78,7 +82,14 @@ std::string quoted( const std::string &arg )
 }
 #endif
 
-bool spawn( const std::string &exe, const std::vector<std::string> &args )
+// the server process this game started (host and play), to wait for it when the host leaves
+#if defined(_WIN32)
+intptr_t server_process = -1;
+#else
+pid_t server_process = 0;
+#endif
+
+bool spawn( const std::string &exe, const std::vector<std::string> &args, bool keep = false )
 {
 #if defined(_WIN32)
     std::vector<std::string> q;
@@ -91,7 +102,13 @@ bool spawn( const std::string &exe, const std::vector<std::string> &args )
         argv.push_back( a.c_str() );
     }
     argv.push_back( nullptr );
-    return _spawnv( _P_NOWAIT, exe.c_str(), argv.data() ) != -1;
+    const intptr_t h = _spawnv( _P_NOWAIT, exe.c_str(), argv.data() );
+    if( h != -1 && keep ) {
+        server_process = h;
+    } else if( h != -1 ) {
+        CloseHandle( reinterpret_cast<HANDLE>( h ) );
+    }
+    return h != -1;
 #else
     std::vector<char *> argv;
     for( const std::string &a : args ) {
@@ -99,7 +116,13 @@ bool spawn( const std::string &exe, const std::vector<std::string> &args )
     }
     argv.push_back( nullptr );
     pid_t pid = 0;
-    return posix_spawn( &pid, exe.c_str(), nullptr, nullptr, argv.data(), environ ) == 0;
+    if( posix_spawn( &pid, exe.c_str(), nullptr, nullptr, argv.data(), environ ) != 0 ) {
+        return false;
+    }
+    if( keep ) {
+        server_process = pid;
+    }
+    return true;
 #endif
 }
 
@@ -107,7 +130,9 @@ bool has_character( const std::filesystem::path &world )
 {
     std::error_code ec;
     for( const std::filesystem::directory_entry &e : std::filesystem::directory_iterator( world, ec ) ) {
-        if( e.is_regular_file() && e.path().extension() == ".sav" ) {
+        const std::string name = e.path().filename().string();
+        if( e.is_regular_file() && ( e.path().extension() == ".sav" ||
+                                     ( name.size() > 9 && name.compare( name.size() - 9, 9, ".sav.zzip" ) == 0 ) ) ) {
             return true;
         }
     }
@@ -149,14 +174,18 @@ bool listen_child()
 
 namespace
 {
-volatile bool console_stop = false;
+std::atomic<bool> console_stop{ false };
+std::atomic<bool> console_saved{ false };
 #if defined(_WIN32)
 BOOL WINAPI console_ctrl( DWORD )
 {
     // closing the server's terminal window: the game loop saves and stops (Windows gives a few
     // seconds before it ends the process)
     console_stop = true;
-    Sleep( 5000 );
+    // wait for the save (Windows ends the process after about 5 seconds anyway)
+    for( int i = 0; i < 48 && !console_saved; ++i ) {
+        Sleep( 100 );
+    }
     return TRUE;
 }
 #endif
@@ -188,6 +217,11 @@ void open_server_console()
 bool console_stop_requested()
 {
     return console_stop;
+}
+
+void console_stop_done()
+{
+    console_saved = true;
 }
 
 bool listen_local()
@@ -246,7 +280,7 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     // the server marks the world when it is saved and can be shown (a new world)
     std::error_code ec;
     std::filesystem::remove( ready_marker( world ), ec );
-    if( !spawn( exe, args ) ) {
+    if( !spawn( exe, args, true ) ) {
         printf( "Multiplayer: could not start the server process; hosting the old way.\n" );
         return false;
     }
@@ -255,10 +289,46 @@ bool prepare_listen( const std::string &world, const char *argv0 )
     return true;
 }
 
+void retry_join_while_loading()
+{
+    lstate().retry_join = true;
+}
+
+bool listen_server_running()
+{
+#if defined(_WIN32)
+    if( server_process == -1 ) {
+        return false;
+    }
+    if( WaitForSingleObject( reinterpret_cast<HANDLE>( server_process ), 0 ) == WAIT_TIMEOUT ) {
+        return true;
+    }
+    CloseHandle( reinterpret_cast<HANDLE>( server_process ) );
+    server_process = -1;
+    return false;
+#else
+    if( server_process == 0 ) {
+        return false;
+    }
+    if( waitpid( server_process, nullptr, WNOHANG ) == 0 ) {
+        return true;
+    }
+    server_process = 0;
+    return false;
+#endif
+}
+
+void listen_end()
+{
+    // ready for another session from the main menu (the server stopped, see listen_server_running)
+    listen_state &ls = lstate();
+    ls = listen_state();
+}
+
 void listen_connect_failed()
 {
     listen_state &ls = lstate();
-    if( !ls.local || ls.retries >= 60 ) {
+    if( ( !ls.local && !ls.retry_join ) || ls.retries >= 60 ) {
         return;
     }
     // the server is still loading the world: try again in a moment

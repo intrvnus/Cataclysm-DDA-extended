@@ -316,6 +316,7 @@ bool host_menu( settings &s, bool play_too_default )
                 }
                 if( query_yn( _( "The server starts in its own window (it saves by itself; close that window to stop it).\n\n%s\n\n"
                                  "Join it now from this computer?" ), join_info( port ) ) ) {
+                    net::retry_join_while_loading();
                     return join_now( s, string_format( "127.0.0.1:%d", port ) );
                 }
                 return false;

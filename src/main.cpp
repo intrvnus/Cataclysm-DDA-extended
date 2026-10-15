@@ -13,10 +13,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
 #include <ctime>
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <map>
 #include <memory>
 #include <string>
@@ -55,6 +57,7 @@
 #include "options.h"
 #include "ordered_static_globals.h"
 #include "output.h"
+#include "popup.h"
 #include "path_info.h"
 #include "rng.h"
 #include "stations.h"
@@ -965,9 +968,24 @@ int main( int argc, const char *argv[] )
         while( !do_turn() ) {}
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
-        // host = server + client: both processes end with the game
-        if( net::listen_child() || net::listen_local() ) {
+        // the host's background server ends with its session
+        if( net::listen_child() ) {
             break;
+        }
+        if( net::listen_local() ) {
+            // the host left: its server saves the world and stops; wait for it (up to a
+            // minute) so that hosting again never meets an old server still writing
+            static_popup wait;
+            wait.message( "%s", _( "Saving the world…" ) );
+            const auto started = std::chrono::steady_clock::now();
+            while( net::listen_server_running() &&
+                   std::chrono::steady_clock::now() - started < std::chrono::seconds( 60 ) ) {
+                ui_manager::redraw();
+                refresh_display();
+                inp_mngr.pump_events();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
+            }
+            net::listen_end();
         }
         alerts::set_in_game( false );
         stations::reset();
