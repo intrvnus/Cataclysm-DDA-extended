@@ -51,11 +51,11 @@ background and joins it as a client. Warnings = real-time question boxes that cl
 
 ### Open / for Noah
 - Hands-on test of the night's build (checklist in the morning report).
-- Item tick functions that use "the player" (pyromania morale for molotovs/incendiaries, fish
-  trap skill, multicooker hint, music morale) use the host's avatar for client items: gameplay
-  question, not changed.
-- A2 (host menus stop the world for clients) still open; needs a design decision.
-- Weariness "take a break", C4/C6: waiting for Noah. Phase 7: ask first.
+- Item effects on client items: done under Noah's standing rule (fish trap, multicooker,
+  pyromania, granade, geiger counter, RC controller use the item's user; music reaches every
+  player's body through the NPC loop).
+- A2: done (host = server + client). Weariness "take a break", C4/C6: done (see roadmap STATUS).
+  Phase 7: ask first.
 
 ## 0b. Previous: session of 2026-10-14 evening/night (Opus)
 The next session's lead is again Claude Opus; it can delegate small, well-scoped tasks to a
