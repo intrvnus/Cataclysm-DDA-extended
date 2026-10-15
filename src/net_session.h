@@ -160,7 +160,7 @@ std::vector<tripoint_abs_ms> all_player_positions();
 /** Host: says something to everybody (chat). */
 void host_chat( const std::string &text );
 /** The list of the players with health and distance, for the chat/player-list key. */
-std::string player_list_text( const tripoint_abs_ms &from );
+std::string player_list_text( const Character &viewer );
 /** The NPCs on the host that are played by connected clients (in the reality bubble). */
 std::vector<npc *> remote_player_npcs();
 /** Called once at the end of every turn: handles joins and sends the world state. */

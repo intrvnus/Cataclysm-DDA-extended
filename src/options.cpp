@@ -2910,6 +2910,12 @@ void options_manager::add_options_world_default()
     "normal"
        );
 
+    add( "MP_GROUPING", "world_default", to_translation( "Multiplayer groups" ),
+         to_translation( "Multiplayer: how players start.  Shared: everybody in one group (friends, shared things).  Solo: everybody in a group of their own; groups are formed in the chat with /group create, /group invite, /group accept.  Players of different groups are never hostile; only members of the same group see each other's health." ),
+    { { "shared", to_translation( "Shared" ) }, { "solo", to_translation( "Solo" ) } },
+    "shared"
+       );
+
     add( "REALTIME_DAY_MINUTES", "world_default", to_translation( "Realtime day length" ),
          to_translation( "Multiplayer and fluid (realtime) play: how many real minutes a whole game day lasts.  Hunger, thirst, healing, rot, plant growth and weather follow this clock; combat and movement keep their speed.  Seasons keep their number of days.  0 = a game day lasts 24 real hours.  Has no effect in turn-based single player." ),
          0, 1440, 60

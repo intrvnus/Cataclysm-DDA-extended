@@ -3236,7 +3236,7 @@ bool game::handle_action()
                 return false;
             }
             if( raw == KEY_F( 4 ) ) {
-                popup( net::player_list_text( player_character.pos_abs() ) );
+                popup( net::player_list_text( player_character ) );
                 return false;
             }
         }

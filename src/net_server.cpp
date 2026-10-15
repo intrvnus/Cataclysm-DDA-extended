@@ -62,6 +62,7 @@
 #include "memory_fast.h"
 #include "messages.h"
 #include "mission.h"
+#include "mp_groups.h"
 #include "mp_lives.h"
 #include "mp_test_npc.h"
 #include "monster.h"
@@ -1162,6 +1163,7 @@ npc *spawn_remote_npc( remote_player &rp )
     }
     guy->spawn_at_precise( start_at );
     overmap_buffer.insert_npc( guy );
+    mp_groups::on_join( *guy );
     guy->set_fac( faction_your_followers );
     guy->set_attitude( NPCATT_NULL );
     guy->mission = NPC_MISSION_NULL;
@@ -2277,6 +2279,9 @@ void server_on_start()
     if( listen_child() ) {
         listen_handover();
     }
+    if( !dedicated() ) {
+        mp_groups::on_join( get_avatar() );
+    }
     // Bodies of players that were in the world when it was saved: their real copy is in
     // mp_players/, they come back when their player connects (A4).
     std::vector<character_id> stale;
@@ -2390,7 +2395,12 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         if( text.size() > 200 ) {
             text.resize( 200 );
         }
-        if( !text.empty() ) {
+        if( text.rfind( "/group", 0 ) == 0 ) {
+            // C4: group commands go to the group system, not to everybody
+            if( npc *me = g->find_npc( rp->npc_id ) ) {
+                send_text( *rp, mp_groups::command( *me, text.substr( 6 ) ) );
+            }
+        } else if( !text.empty() ) {
             const std::string line = string_format( "%s: %s", rp->name, text );
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: chat " << line;
             add_msg( m_info, "%s", line );
@@ -2402,7 +2412,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         }
     } else if( type == "players_req" && rp->npc_id.is_valid() ) {
         const npc *me = g->find_npc( rp->npc_id );
-        const std::string text = player_list_text( me != nullptr ? me->pos_abs() : get_avatar().pos_abs() );
+        const std::string text = player_list_text( me != nullptr ? static_cast<const Character &>( *me ) :
+                                 static_cast<const Character &>( get_avatar() ) );
         impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
             jo.member( "t", "missions" );
             jo.member( "text", text );
@@ -3015,20 +3026,28 @@ std::vector<tripoint_abs_ms> all_player_positions()
     return result;
 }
 
-std::string player_list_text( const tripoint_abs_ms &from )
+std::string player_list_text( const Character &viewer )
 {
+    const tripoint_abs_ms from = viewer.pos_abs();
     std::string text = _( "Players" ) + std::string( "\n\n" );
     if( !dedicated() ) {
         const avatar &host = get_avatar();
-        text += string_format( "%s (host)  hp %d%%\n", host.get_name(),
-                               100 * host.get_hp() / std::max( 1, host.get_hp_max() ) );
+        // C15: health only for members of the own group
+        if( mp_groups::same_group( viewer, host ) ) {
+            text += string_format( "%s (host)  hp %d%%\n", host.get_name(),
+                                   100 * host.get_hp() / std::max( 1, host.get_hp_max() ) );
+        } else {
+            text += host.get_name() + " (host)\n";
+        }
     }
     for( const remote_player &other : clients() ) {
         if( !other.greeted ) {
             continue;
         }
         const npc *body = other.npc_id.is_valid() ? g->find_npc( other.npc_id ) : nullptr;
-        if( body != nullptr && !body->is_dead() ) {
+        if( body != nullptr && !body->is_dead() && !mp_groups::same_group( viewer, *body ) ) {
+            text += string_format( "%s  [%s]\n", other.name, mp_groups::group_of( *body ) );
+        } else if( body != nullptr && !body->is_dead() ) {
             text += string_format( "%s  hp %d%%  %d tiles away\n", other.name,
                                    100 * body->get_hp() / std::max( 1, body->get_hp_max() ),
                                    rl_dist( body->pos_abs(), from ) );
@@ -3051,6 +3070,10 @@ void host_chat( const std::string &text_in )
         text.resize( std::min<size_t>( text.size(), 200 ) );
     }
     if( text.empty() ) {
+        return;
+    }
+    if( text.rfind( "/group", 0 ) == 0 ) {
+        add_msg( m_info, "%s", mp_groups::command( get_avatar(), text.substr( 6 ) ) );
         return;
     }
     const std::string line = string_format( "%s: %s", get_avatar().get_name(), text );
