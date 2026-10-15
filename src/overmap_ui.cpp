@@ -1,5 +1,7 @@
 #include "overmap_ui.h"
 
+#include "remote_ui.h"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -9,6 +11,7 @@
 #include <optional>
 #include <ratio>
 #include <set>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <unordered_map>
@@ -2595,12 +2598,28 @@ tripoint_abs_omt ui::omap::choose_point( const std::string &message, bool show_d
 tripoint_abs_omt ui::omap::choose_point( const std::string &message, const tripoint_abs_omt &origin,
         bool show_debug_info, const int distance )
 {
+    // multiplayer: the point a client picked on its own map (the map can not run on the host)
+    if( remote_ui::replaying() ) {
+        std::istringstream is( remote_ui::answer( "om" ).value_or( "-" ) );
+        int x = 0;
+        int y = 0;
+        int z = 0;
+        if( !( is >> x >> y >> z ) ) {
+            return tripoint_abs_omt::invalid;
+        }
+        return tripoint_abs_omt( x, y, z );
+    }
     g->overmap_data = overmap_ui::overmap_draw_data_t();
     g->overmap_data.message = message;
     g->overmap_data.origin_pos = origin;
     g->overmap_data.debug_info = show_debug_info;
     g->overmap_data.distance = distance;
-    return overmap_ui::display();
+    const tripoint_abs_omt chosen = overmap_ui::display();
+    if( remote_ui::recording() ) {
+        remote_ui::record( "om", chosen.is_invalid() ? std::string( "-" ) :
+                           string_format( "%d %d %d", chosen.x(), chosen.y(), chosen.z() ) );
+    }
+    return chosen;
 }
 
 tripoint_abs_omt ui::omap::choose_point( const std::string &message, int z, bool show_debug_info,
