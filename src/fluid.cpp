@@ -2446,8 +2446,9 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     const double uy = in.move_y / len;
     const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
     int cost = body_step_cost( who, st.body_tile, ahead );
-    if( in.sprint && !who.is_running() ) {
-        // the local copy does not know the move mode yet: running halves the step cost
+    if( in.sprint && !who.is_running() && who.can_run() ) {
+        // the local copy does not know the move mode yet: running halves the step cost (like
+        // the host, only with stamina to run)
         cost = std::max( 1, cost / 2 );
     }
     const int ms_per_tile = std::max( 1, moves_to_ms( who, cost ) );
