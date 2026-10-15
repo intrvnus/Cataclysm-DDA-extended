@@ -857,6 +857,7 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     st.struck = false;
     st.hit_something = false;
     st.buffered_until = 0;
+    st.bump_swing = false;
     begin_lunge( who.pos_abs(), dx, dy, t0, windup, total );
 
     static const bool swing_log = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
@@ -885,31 +886,74 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
     std::pair<int, int> dir = { st.strike_dx, st.strike_dy };
     Creature *target = nullptr;
 
-    // 1. the creature under the cursor direction, if it is next to us
-    if( in.cursor_valid && in.cursor_z == pos.z() ) {
-        const double cdx = in.cursor_x - ( pos.x() + 0.5 );
-        const double cdy = in.cursor_y - ( pos.y() + 0.5 );
-        const auto cursor_dir = snap8( cdx, cdy );
-        if( cursor_dir.first != 0 || cursor_dir.second != 0 ) {
-            target = target_at( who, pos + tripoint_rel_ms( cursor_dir.first, cursor_dir.second, 0 ) );
-            if( target != nullptr ) {
-                dir = cursor_dir;
-            }
+    // phase 6 (Noah 2026-10-15): the blow hits what is within the weapon's reach of the body
+    // (centre to centre, plus the bodies' width) inside a 90 degree arc toward the cursor;
+    // creatures count where they are drawn (gliding monsters included)
+    double bx = pos.x() + 0.5;
+    double by = pos.y() + 0.5;
+    if( free_movement() && st.body_valid && st.body_tile == pos ) {
+        bx = st.body_x;
+        by = st.body_y;
+    }
+    double ax = st.strike_dx;
+    double ay = st.strike_dy;
+    if( !st.bump_swing && in.cursor_valid && in.cursor_z == pos.z() ) {
+        const double cdx = in.cursor_x - bx;
+        const double cdy = in.cursor_y - by;
+        if( std::hypot( cdx, cdy ) > 0.3 ) {
+            ax = cdx;
+            ay = cdy;
         }
     }
-    // 2. whoever stands where the swing was aimed
-    if( target == nullptr ) {
-        target = target_at( who, pos + tripoint_rel_ms( st.strike_dx, st.strike_dy, 0 ) );
-    }
-    // 3. whoever is close to the aimed direction
-    if( target == nullptr ) {
-        target = assist_target( who, st.strike_dx, st.strike_dy, dir );
+    const double alen = std::max( 1e-6, std::hypot( ax, ay ) );
+    item_location weapon = who.used_weapon();
+    const int reach = std::max( 1, weapon ? weapon->reach_range( who ) : 1 );
+    const double max_dist = reach + 2.0 * tune().body_half;
+    const ms_t when = now;
+    double best_score = -2.0;
+    int best_cheb = 0;
+    for( int ox = -reach; ox <= reach; ++ox ) {
+        for( int oy = -reach; oy <= reach; ++oy ) {
+            if( ox == 0 && oy == 0 ) {
+                continue;
+            }
+            const tripoint_abs_ms tile = pos + tripoint_rel_ms( ox, oy, 0 );
+            Creature *c = target_at( who, tile );
+            if( c == nullptr ) {
+                continue;
+            }
+            const offset drawn = travel_offset_at( tile, when );
+            const double cx = tile.x() + 0.5 + drawn.x - bx;
+            const double cy = tile.y() + 0.5 + drawn.y - by;
+            const double clen = std::hypot( cx, cy );
+            if( clen > max_dist || clen < 1e-6 ) {
+                continue;
+            }
+            const double cosine = ( ax * cx + ay * cy ) / ( alen * clen );
+            if( cosine < 0.7071 ) {
+                continue;
+            }
+            // closest to the aim line first, then the nearer one
+            const double score = cosine - clen * 0.01;
+            if( score > best_score ) {
+                best_score = score;
+                target = c;
+                dir = { std::clamp( ox, -1, 1 ), std::clamp( oy, -1, 1 ) };
+                best_cheb = std::max( std::abs( ox ), std::abs( oy ) );
+            }
+        }
     }
 
     bool hit = false;
     if( target != nullptr ) {
         native_scope scope( who );
-        hit = who.melee_attack( *target, true );
+        if( best_cheb > 1 ) {
+            // a reach weapon past the neighbouring tiles
+            who.reach_attack( get_map().get_bub( target->pos_abs() ) );
+            hit = true;
+        } else {
+            hit = who.melee_attack( *target, true );
+        }
         scope.finish();
         st.face_dx = dir.first;
         st.face_dy = dir.second;
@@ -1087,6 +1131,7 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     // walking into an enemy attacks it
     if( target_at( who, dest ) != nullptr ) {
         start_swing( who, st, t0, dx, dy, out );
+        st.bump_swing = true;
         return true;
     }
 
@@ -1693,6 +1738,8 @@ bool autoattack( Character &who, actor_state &st, ms_t t0, std::vector<event> *o
         return false;
     }
     start_swing( who, st, t0, best_dx, best_dy, out );
+    // aimed at the chosen creature, not at the cursor
+    st.bump_swing = true;
     return true;
 }
 

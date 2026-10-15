@@ -224,6 +224,8 @@ struct actor_state {
     // direction of the blow (unit steps, 8 directions)
     int strike_dx = 0;
     int strike_dy = 1;
+    // the swing came from walking into somebody: it aims where the actor walked, not at the cursor
+    bool bump_swing = false;
     // a click that came too early, remembered until this time
     ms_t buffered_until = 0;
     bool buffered_is_attack = false;
