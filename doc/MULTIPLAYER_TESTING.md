@@ -100,6 +100,9 @@ Host and client need this build (network protocol 3).
       does nothing: the listener gets "You learn a little about ..." too (slower).
 - [ ] Auto-travel as a client: on the map (M) pick a place a few tiles away and travel: your
       character walks there by itself; a movement key or a zombie coming stops it.
+- [ ] Timed actions as a client after the 2026-10-15 change ("activities run with the body as the
+      player"): picking up several items, butchering, crafting, disassembling, reloading: the
+      items/results end up on your character; nothing pops up on the host.
 - [ ] Eating as a client (something that takes a while, e.g. a can of food): your hunger goes
       down, not the host's.
 - [ ] Vehicle work as a client (examine a car, install/remove a part): the work runs on your

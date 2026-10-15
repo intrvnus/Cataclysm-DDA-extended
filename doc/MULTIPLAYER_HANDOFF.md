@@ -57,6 +57,18 @@ background and joins it as a client. Warnings = real-time question boxes that cl
 - A2: done (host = server + client). Weariness "take a break", C4/C6: done (see roadmap STATUS).
   Phase 7: ask first.
 
+### Later on 2026-10-15 (Opus, Noah away; compile only)
+- Debug menu for clients; combat feel (wind-up tiles, hit-stop, knockback, shove, tracers, aim
+  bloom, reload while walking); B9 ranged aim lines; C4 per-group factions, zones, map, notes,
+  NPC opinions; C11 auto-travel; C13 client sound effects; C16 PvP / friendly fire options; C18
+  spells; C20 shared traps; C22 explosion flash; B5 group reading.
+- **Important change:** a body's activity now runs inside a replay scope for that body
+  (`run_activity` in `net_server.cpp`), so `get_player_character()` inside activities is the
+  body. Before, e.g. eating fed the host and activity code that used "the player" acted on the
+  host. Watch for activities that now cancel because they asked a question.
+- Gemini: the proxy's default model (`gemini-2.5-flash`) failed with 404; started with
+  `GEMINI_MODEL=gemini-3.5-flash-lite`. One docs task delegated and merged after review.
+
 ## 0b. Previous: session of 2026-10-14 evening/night (Opus)
 The next session's lead is again Claude Opus; it can delegate small, well-scoped tasks to a
 Gemini-backed Claude Code (see `CLAUDE.md`, "Delegating to Gemini").
