@@ -3726,7 +3726,7 @@ void consume_activity_actor::start( player_activity &act, Character &guy )
     act.moves_left = moves;
 }
 
-void consume_activity_actor::finish( player_activity &act, Character & )
+void consume_activity_actor::finish( player_activity &act, Character &who )
 {
     // Prevent interruptions from this point onwards, so that e.g. pain from
     // injecting serum doesn't pop up messages about cancelling consuming (it's
@@ -3741,7 +3741,8 @@ void consume_activity_actor::finish( player_activity &act, Character & )
     item_location consume_loc = consume_location;
     activity_id new_act = type;
 
-    avatar &player_character = get_avatar();
+    // the one eating (multiplayer: may be a client's body)
+    Character &player_character = who;
     if( !canceled ) {
         if( consume_loc ) {
             player_character.consume( consume_loc, /*force=*/true );
@@ -3764,7 +3765,10 @@ void consume_activity_actor::finish( player_activity &act, Character & )
         act.targets.push_back( consume_loc );
     }
 
-    if( !temp_selections.empty() || !temp_selected_items.empty() || !temp_filter.empty() ) {
+    // reopening the eating menu is for the local player only (a client's menu is on its own
+    // screen; on the host it would open the host's menu)
+    if( who.is_avatar() &&
+        ( !temp_selections.empty() || !temp_selected_items.empty() || !temp_filter.empty() ) ) {
         if( act.is_null() ) {
             player_character.assign_activity( new_act );
             player_character.activity.values = temp_selections;
@@ -5189,10 +5193,14 @@ void move_furniture_on_vehicle_activity_actor::finish( player_activity &act, Cha
     act.set_to_null();
 }
 
-void move_furniture_on_vehicle_activity_actor::canceled( player_activity &, Character & )
+void move_furniture_on_vehicle_activity_actor::canceled( player_activity &, Character &who )
 {
-    add_msg( m_warning, _( "You let go of the grabbed object." ) );
-    get_avatar().grab( object_type::NONE );
+    who.add_msg_if_player( m_warning, _( "You let go of the grabbed object." ) );
+    if( avatar *you = who.as_avatar() ) {
+        you->grab( object_type::NONE );
+    } else {
+        who.grab_point = tripoint_rel_ms::zero;
+    }
 }
 
 void move_furniture_on_vehicle_activity_actor::serialize( JsonOut &jsout ) const
@@ -5231,10 +5239,14 @@ void move_furniture_activity_actor::finish( player_activity &act, Character &who
     act.set_to_null();
 }
 
-void move_furniture_activity_actor::canceled( player_activity &, Character & )
+void move_furniture_activity_actor::canceled( player_activity &, Character &who )
 {
-    add_msg( m_warning, _( "You let go of the grabbed object." ) );
-    get_avatar().grab( object_type::NONE );
+    who.add_msg_if_player( m_warning, _( "You let go of the grabbed object." ) );
+    if( avatar *you = who.as_avatar() ) {
+        you->grab( object_type::NONE );
+    } else {
+        who.grab_point = tripoint_rel_ms::zero;
+    }
 }
 
 void move_furniture_activity_actor::serialize( JsonOut &jsout ) const
