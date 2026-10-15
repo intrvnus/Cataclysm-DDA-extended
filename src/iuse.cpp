@@ -107,6 +107,7 @@
 #include "popup.h" // For play_game
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "net_session.h"
 #include "remote_ui.h"
 #include "requirements.h"
 #include "ret_val.h"
@@ -518,6 +519,40 @@ std::optional<std::string> iuse::can_smoke( const Character &you )
         return _( "You don't have anything to light it with!" );
     }
     return std::nullopt;
+}
+
+// Multiplayer: the player who placed / started an item (stored as "mp_user" on it), else the
+// host's character (solo play, or that player is not around).
+static Character &item_user( const item &it )
+{
+    const int id = it.get_var( "mp_user", -1 );
+    if( id >= 0 && id != get_avatar().getID().get_value() ) {
+        if( npc *guy = g->find_npc( character_id( id ) ) ) {
+            if( net::is_remote_player( *guy ) ) {
+                return *guy;
+            }
+        }
+    }
+    return get_avatar();
+}
+
+// Every player (the host and multiplayer clients) with pyromania who sees the fire at @p pos.
+static void pyromania_watchers( const tripoint_bub_ms &pos )
+{
+    map &here = get_map();
+    std::vector<Character *> players{ &get_avatar() };
+    for( npc &guy : g->all_npcs() ) {
+        if( net::is_remote_player( guy ) ) {
+            players.push_back( &guy );
+        }
+    }
+    for( Character *player : players ) {
+        if( player->has_trait( trait_PYROMANIA ) && player->sees( here, pos ) ) {
+            player->add_morale( morale_pyromania_startfire, 15, 15, 8_hours, 6_hours );
+            player->rem_morale( morale_pyromania_nofire );
+            player->add_msg_if_player( m_good, _( "Fire…  Good…" ) );
+        }
+    }
 }
 
 std::optional<int> iuse::sewage( Character *p, item *, const tripoint_bub_ms & )
@@ -1857,6 +1892,8 @@ std::optional<int> iuse::fish_trap( Character *p, item *it, const tripoint_bub_m
     }
     it->active = true;
     it->set_age( 0_turns );
+    // whoever placed it gets the catch skill check and the practice
+    it->set_var( "mp_user", p->getID().get_value() );
     here.add_item_or_charges( pnt, *it );
     p->i_rem( it );
     p->add_msg_if_player( m_info,
@@ -1881,7 +1918,7 @@ std::optional<int> iuse::fish_trap_tick( Character *p, item *it, const tripoint_
             return 0;
         }
 
-        avatar &player = get_avatar();
+        Character &player = item_user( *it );
 
         int success = -50;
         const float surv = player.get_skill_level( skill_survival );
@@ -3583,12 +3620,7 @@ std::optional<int> iuse::grenade_inc_act( Character *p, item *, const tripoint_b
         here.add_field( dest, fd_incendiary, 3 );
     }
 
-    avatar &player = get_avatar();
-    if( player.has_trait( trait_PYROMANIA ) && player.sees( here, pos ) ) {
-        player.add_morale( morale_pyromania_startfire, 15, 15, 8_hours, 6_hours );
-        player.rem_morale( morale_pyromania_nofire );
-        add_msg( m_good, _( "Fire…  Good…" ) );
-    }
+    pyromania_watchers( pos );
     return 0;
 }
 
@@ -3602,12 +3634,7 @@ std::optional<int> iuse::molotov_lit( Character *p, item *it, const tripoint_bub
             const int intensity = 1 + one_in( 3 ) + one_in( 5 );
             here.add_field( pt, fd_fire, intensity );
         }
-        avatar &player = get_avatar();
-        if( player.has_trait( trait_PYROMANIA ) && player.sees( here, pos ) ) {
-            player.add_morale( morale_pyromania_startfire, 15, 15, 8_hours, 6_hours );
-            player.rem_morale( morale_pyromania_nofire );
-            add_msg( m_good, _( "Fire…  Good…" ) );
-        }
+        pyromania_watchers( pos );
         return 1;
     }
 
@@ -7803,6 +7830,7 @@ std::optional<int> iuse::multicooker( Character *p, item *it, const tripoint_bub
             }
 
             it->set_var( "RECIPE", meal->ident().str() );
+            it->set_var( "mp_user", p->getID().get_value() );
             it->set_var( "DISH", meal->result().str() );
             it->set_var( "COOKTIME", mealtime );
 
@@ -7914,10 +7942,10 @@ std::optional<int> iuse::multicooker_tick( Character *p, item *it, const tripoin
         /** @EFFECT_INT increases chance of checking multi-cooker on time */
 
         /** @EFFECT_SURVIVAL increases chance of checking multi-cooker on time */
-        avatar &player = get_avatar();
+        Character &player = item_user( *it );
         if( player.int_cur + player.get_skill_level( skill_cooking ) + player.get_skill_level(
                 skill_survival ) > 16 ) {
-            add_msg( m_info, _( "The multi-cooker should be finishing shortly…" ) );
+            player.add_msg_if_player( m_info, _( "The multi-cooker should be finishing shortly…" ) );
         }
     }
 
