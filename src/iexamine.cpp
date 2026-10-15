@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -68,6 +69,7 @@
 #include "mtype.h"
 #include "mutation.h"
 #include "npc.h"
+#include "json_loader.h"
 #include "mp_stations.h"
 #include "net_session.h"
 #include "omdata.h"
@@ -855,13 +857,57 @@ void iexamine::attunement_altar( Character &you, const tripoint_bub_ms & )
     }
 }
 
+namespace
+{
+// Multiplayer: the gates a player knows.  The host's character keeps them itself; a client's body
+// keeps them as a value ("mp_translocators"), saved with the body.
+teleporter_list load_gates( Character &who )
+{
+    if( avatar *av = who.as_avatar() ) {
+        return av->translocators;
+    }
+    teleporter_list list;
+    const std::string json = who.get_value( "mp_translocators" ).str();
+    if( !json.empty() ) {
+        try {
+            JsonValue jv = json_loader::from_string( json );
+            list.deserialize( jv.get_object() );
+        } catch( const std::exception & ) {
+        }
+    }
+    return list;
+}
+
+void save_gates( Character &who, const teleporter_list &list )
+{
+    if( avatar *av = who.as_avatar() ) {
+        av->translocators = list;
+        return;
+    }
+    std::ostringstream os;
+    JsonOut jo( os );
+    list.serialize( jo );
+    who.set_value( "mp_translocators", os.str() );
+}
+} // namespace
+
 void iexamine::translocator( Character &you, const tripoint_bub_ms &examp )
 {
     map &here = get_map();
 
     const tripoint_abs_omt omt_loc( coords::project_to<coords::omt>( here.get_abs( examp ) ) );
-    avatar &player_character = get_avatar();
-    const bool activated = player_character.translocators.knows_translocator( omt_loc );
+    // the one using it (multiplayer: may be a client's body with its own list of gates)
+    teleporter_list gates = load_gates( you );
+    const bool activated = gates.knows_translocator( omt_loc );
+    const auto adjust = [&]() {
+        if( !activated ) {
+            gates.activate_teleporter( omt_loc, examp );
+            you.add_msg_if_player( m_info, _( "Translocator gate active." ) );
+        } else if( query_yn( _( "Do you want to deactivate this active Translocator?" ) ) ) {
+            gates.deactivate_teleporter( omt_loc, examp );
+        }
+        save_gates( you, gates );
+    };
 
     if( here.has_flag_furn( ter_furn_flag::TFLAG_TRANSLOCATOR_GREATER, examp ) ) {
 
@@ -877,22 +923,30 @@ void iexamine::translocator( Character &you, const tripoint_bub_ms &examp )
 
         switch( menu.ret ) {
             case TELEPORT: {
-                avatar *av = you.as_avatar();
-                if( av == nullptr ) {
-                    return;
+                if( avatar *av = you.as_avatar() ) {
+                    av->translocators.translocate( { you.pos_bub() } );
+                    break;
                 }
-                av->translocators.translocate( { you.pos_bub() } );
+                // a client's body: its own gates; it is sent there at the end of the turn
+                if( gates.empty() ) {
+                    you.add_msg_if_player( m_bad, _( "No translocator target known." ) );
+                    break;
+                }
+                const std::optional<tripoint_abs_omt> dest = gates.choose_location();
+                if( !dest ) {
+                    break;
+                }
+                const std::optional<tripoint_abs_ms> arrival = teleporter_list::arrival_at( *dest );
+                if( !arrival || !net::move_body_far( you, *arrival ) ) {
+                    you.add_msg_if_player( m_bad,
+                                           _( "Failed to teleport.  Teleporter obstructed or destroyed." ) );
+                    break;
+                }
+                you.add_msg_if_player( m_good, _( "The world folds around you." ) );
                 break;
             }
             case ADJUST_ACTIVATION: {
-                if( !activated ) {
-                    player_character.translocators.activate_teleporter( omt_loc, examp );
-                    add_msg( m_info, _( "Translocator gate active." ) );
-                } else {
-                    if( query_yn( _( "Do you want to deactivate this active Translocator?" ) ) ) {
-                        player_character.translocators.deactivate_teleporter( omt_loc, examp );
-                    }
-                }
+                adjust();
                 break;
             }
             default: {
@@ -901,14 +955,7 @@ void iexamine::translocator( Character &you, const tripoint_bub_ms &examp )
         }
 
     } else {
-        if( !activated ) {
-            player_character.translocators.activate_teleporter( omt_loc, examp );
-            add_msg( m_info, _( "Translocator gate active." ) );
-        } else {
-            if( query_yn( _( "Do you want to deactivate this active Translocator?" ) ) ) {
-                player_character.translocators.deactivate_teleporter( omt_loc, examp );
-            }
-        }
+        adjust();
     }
 }
 

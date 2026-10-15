@@ -77,6 +77,11 @@ static std::optional<tripoint_abs_ms> find_valid_teleporters_omt( const tripoint
     return std::nullopt;
 }
 
+std::optional<tripoint_abs_ms> teleporter_list::arrival_at( const tripoint_abs_omt &omt_pt )
+{
+    return find_valid_teleporters_omt( omt_pt );
+}
+
 bool teleporter_list::place_avatar_overmap( Character &you, const tripoint_abs_omt &omt_pt ) const
 {
     tinymap omt_dest;

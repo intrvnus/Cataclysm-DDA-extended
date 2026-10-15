@@ -140,6 +140,8 @@ struct remote_player {
     bool out_of_lives = false;
     // came back to life: moves to its bed (the respawn point) at the end of the turn
     bool respawn_to_bed = false;
+    // translocators: the body goes far away at the end of the turn
+    std::optional<tripoint_abs_ms> move_far;
     // test helper (CATA_MP_TEST_DOWN): where we are in the down/revive/bleed-out cycle
     int test_stage = 0;
     fluid::ms_t test_at = 0;
@@ -3120,6 +3122,16 @@ void play_sound_for( const Character &who, const std::string &id, const std::str
     } ) );
 }
 
+bool move_body_far( Character &who, const tripoint_abs_ms &dest )
+{
+    remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
+    if( rp == nullptr ) {
+        return false;
+    }
+    rp->move_far = dest;
+    return true;
+}
+
 bool talk_to_monster( Character &who, monster &other )
 {
     remote_player *rp = is_host() ? find_client( who.getID() ) : nullptr;
@@ -3292,6 +3304,16 @@ void host_end_of_turn()
         if( rp.out_of_lives ) {
             // waits for the player's new character (they join again)
             continue;
+        }
+        if( rp.move_far ) {
+            const tripoint_abs_ms dest = *rp.move_far;
+            rp.move_far.reset();
+            if( guy != nullptr && !guy->is_dead() ) {
+                // like going back to the bed: stored there, back in a bubble of its own
+                guy->spawn_at_precise( dest );
+                store_and_remove_body( rp );
+                guy = nullptr;
+            }
         }
         if( rp.respawn_to_bed ) {
             rp.respawn_to_bed = false;

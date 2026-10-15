@@ -37,6 +37,15 @@ class teleporter_list
         // calls the necessary functions to select translocator location
         // and teleports the target(s) there
         void translocate( const std::set<tripoint_bub_ms> &targets );
+        /** The menu of known gates; the chosen one, or nothing. */
+        std::optional<tripoint_abs_omt> choose_location() {
+            return choose_teleport_location();
+        }
+        /** Where a gate in @p omt_pt can be arrived at (its translocator tile), if any. */
+        static std::optional<tripoint_abs_ms> arrival_at( const tripoint_abs_omt &omt_pt );
+        bool empty() const {
+            return known_teleporters.empty();
+        }
 
         void serialize( JsonOut &json ) const;
         void deserialize( const JsonObject &data );
