@@ -26,6 +26,11 @@ void note_craft_at( const tripoint_abs_ms &where );
 void tick();
 /** True while queue_menu runs: Character::start_craft queues the craft instead of starting it. */
 bool queue_mode();
+/** Multiplayer crafting at a workbench (the crafting window can not be replayed on the host):
+ * on a client's own pass the recipe is chosen and recorded, on the host's replay the craft is
+ * started (or queued, @p queue) from that answer.  False when not in a multiplayer action:
+ * then the caller opens the crafting window itself. */
+bool mp_craft_at( Character &who, const tripoint_abs_ms &where, bool is_long, bool queue );
 /** The station menu of @p who at the workbench @p where (queue a recipe, see the queue). */
 void queue_menu( Character &who, const tripoint_abs_ms &where );
 void load();

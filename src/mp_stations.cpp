@@ -24,6 +24,9 @@
 #include "path_info.h"
 #include "player_activity.h"
 #include "recipe.h"
+#include "recipe_dictionary.h"
+#include "remote_ui.h"
+#include "crafting_gui.h"
 #include "string_formatter.h"
 #include "translations.h"
 #include "veh_type.h"
@@ -175,8 +178,51 @@ void tick()
     }
 }
 
+bool mp_craft_at( Character &who, const tripoint_abs_ms &where, bool is_long, bool queue )
+{
+    map &here = get_map();
+    if( remote_ui::recording() ) {
+        // the client: the usual window, the answer goes to the host
+        int batch = 0;
+        const std::pair<Character *, const recipe *> chosen =
+            select_crafter_and_crafting_recipe( batch, recipe_id(), &who );
+        remote_ui::record( "rcp", chosen.second != nullptr ? chosen.second->ident().str() : std::string() );
+        remote_ui::record( "bat", std::to_string( std::max( 1, batch ) ) );
+        return true;
+    }
+    if( !remote_ui::replaying() ) {
+        return false;
+    }
+    const recipe_id id( remote_ui::answer( "rcp" ).value_or( "" ) );
+    const int batch = std::clamp( std::atoi( remote_ui::answer( "bat" ).value_or( "1" ).c_str() ), 1, 1000 );
+    if( id.str().empty() || !id.is_valid() || !here.inbounds( where ) ) {
+        return true;
+    }
+    const recipe &rec = id.obj();
+    if( !who.knows_recipe( &rec ) && !who.get_group_available_recipes().contains( &rec ) ) {
+        who.add_msg_if_player( m_info, _( "You don't know how to make that." ) );
+        return true;
+    }
+    if( !who.can_make( &rec, batch ) ) {
+        who.add_msg_if_player( m_info, _( "You can't make that right now." ) );
+        return true;
+    }
+    const tripoint_bub_ms loc = here.get_bub( where );
+    queueing() = queue;
+    if( is_long && !queue ) {
+        who.make_all_craft( id, batch, loc );
+    } else {
+        who.make_craft( id, batch, loc );
+    }
+    queueing() = false;
+    return true;
+}
+
 void queue_menu( Character &who, const tripoint_abs_ms &where )
 {
+    if( mp_craft_at( who, where, false, true ) ) {
+        return;
+    }
     map &here = get_map();
     if( !here.inbounds( where ) ) {
         return;
