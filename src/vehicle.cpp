@@ -2108,6 +2108,17 @@ bool vehicle::merge_appliance_into_grid( map *here, vehicle &veh_target )
             get_avatar().grab( object_type::NONE );
         }
     }
+    // multiplayer: clients' bodies dragging either of them let go too
+    for( npc *guy : net::remote_player_npcs() ) {
+        if( guy->grab_point == tripoint_rel_ms::zero ) {
+            continue;
+        }
+        const optional_vpart_position grabbed = here->veh_at( guy->pos_bub( *here ) + guy->grab_point );
+        if( grabbed && ( &grabbed->vehicle() == this || &grabbed->vehicle() == &veh_target ) ) {
+            guy->add_msg_if_player( _( "You release the %s." ), grabbed->vehicle().name );
+            guy->grab_point = tripoint_rel_ms::zero;
+        }
+    }
     //Reset both grid turn_dir to prevent rotation on merge
     turn_dir = 0_degrees;
     veh_target.turn_dir = 0_degrees;
