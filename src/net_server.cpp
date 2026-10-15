@@ -1935,6 +1935,10 @@ bool run_activity( remote_player &rp, npc &guy )
                                         get_option<int>( "FLUID_ACTIVITY_SPEED" ) ) - 1;
     }
     const size_t messages_before = Messages::size();
+    // "The player" is this body while its activity runs (picking up, eating, crafting ... use
+    // get_player_character()); a question an activity asks has no answer and is cancelled
+    // instead of opening on the host
+    remote_ui::replay_scope as_player( std::vector<remote_ui::entry>(), guy, guy.getID().get_value() );
     // One activity turn per world turn (see do_turn.cpp): the extra moves are given one turn
     // at a time, because most activities spend all moves in a single call.
     int guard = 0;
@@ -1955,6 +1959,9 @@ bool run_activity( remote_player &rp, npc &guy )
              Messages::recent_messages( messages_after - messages_before ) ) {
             send_text( rp, m.second );
         }
+    }
+    for( const std::string &text : as_player.texts() ) {
+        send_text( rp, text );
     }
     if( !guy.activity && guy.get_moves() > guy.get_speed() ) {
         guy.set_moves( guy.get_speed() );
