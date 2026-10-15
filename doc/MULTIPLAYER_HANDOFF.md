@@ -4,7 +4,15 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Newest: overnight session 2026-10-14/15 (Opus, Noah asleep)
+## 0. Latest addition (2026-10-15 late): server terminal window
+Every server process (`--mp-server`: the host's background server and dedicated servers) opens a
+terminal window on Windows (`net::open_server_console`, src/net_listen.cpp) that shows the debug
+log (`debug_echo_to_console`, tee in src/debug.cpp) and writes its own log to
+`config/debug_server.log` (`PATH_INFO::set_server_log`). Its SDL window is always hidden. Closing
+the terminal sets a flag; `host_end_of_turn` saves and quits. Purpose: diagnose Noah's freeze after
+character creation (send `debug_server.log`). Verified: compile checks and a full Linux build only.
+
+## 0a. Overnight session 2026-10-14/15: overnight session 2026-10-14/15 (Opus, Noah asleep)
 Noah's instructions for the night: delegate to Gemini where possible and review every diff; write
 code for the roadmap and **only compile-check it** (no in-game tests until he asks); keep a morning
 report (Claude Docs: "CDDA Multiplayer – Overnight Report", with a tick-off test checklist) and

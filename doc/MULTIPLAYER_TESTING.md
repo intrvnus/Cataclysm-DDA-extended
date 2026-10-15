@@ -84,7 +84,9 @@ Host and client need this build (network protocol 3).
       "other players' delay" can be changed (keep body width the same on host and clients).
 - [ ] Lives: running out of lives, making a new character and joining again.
 - [ ] Hosting (menu or `--mp-host`) after the 2026-10-15 evening fix: only ONE game window (the
-      server runs hidden); no `mp_local` folder any more (an old one can be deleted); walls, doors
+      server runs hidden) plus a terminal window "Cataclysm multiplayer server" with the server's
+      log (also in `config/debug_server.log`); closing that terminal saves and stops the server
+      (dedicated servers too); no `mp_local` folder any more (an old one can be deleted); walls, doors
       and smashing behave like single player; leaving and hosting again works; on a new world the
       character screen comes first, then "The server is preparing the world…".
 - [ ] No more "You cannot close the …" while walking. Escape opens a small game menu (options,

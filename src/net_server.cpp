@@ -3321,6 +3321,12 @@ void host_end_of_turn()
         return;
     }
     poll();
+    if( console_stop_requested() && g->uquit == QUIT_NO ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the server window was closed, the server saves and stops";
+        if( g->save() ) {
+            g->uquit = QUIT_SAVED;
+        }
+    }
     if( listen_child() ) {
         // the hidden server of a host: without anybody connected for 20 minutes (the host's
         // game never came or crashed) it saves and stops instead of running on unseen

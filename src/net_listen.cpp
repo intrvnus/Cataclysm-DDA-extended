@@ -7,6 +7,7 @@
 #include "net_session.h"
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <system_error>
@@ -144,6 +145,42 @@ void set_listen_child()
 bool listen_child()
 {
     return lstate().child;
+}
+
+namespace
+{
+volatile bool console_stop = false;
+#if defined(_WIN32)
+BOOL WINAPI console_ctrl( DWORD )
+{
+    // closing the server's terminal window: the game loop saves and stops (Windows gives a few
+    // seconds before it ends the process)
+    console_stop = true;
+    Sleep( 5000 );
+    return TRUE;
+}
+#endif
+} // namespace
+
+void open_server_console()
+{
+#if defined(_WIN32)
+    if( GetConsoleWindow() == nullptr && AllocConsole() ) {
+        FILE *f = nullptr;
+        freopen_s( &f, "CONOUT$", "w", stdout );
+        freopen_s( &f, "CONOUT$", "w", stderr );
+        SetConsoleTitleA( "Cataclysm multiplayer server (close this window to save and stop it)" );
+    }
+    SetConsoleCtrlHandler( console_ctrl, TRUE );
+#endif
+    std::printf( "Cataclysm multiplayer server: loading the world...\n"
+                 "The log is in config/debug_server.log.\n" );
+    std::fflush( stdout );
+}
+
+bool console_stop_requested()
+{
+    return console_stop;
 }
 
 bool listen_local()

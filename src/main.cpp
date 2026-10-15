@@ -793,6 +793,12 @@ int main( int argc, const char *argv[] )
 #if defined(EMSCRIPTEN)
     setupDebug( DebugOutput::std_err );
 #else
+    if( net::dedicated_requested() ) {
+        // the server: its own terminal window with the log, and a log file of its own
+        net::open_server_console();
+        PATH_INFO::set_server_log();
+        debug_echo_to_console();
+    }
     setupDebug( DebugOutput::file );
 #endif
     // NOLINTNEXTLINE(cata-tests-must-restore-global-state)

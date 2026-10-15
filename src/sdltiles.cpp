@@ -317,11 +317,9 @@ static void WinCreate()
 #endif
 
     // Multiplayer: the host's background server shows no window (it stops when the host
-    // leaves); a dedicated server's window starts minimized
-    if( net::listen_child() ) {
+    // leaves) and neither does a dedicated server: their terminal window shows the log
+    if( net::listen_child() || net::dedicated_requested() ) {
         window_flags |= SDL_WINDOW_HIDDEN;
-    } else if( net::dedicated_requested() ) {
-        window_flags |= SDL_WINDOW_MINIMIZED;
     }
     ::window.reset( SDL_CreateWindow( "",
                                       SDL_WINDOWPOS_CENTERED_DISPLAY( display ),

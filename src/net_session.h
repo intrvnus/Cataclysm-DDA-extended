@@ -74,6 +74,11 @@ bool prepare_listen( const std::string &world, const char *argv0 );
 /** This process is the server started by prepare_listen (--mp-listen-child). */
 void set_listen_child();
 bool listen_child();
+/** The server process (dedicated or a host's background server): a terminal window of its own
+ * that shows the log (Windows; elsewhere the log goes to the terminal that started it). */
+void open_server_console();
+/** The server's terminal window was closed: save and stop. */
+bool console_stop_requested();
 /** This process is the host's own client (started with --mp-host). */
 bool listen_local();
 /** The host's own client could not reach its server (still loading): try again soon. */

@@ -62,6 +62,8 @@ cata_path custom_colors();
 cata_path data_sound();
 cata_path datadir_path();
 cata_path debug();
+/** Multiplayer server: its own log file (debug_server.log) next to the game's. */
+void set_server_log();
 cata_path defaultsounddir();
 cata_path fontdata();
 cata_path gfxdir();

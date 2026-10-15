@@ -265,9 +265,16 @@ cata_path PATH_INFO::datadir_path()
 {
     return datadir_path_value;
 }
+static bool server_log = false;
+
+void PATH_INFO::set_server_log()
+{
+    server_log = true;
+}
+
 cata_path PATH_INFO::debug()
 {
-    return config_dir_path_value / "debug.log";
+    return config_dir_path_value / ( server_log ? "debug_server.log" : "debug.log" );
 }
 cata_path PATH_INFO::defaultsounddir()
 {

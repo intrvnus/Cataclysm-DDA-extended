@@ -186,6 +186,8 @@ enum class DebugOutput : int {
 
 /** Initializes the debugging system, called exactly once from main() */
 void setupDebug( DebugOutput );
+/** Multiplayer server: the log is also written to the terminal (call before setupDebug). */
+void debug_echo_to_console();
 /** Opposite of setupDebug, shuts the debugging system down. */
 void deinitDebug();
 

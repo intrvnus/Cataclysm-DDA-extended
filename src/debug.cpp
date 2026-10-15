@@ -13,6 +13,7 @@
 #include <cstring>
 #include <ctime>
 #include <iomanip>
+#include <iostream>
 #include <iterator>
 #include <map>
 #include <memory>
@@ -716,6 +717,49 @@ struct OutputDebugStreamA : public std::ostream {
 };
 #endif
 
+// Multiplayer server: everything written to the log also goes to its terminal window
+class tee_buf : public std::streambuf
+{
+    public:
+        tee_buf( std::streambuf *a, std::streambuf *b ) : a( a ), b( b ) {}
+    protected:
+        int overflow( int c ) override {
+            if( c == EOF ) {
+                return !EOF;
+            }
+            const int r1 = a->sputc( static_cast<char>( c ) );
+            b->sputc( static_cast<char>( c ) );
+            return r1;
+        }
+        int sync() override {
+            const int r1 = a->pubsync();
+            b->pubsync();
+            return r1;
+        }
+    private:
+        std::streambuf *a;
+        std::streambuf *b;
+};
+
+class tee_stream : public std::ostream
+{
+    public:
+        tee_stream( std::shared_ptr<std::ostream> first, std::ostream &second ) :
+            std::ostream( nullptr ), keep( std::move( first ) ), buf( keep->rdbuf(), second.rdbuf() ) {
+            rdbuf( &buf );
+        }
+    private:
+        std::shared_ptr<std::ostream> keep;
+        tee_buf buf;
+};
+
+static bool echo_log_to_console = false;
+
+void debug_echo_to_console()
+{
+    echo_log_to_console = true;
+}
+
 struct DebugFile {
     void init( DebugOutput, const cata_path &filename );
     void deinit();
@@ -786,6 +830,9 @@ void DebugFile::init( DebugOutput output_mode, const cata_path &filename )
     static auto keep_shared_ptr = file;
     file = std::make_shared<OutputDebugStreamA>( file );
 #endif
+    if( echo_log_to_console ) {
+        file = std::make_shared<tee_stream>( file, std::cout );
+    }
     *file << "\n\n-----------------------------------------\n";
     *file << get_time() << " : Starting log.";
     DebugLog( D_INFO, D_MAIN ) << "Cataclysm DDA version " << getVersionString();
