@@ -41,7 +41,13 @@ tasks; 3.5-flash-lite still worked. Delegated and merged after review: a typo, t
    client but affects the host is fixed at once without asking (see `CLAUDE.md`).
 3. Opening the climb-down menu on a ledge push is fine; warning messages should be reworked rather
    than switched off. Menus are fine as long as there is a quick way out in case of danger.
-4. Weariness "take a break", C4 factions, C6 basecamps: Noah wants the details before any work.
+4. Weariness "take a break", C4 factions, C6 basecamps: details given; Noah agreed to all
+   recommendations (see `MULTIPLAYER_FACTIONS_OPTIONS.md`), with one change: a recruited NPC
+   follows **the player who gave the command** in the NPC menu, not the nearest member (NPCs also
+   guard and work).
+Follow-up answers: A2 = approach (a): a multiplayer host starts the dedicated server in the
+background and joins it as a client. Warnings = real-time question boxes that close on danger
+(damage taken, hostile adjacent), plus soft-wall warnings and the climb-down menu for clients.
 
 ### Open / for Noah
 - Hands-on test of the night's build (checklist in the morning report).
