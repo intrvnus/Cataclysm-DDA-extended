@@ -203,8 +203,10 @@ when a batch is worth playing.
 * **Done:** the client's character is sent on join; the host keeps each player's body in
   `<world>/mp_players/<key>.json` (the key lives in the client's `config/mp_identity.txt`);
   rejoining puts you back into your body where you left (if that spot is loaded, else next to
-  the host); the client gets its full character every 3 s. Open: map memory / overmap notes
-  per player.
+  the host); the client gets its full character every 3 s. Map memory per player: done earlier. Overmap
+  notes: kept by the host per group (2026-10-15, compile only): the shared group writes the world's
+  notes, other groups keep their own (`mp_players/group_notes.json`); a client gets them with the
+  map and sends back what it added, changed or deleted when it closes the map.
 
 ### A5 [C] 353 yes/no popups and "Really do X?" prompts
 * Every `query_yn` stops time on the host. Most must become non-blocking (default answer,

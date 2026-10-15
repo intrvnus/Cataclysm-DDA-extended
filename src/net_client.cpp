@@ -83,6 +83,7 @@
 #include "options.h"
 #include "output.h"
 #include "overmapbuffer.h"
+#include "map_scale_constants.h"
 #include "path_info.h"
 #include "point.h"
 #include "recipe.h"
@@ -176,6 +177,66 @@ void place_avatar( const tripoint_abs_ms &p )
     map &now = get_map();
     u.setpos( now, now.get_bub( p ), false );
     g->update_map( u );
+}
+
+// the overmap notes the host has for this player's group, as last received
+std::map<tripoint_abs_omt, std::string> &omap_notes_known()
+{
+    static std::map<tripoint_abs_omt, std::string> m;
+    return m;
+}
+
+// after the map was open: tell the host which notes were added, changed or deleted
+void send_note_changes()
+{
+    std::map<tripoint_abs_omt, std::string> now;
+    for( int z = -OVERMAP_DEPTH; z <= OVERMAP_HEIGHT; ++z ) {
+        for( const auto &n : overmap_buffer.get_all_notes( z ) ) {
+            now[tripoint_abs_omt( n.first, z )] = n.second;
+        }
+    }
+    std::map<tripoint_abs_omt, std::string> &known = omap_notes_known();
+    std::vector<std::pair<tripoint_abs_omt, std::string>> set;
+    std::vector<tripoint_abs_omt> del;
+    for( const auto &n : now ) {
+        const auto iter = known.find( n.first );
+        if( iter == known.end() || iter->second != n.second ) {
+            set.emplace_back( n );
+        }
+    }
+    for( const auto &n : known ) {
+        if( now.count( n.first ) == 0 ) {
+            del.push_back( n.first );
+        }
+    }
+    if( set.empty() && del.empty() ) {
+        return;
+    }
+    known = now;
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "omap_notes" );
+        jo.member( "set" );
+        jo.start_array();
+        for( const auto &n : set ) {
+            jo.start_array();
+            jo.write( n.first.x() );
+            jo.write( n.first.y() );
+            jo.write( n.first.z() );
+            jo.write( n.second );
+            jo.end_array();
+        }
+        jo.end_array();
+        jo.member( "del" );
+        jo.start_array();
+        for( const tripoint_abs_omt &p : del ) {
+            jo.start_array();
+            jo.write( p.x() );
+            jo.write( p.y() );
+            jo.write( p.z() );
+            jo.end_array();
+        }
+        jo.end_array();
+    } ) );
 }
 
 void reload_map()
@@ -1233,6 +1294,7 @@ bool handle_input()
                 uistate.overmap_visible_weather = false;
             }
             ui::omap::display();
+            send_note_changes();
             break;
         case ACTION_GRAB:
             send_ui( "grab", [] {
@@ -1717,6 +1779,22 @@ void client_on_message( const JsonObject &msg )
     } else if( type == "omap" ) {
         // terrain of the overmap around this player: what is near is seen
         omap_arrived() = true;
+        if( msg.has_array( "notes" ) ) {
+            // the group's notes replace the local ones
+            std::map<tripoint_abs_omt, std::string> &known = omap_notes_known();
+            for( const auto &n : known ) {
+                overmap_buffer.delete_note( n.first );
+            }
+            known.clear();
+            for( JsonArray a : msg.get_array( "notes" ) ) {
+                const int x = a.next_int();
+                const int y = a.next_int();
+                const int nz = a.next_int();
+                const tripoint_abs_omt p( x, y, nz );
+                known[p] = a.next_string();
+                overmap_buffer.add_note( p, known[p] );
+            }
+        }
         const int x0 = msg.get_int( "x", 0 );
         const int y0 = msg.get_int( "y", 0 );
         const int z = msg.get_int( "z", 0 );

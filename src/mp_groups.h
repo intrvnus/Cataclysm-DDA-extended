@@ -3,6 +3,8 @@
 #define CATA_SRC_MP_GROUPS_H
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "coords_fwd.h"
 #include "npc_opinion.h"
@@ -36,6 +38,11 @@ std::string mission_group( int mission_id );
  * Whoever joins a group brings their map into it; whoever leaves keeps a copy. */
 void reveal( const Character &who, const tripoint_abs_omt &p );
 om_vision_level seen_by( const Character &who, const tripoint_abs_omt &p );
+/** Overmap notes per group: the shared group writes the world's notes, other groups keep
+ * their own (also handed on like the map when changing groups). */
+std::vector<std::pair<tripoint_abs_omt, std::string>> notes_of( const Character &who );
+void set_note( const Character &who, const tripoint_abs_omt &p, const std::string &text );
+void delete_note( const Character &who, const tripoint_abs_omt &p );
 /** NPC reputation per group (C4): while it lives, @p other's opinion of the player
  * (npc::op_of_u) is the one it holds of @p you's group.  The shared group uses op_of_u itself;
  * the other groups' opinions are kept on the NPC (values "mp_op_<group>"), starting from

@@ -12,6 +12,7 @@
 #include "filesystem.h"
 #include "json.h"
 #include "json_loader.h"
+#include "map_scale_constants.h"
 #include "path_info.h"
 #include "character.h"
 #include "faction.h"
@@ -45,11 +46,32 @@ std::map<std::string, std::set<tripoint_abs_omt>> &group_maps()
     return m;
 }
 
+// overmap notes of each group other than the shared one
+std::map<std::string, std::map<tripoint_abs_omt, std::string>> &group_notes()
+{
+    static std::map<std::string, std::map<tripoint_abs_omt, std::string>> m;
+    return m;
+}
+
 // the knowledge of group @p from is added to group @p to
 void copy_knowledge( const std::string &from, const std::string &to )
 {
     if( from == to ) {
         return;
+    }
+    if( !from.empty() ) {
+        const auto notes = group_notes().find( from );
+        if( notes != group_notes().end() ) {
+            for( const auto &n : notes->second ) {
+                if( to.empty() ) {
+                    if( !overmap_buffer.has_note( n.first ) ) {
+                        overmap_buffer.add_note( n.first, n.second );
+                    }
+                } else {
+                    group_notes()[to].emplace( n.first, n.second );
+                }
+            }
+        }
     }
     if( from.empty() ) {
         // the shared group's map is the world's overmap: too big to copy; the new group starts
@@ -195,7 +217,51 @@ cata_path map_file()
 {
     return PATH_INFO::world_base_save_path() / "mp_players" / "group_maps.json";
 }
+
+cata_path notes_file()
+{
+    return PATH_INFO::world_base_save_path() / "mp_players" / "group_notes.json";
+}
 } // namespace
+
+std::vector<std::pair<tripoint_abs_omt, std::string>> notes_of( const Character &who )
+{
+    std::vector<std::pair<tripoint_abs_omt, std::string>> out;
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        for( int z = -OVERMAP_DEPTH; z <= OVERMAP_HEIGHT; ++z ) {
+            for( const auto &n : overmap_buffer.get_all_notes( z ) ) {
+                out.emplace_back( tripoint_abs_omt( n.first, z ), n.second );
+            }
+        }
+        return out;
+    }
+    const auto iter = group_notes().find( group );
+    if( iter != group_notes().end() ) {
+        out.assign( iter->second.begin(), iter->second.end() );
+    }
+    return out;
+}
+
+void set_note( const Character &who, const tripoint_abs_omt &p, const std::string &text )
+{
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        overmap_buffer.add_note( p, text );
+    } else {
+        group_notes()[group][p] = text;
+    }
+}
+
+void delete_note( const Character &who, const tripoint_abs_omt &p )
+{
+    const std::string group = group_of( who );
+    if( group.empty() ) {
+        overmap_buffer.delete_note( p );
+    } else {
+        group_notes()[group].erase( p );
+    }
+}
 
 void reveal( const Character &who, const tripoint_abs_omt &p )
 {
@@ -271,6 +337,20 @@ void load()
             }
         } );
     }
+    group_notes().clear();
+    if( file_exist( notes_file() ) ) {
+        read_from_file_optional_json( notes_file(), []( const JsonValue & jv ) {
+            for( const JsonMember m : jv.get_object() ) {
+                std::map<tripoint_abs_omt, std::string> &notes = group_notes()[m.name()];
+                for( JsonArray a : m.get_array() ) {
+                    const int x = a.next_int();
+                    const int y = a.next_int();
+                    const int z = a.next_int();
+                    notes[tripoint_abs_omt( x, y, z )] = a.next_string();
+                }
+            }
+        } );
+    }
     mission_groups().clear();
     if( !file_exist( mission_file() ) ) {
         return;
@@ -310,6 +390,24 @@ void save()
         }
         jo.end_object();
     }, _( "multiplayer group maps" ) );
+    write_to_file( notes_file(), []( std::ostream & fout ) {
+        JsonOut jo( fout );
+        jo.start_object();
+        for( const auto &e : group_notes() ) {
+            jo.member( e.first );
+            jo.start_array();
+            for( const auto &n : e.second ) {
+                jo.start_array();
+                jo.write( n.first.x() );
+                jo.write( n.first.y() );
+                jo.write( n.first.z() );
+                jo.write( n.second );
+                jo.end_array();
+            }
+            jo.end_array();
+        }
+        jo.end_object();
+    }, _( "multiplayer group notes" ) );
 }
 
 std::string group_of( const Character &who )
@@ -426,6 +524,11 @@ std::string command( Character &who, const std::string &args )
         if( map_iter != group_maps().end() ) {
             group_maps()[rest] = std::move( map_iter->second );
             group_maps().erase( mine );
+        }
+        const auto notes_iter = group_notes().find( mine );
+        if( notes_iter != group_notes().end() ) {
+            group_notes()[rest] = std::move( notes_iter->second );
+            group_notes().erase( mine );
         }
         return string_format( _( "The group is called %s now." ), rest );
     }

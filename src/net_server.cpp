@@ -2508,6 +2508,26 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             DebugLog( D_WARNING, D_MAIN ) << "Multiplayer: bad zones from " << rp->name << ": " <<
                                           err.what();
         }
+    } else if( type == "omap_notes" && rp->npc_id.is_valid() ) {
+        // overmap notes a client added, changed or deleted: they belong to its group
+        npc *guy = g->find_npc( rp->npc_id );
+        if( guy != nullptr ) {
+            for( JsonArray a : msg.get_array( "set" ) ) {
+                const int x = a.next_int();
+                const int y = a.next_int();
+                const int z = a.next_int();
+                const std::string text = a.next_string();
+                if( std::abs( z ) <= 10 && text.size() < 1000 ) {
+                    mp_groups::set_note( *guy, tripoint_abs_omt( x, y, z ), text );
+                }
+            }
+            for( JsonArray a : msg.get_array( "del" ) ) {
+                const int x = a.next_int();
+                const int y = a.next_int();
+                const int z = a.next_int();
+                mp_groups::delete_note( *guy, tripoint_abs_omt( x, y, z ) );
+            }
+        }
     } else if( type == "omap_req" && rp->npc_id.is_valid() ) {
         // The overmap of a client is only a copy: send what the group knows around the body.
         npc *guy = g->find_npc( rp->npc_id );
@@ -2546,6 +2566,18 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
                 jo.member( "tbl", table );
                 jo.member( "v", cells );
                 jo.member( "l", levels );
+                // all notes of the group (the client sends back what it changed)
+                jo.member( "notes" );
+                jo.start_array();
+                for( const auto &n : mp_groups::notes_of( *guy ) ) {
+                    jo.start_array();
+                    jo.write( n.first.x() );
+                    jo.write( n.first.y() );
+                    jo.write( n.first.z() );
+                    jo.write( n.second );
+                    jo.end_array();
+                }
+                jo.end_array();
             } ) );
         }
     } else if( type == "trade_done" && rp->npc_id.is_valid() && rp->trade_npc >= 0 ) {
