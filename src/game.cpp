@@ -7388,7 +7388,9 @@ void game::zones_manager()
     bool stuff_changed = false;
     bool show_all_zones = false;
     int zone_cnt = 0;
-    faction_id zones_faction( your_fac );
+    // multiplayer: a client sees and edits the zones of its group (its body's faction)
+    const faction *own_fac = get_player_character().get_faction();
+    faction_id zones_faction( own_fac == nullptr ? your_fac : own_fac->id );
 
     // reset any zones that were temporarily disabled for an activity
     mgr.reset_disabled();
