@@ -1,6 +1,6 @@
 # Player factions (C4): options paper for Noah
 
-Status: nothing implemented yet. This paper lists how factions work today, what a player-faction feature needs, and the decisions only you can make. My recommendation is given for each.
+Status (2026-10-15): Noah agreed to all recommendations, with one change: a recruited NPC follows the player who gave it the order. Done (compile + CI only): followers per commander (`mp_leader`, `npc_player_for`), player groups via chat (`src/mp_groups.cpp`, world option `MP_GROUPING`), health in F4 only for the own group, missions per group (`mission_groups.json`). Open: per-group factions (needed for theft across groups, per-group zones/map/camps); they change how NPCs see players and need a play test first. This paper lists how factions work today, what a player-faction feature needs, and the decisions only you can make. My recommendation is given for each.
 
 ## How it works today
 - Every remote player's body is in the faction `your_followers` (like the host's avatar). So every player is automatically allied to every other player, and nothing a friend owns counts as stolen (item/vehicle `owner` is a faction id).
