@@ -1017,7 +1017,7 @@ void avatar_action::plthrow( avatar &you, item_location loc,
 
     bool in_mech = false;
     if( you.is_mounted() ) {
-        monster *mons = get_player_character().mounted_creature.get();
+        monster *mons = you.mounted_creature.get();
         if( mons->has_flag( mon_flag_RIDEABLE_MECH ) ) {
             if( !mons->check_mech_powered() ) {
                 add_msg( m_bad, _( "Your %s refuses to move as its batteries have been drained." ),
