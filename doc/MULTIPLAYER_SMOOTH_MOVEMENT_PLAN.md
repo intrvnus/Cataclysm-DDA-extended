@@ -105,3 +105,25 @@ About 10 working days in total.
 - `src/net_server.cpp`: `host_drive_remote_players` runs the fixed tick and sends `pos`.
 - `src/net_protocol.h`: protocol version bump. `src/cata_tiles.cpp`: exact player position.
 - Tests: `tools/mp_tests/movetest.sh` plus new scenes; docs `MULTIPLAYER_FLUID.md`, roadmap.
+
+## Phase 6 (Noah's test, 2026-10-15): free movement for everybody, combat without the grid
+
+Finding: players move freely now, monsters and NPCs still in tile steps that start together at
+each world turn, and combat (bump attacks, adjacent-tile melee) is grid based. Proposal, waiting
+for Noah's yes:
+
+1. **Monsters and NPCs glide.** Each one moves continuously toward the next tile its AI chose,
+   at its own speed, and keeps gliding into the following step without a stop (the AI is still
+   tile based underneath: it decides where to go, the body moves there smoothly). Their steps are
+   spread over the turn by their own speed instead of all starting at the turn boundary. Clients
+   see them through the same 20x/s position stream as players (interpolated).
+2. **Melee by distance and arc, not by neighbour tile.** A swing hits what is inside the weapon's
+   reach (measured from body centre to body centre, reach weapons further) and inside a 90 degree
+   arc toward the cursor; several targets only for weapons that already sweep. Monsters hit you
+   when you are inside their reach when their (telegraphed) attack lands, so stepping back during
+   a wind-up dodges it. Bump attacks stay as a fallback (walking into an enemy swings at it).
+3. **Grabs, knockback, pushing** keep working tile by tile underneath and are drawn smoothly.
+4. **Network:** monster positions go into the same stream; protocol bump.
+
+Balance note: hit and damage formulas stay vanilla; only *who is in range* changes from "next
+tile" to "within reach distance", and dodging a wind-up by stepping away becomes possible.
