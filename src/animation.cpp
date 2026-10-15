@@ -20,6 +20,7 @@
 #include "creature_tracker.h"
 #include "cursesdef.h"
 #include "explosion.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "input.h"
@@ -277,6 +278,12 @@ void explosion_handler::draw_explosion( const tripoint_bub_ms &p, const int r, c
 
     if( !use_tiles ) {
         draw_explosion_curses( *g, p, r, col );
+        return;
+    }
+
+    if( fluid::enabled() ) {
+        // realtime: a flash that does not stop the game, also sent to the clients
+        fluid::note_explosion( get_map().get_abs( p ), r );
         return;
     }
 

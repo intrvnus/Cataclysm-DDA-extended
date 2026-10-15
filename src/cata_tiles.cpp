@@ -2098,6 +2098,34 @@ void cata_tiles::draw_fluid_overlays()
         }
     }
 
+    // explosions: an orange flash that grows to the blast radius and fades
+    for( const fluid::boom_view &b : fluid::booms() ) {
+        if( b.at.z() != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const point c = to_screen( b.at.x() + 0.5, b.at.y() + 0.5, b.at.z() );
+        const double rad = ( 0.3 + 0.7 * std::min( 1.0, b.progress * 2.0 ) ) * ( b.radius + 0.5 ) * tile_width;
+        const Uint8 alpha = static_cast<Uint8>( 200 * ( 1.0 - b.progress ) );
+        constexpr int segments = 32;
+        SDL_Vertex v[segments * 3];
+        const SDL_Color inner = { 255, 230, 120, alpha };
+        const SDL_Color outer = { 255, 110, 20, static_cast<Uint8>( alpha / 2 ) };
+        for( int i = 0; i < segments; ++i ) {
+            const double a0 = 2.0 * M_PI * i / segments;
+            const double a1 = 2.0 * M_PI * ( i + 1 ) / segments;
+            v[i * 3].position = { static_cast<float>( c.x ), static_cast<float>( c.y ) };
+            v[i * 3].color = inner;
+            v[i * 3 + 1].position = { static_cast<float>( c.x + std::cos( a0 ) * rad ), static_cast<float>( c.y + std::sin( a0 ) * rad ) };
+            v[i * 3 + 1].color = outer;
+            v[i * 3 + 2].position = { static_cast<float>( c.x + std::cos( a1 ) * rad ), static_cast<float>( c.y + std::sin( a1 ) * rad ) };
+            v[i * 3 + 2].color = outer;
+            for( int k = 0; k < 3; ++k ) {
+                v[i * 3 + k].tex_coord = { 0.0f, 0.0f };
+            }
+        }
+        SDL_RenderGeometry( r, nullptr, v, segments * 3, nullptr, 0 );
+    }
+
     // shots: a bright line from the gun to where the shot ended, fading quickly
     for( const fluid::tracer_view &t : fluid::tracers() ) {
         if( t.from.z() != get_avatar().pos_abs().z() ) {

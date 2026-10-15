@@ -282,7 +282,8 @@ enum class fx_type : int {
     shot,       // a shot was fired
     aim,        // aim state of a remote player (steadiness for its crosshair)
     tracer,     // the path of a shot, from -> to
-    aimline     // a monster takes aim: from -> to for dur_ms
+    aimline,    // a monster takes aim: from -> to for dur_ms
+    boom        // an explosion at from, radius in dx
 };
 
 /** Something that happened and that the other players must see. */
@@ -395,6 +396,16 @@ std::vector<aim_line_view> monster_aim_lines();
  * ranged_windup_ms and returns false; once it has run out the attack may go (true).  Attacks on
  * NPCs and monsters are not delayed. */
 bool ranged_windup_ready( monster &z, const std::string &attack );
+/** An explosion (C22): drawn as an expanding flash without stopping the game (also on the
+ * clients); replaces the blocking explosion animation in fluid mode. */
+void note_explosion( const tripoint_abs_ms &at, int radius );
+struct boom_view {
+    tripoint_abs_ms at;
+    int radius = 0;
+    // 0 at the blast .. 1 when gone
+    double progress = 0.0;
+};
+std::vector<boom_view> booms();
 /** Creatures that were just hit, with the strength of their flash (1..0). */
 std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes();
 

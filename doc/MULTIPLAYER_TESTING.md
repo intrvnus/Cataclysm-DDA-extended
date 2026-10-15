@@ -92,6 +92,8 @@ Host and client need this build (network protocol 3).
       your group, not for other groups.
 - [ ] Sound as a client (sound pack installed): gunshots, zombies, doors near your character are
       heard on your computer, louder when close, from the right side.
+- [ ] Explosions (grenade, propane tank): an orange flash grows and fades; the game does not stop
+      for it; clients see it too.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport

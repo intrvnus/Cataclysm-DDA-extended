@@ -201,6 +201,19 @@ struct tracer_fx {
 };
 constexpr int tracer_ms = 160;
 
+struct boom_fx {
+    tripoint_abs_ms at;
+    int radius = 0;
+    ms_t t0 = 0;
+};
+constexpr int boom_ms = 350;
+
+std::vector<boom_fx> &boom_list()
+{
+    static std::vector<boom_fx> v;
+    return v;
+}
+
 struct aim_line_fx {
     tripoint_abs_ms from;
     tripoint_abs_ms to;
@@ -486,6 +499,10 @@ void prune_animations( ms_t now )
     al.erase( std::remove_if( al.begin(), al.end(), [now]( const aim_line_fx & a ) {
         return now >= a.t0 + a.dur;
     } ), al.end() );
+    std::vector<boom_fx> &bl = boom_list();
+    bl.erase( std::remove_if( bl.begin(), bl.end(), [now]( const boom_fx & b ) {
+        return now >= b.t0 + boom_ms;
+    } ), bl.end() );
     std::vector<tracer_fx> &tl = tracer_list();
     tl.erase( std::remove_if( tl.begin(), tl.end(), [now]( const tracer_fx & t ) {
         return now >= t.t0 + tracer_ms;
@@ -2139,6 +2156,38 @@ void add_tracer( const tripoint_abs_ms &from, const tripoint_abs_ms &to, ms_t no
 }
 } // namespace
 
+void note_explosion( const tripoint_abs_ms &at, int radius )
+{
+    boom_fx b;
+    b.at = at;
+    b.radius = std::max( 1, radius );
+    b.t0 = now_ms();
+    boom_list().push_back( b );
+    if( net::is_host() ) {
+        event ev;
+        ev.type = fx_type::boom;
+        ev.from = at;
+        ev.dx = b.radius;
+        pending_tracers().push_back( ev );
+    }
+}
+
+std::vector<boom_view> booms()
+{
+    std::vector<boom_view> out;
+    const ms_t now = now_ms();
+    for( const boom_fx &b : boom_list() ) {
+        if( now >= b.t0 && now < b.t0 + boom_ms ) {
+            boom_view v;
+            v.at = b.at;
+            v.radius = b.radius;
+            v.progress = static_cast<double>( now - b.t0 ) / boom_ms;
+            out.push_back( v );
+        }
+    }
+    return out;
+}
+
 void note_projectile( const tripoint_abs_ms &from, const tripoint_abs_ms &to )
 {
     add_tracer( from, to, now_ms() );
@@ -2379,7 +2428,8 @@ offset camera_offset()
 
 bool animating()
 {
-    if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || !aim_line_list().empty() || pred().active ||
+    if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || !aim_line_list().empty() ||
+        !boom_list().empty() || pred().active ||
         aim_view_rw().active ) {
         return true;
     }
@@ -3067,6 +3117,14 @@ void apply_visual_event( const event &ev, ms_t arrival )
         case fx_type::aimline:
             add_aim_line( ev.from, ev.to, arrival, ev.dur_ms );
             break;
+        case fx_type::boom: {
+            boom_fx b;
+            b.at = ev.from;
+            b.radius = std::max( 1, ev.dx );
+            b.t0 = arrival;
+            boom_list().push_back( b );
+            break;
+        }
         case fx_type::shot:
         case fx_type::aim:
             break;
@@ -3461,6 +3519,7 @@ void client_event( const event &ev, ms_t arrival, bool mine )
         case fx_type::strike:
         case fx_type::tracer:
         case fx_type::aimline:
+        case fx_type::boom:
             apply_visual_event( ev, arrival );
             break;
         case fx_type::aim:
