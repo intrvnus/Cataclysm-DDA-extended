@@ -6,6 +6,13 @@ Multiplayer / fluid mode work happens on the branch `claude/fluid-proto`. Before
 asking, say how every change was verified, keep the roadmap STATUS current, never push to
 `intrvnus-mod`, no PR, no force push, no Windows build unless Noah asks.
 
+## Standing rule from Noah (2026-10-15)
+Anything that should affect a client (its body, its items, its actions) but affects the host's
+character instead is a bug: fix it right away without asking. Effects of an item use the item's
+owner, never the host. Remember that `get_player_character()` is already the client's body during a
+replay (`remote_ui::replay_scope`); the real bugs are `get_avatar()` / `as_avatar()` uses and code
+that runs outside a replay (activity finish, item timers, per-turn effects).
+
 ## Delegating to Gemini (for the lead agent, Claude Opus)
 
 A second Claude Code instance that runs on Gemini (through a local LiteLLM proxy) can take

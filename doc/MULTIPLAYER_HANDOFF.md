@@ -35,6 +35,14 @@ tasks; 3.5-flash-lite still worked. Delegated and merged after review: a typo, t
 | Client notice when the host's world pauses (no message for 2 s: "The world waits: the host is busy") | Compile + CI |
 | Prediction: sprint only when the character can run; no prediction while downed or asleep | Compile + CI |
 
+### Noah's decisions (2026-10-15 morning)
+1. Host menus must not pause the world for clients, also on a normal host (not only the dedicated server).
+2. Item effects use the item's owner, not the host. Standing rule: anything that should affect a
+   client but affects the host is fixed at once without asking (see `CLAUDE.md`).
+3. Opening the climb-down menu on a ledge push is fine; warning messages should be reworked rather
+   than switched off. Menus are fine as long as there is a quick way out in case of danger.
+4. Weariness "take a break", C4 factions, C6 basecamps: Noah wants the details before any work.
+
 ### Open / for Noah
 - Hands-on test of the night's build (checklist in the morning report).
 - Item tick functions that use "the player" (pyromania morale for molotovs/incendiaries, fish
