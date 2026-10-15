@@ -1820,6 +1820,13 @@ offset sprite_offset( const tripoint_abs_ms &p )
     return a;
 }
 
+namespace
+{
+// how far the smoothed camera still is from the character (tiles): it is animating until it
+// has caught up
+double camera_follow_gap = 0.0;
+} // namespace
+
 offset camera_offset()
 {
     if( !smooth_camera() ) {
@@ -1829,11 +1836,42 @@ offset camera_offset()
     offset o;
     if( tune().camera_follows_slide ) {
         const tripoint_abs_ms at = get_avatar().pos_abs();
+        offset target;
         if( const body_draw *b = body_draw_at( at, now ) ) {
-            o = b->off;
+            target = b->off;
         } else {
-            o = travel_offset_at( at, now );
+            target = travel_offset_at( at, now );
         }
+        // the camera follows a smoothed position in world coordinates: a tile change and the
+        // offset that goes with it may reach the renderer a frame apart, and the game snaps the
+        // character when an action ends; neither may jerk the view (Noah's test, 2026-10-15)
+        struct follow {
+            bool valid = false;
+            double x = 0.0;
+            double y = 0.0;
+            int z = 0;
+            ms_t last = 0;
+        };
+        static follow f;
+        const double wx = at.x() + 0.5 + target.x;
+        const double wy = at.y() + 0.5 + target.y;
+        const double dt = static_cast<double>( std::clamp<ms_t>( now - f.last, 0, 100 ) );
+        f.last = now;
+        if( !f.valid || f.z != at.z() || std::abs( wx - f.x ) > 3.0 || std::abs( wy - f.y ) > 3.0 ) {
+            // a level change, stairs or a teleport: no glide over the whole map
+            f.valid = true;
+            f.x = wx;
+            f.y = wy;
+            f.z = at.z();
+        } else {
+            constexpr double time_constant_ms = 60.0;
+            const double k = 1.0 - std::exp( -dt / time_constant_ms );
+            f.x += ( wx - f.x ) * k;
+            f.y += ( wy - f.y ) * k;
+        }
+        o.x = f.x - ( at.x() + 0.5 );
+        o.y = f.y - ( at.y() + 0.5 );
+        camera_follow_gap = std::abs( wx - f.x ) + std::abs( wy - f.y );
     }
     const offset lead = camera_lead_at( now );
     o.x += lead.x;
@@ -1851,6 +1889,9 @@ bool animating()
         if( e.second.moving && now - e.second.stamp < 250 ) {
             return true;
         }
+    }
+    if( camera_follow_gap > 0.003 ) {
+        return true;
     }
     // the camera is still catching up with the cursor
     if( smooth_camera() ) {
