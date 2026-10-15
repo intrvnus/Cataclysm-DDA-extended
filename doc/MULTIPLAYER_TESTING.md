@@ -94,6 +94,8 @@ Host and client need this build (network protocol 3).
       heard on your computer, louder when close, from the right side.
 - [ ] Explosions (grenade, propane tank): an orange flash grows and fades; the game does not stop
       for it; clients see it too.
+- [ ] Spells as a client (a character with a spell, e.g. via the debug menu "learn all spells"):
+      the cast key opens the spell list, the spell goes where the mouse points; recast repeats it.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport

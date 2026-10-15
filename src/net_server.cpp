@@ -53,6 +53,7 @@
 #include "iuse.h"
 #include "json.h"
 #include "json_loader.h"
+#include "magic.h"
 #include "map.h"
 #include "map_iterator.h"
 #include "martialarts.h"
@@ -1736,6 +1737,23 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             g->pickup();
         } else if( what == "pickup_all" ) {
             g->pickup_all();
+        } else if( what == "cast" ) {
+            // C18: a spell chosen on the client, aimed at the client's mouse
+            const spell_id sid( remote_ui::answer( "sp" ).value_or( "" ) );
+            std::istringstream is( remote_ui::answer( "d" ).value_or( "0 0" ) );
+            int dx = 0;
+            int dy = 0;
+            is >> dx >> dy;
+            if( !sid.is_empty() && sid.is_valid() && guy.magic->knows_spell( sid ) ) {
+                spell &sp = guy.magic->get_spell( sid );
+                tripoint_bub_ms target = guy.pos_bub() + tripoint_rel_ms( dx, dy, 0 );
+                if( !get_map().inbounds( target ) || !sp.is_valid_target( guy, target ) ) {
+                    // e.g. a spell on oneself, or the mouse out of range
+                    target = guy.pos_bub();
+                }
+                guy.magic->last_spell = sid;
+                guy.cast_spell( sp, false, target );
+            }
         } else if( what == "debug" ) {
             const int idx = std::atoi( remote_ui::answer( "dbg" ).value_or( "-1" ).c_str() );
             if( !get_option<bool>( "MP_CLIENT_DEBUG" ) ) {

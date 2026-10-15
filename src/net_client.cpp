@@ -69,6 +69,7 @@
 #include "iuse.h"
 #include "json.h"
 #include "json_loader.h"
+#include "magic.h"
 #include "map.h"
 #include "mapbuffer.h"
 #include "memory_fast.h"
@@ -1148,6 +1149,35 @@ bool handle_input()
                     } );
                     break;
             }
+            break;
+        }
+        case ACTION_CAST_SPELL:
+        case ACTION_RECAST_SPELL: {
+            // C18: the spell is chosen here, aimed at the mouse (like shooting); the host casts it
+            avatar &u = get_avatar();
+            if( u.magic->spells().empty() ) {
+                add_msg( m_bad, _( "You don't know any spells to cast." ) );
+                break;
+            }
+            if( act == ACTION_RECAST_SPELL && u.magic->last_spell.is_null() ) {
+                add_msg( m_info, _( "Cast a spell first." ) );
+                break;
+            }
+            fluid::input_frame in;
+            const bool have_cursor = fluid::poll_device( in ) && in.cursor_valid &&
+                                     in.cursor_z == u.pos_abs().z();
+            const int dx = have_cursor ? static_cast<int>( std::floor( in.cursor_x ) ) - u.pos_abs().x() : 0;
+            const int dy = have_cursor ? static_cast<int>( std::floor( in.cursor_y ) ) - u.pos_abs().y() : 0;
+            const bool recast = act == ACTION_RECAST_SPELL;
+            send_ui( "cast", [&u, recast, dx, dy] {
+                const spell &sp = recast ? u.magic->get_spell( u.magic->last_spell ) :
+                                  u.magic->select_spell( u );
+                remote_ui::record( "sp", sp.id().str() );
+                remote_ui::record( "d", string_format( "%d %d", dx, dy ) );
+                if( !sp.id().is_null() ) {
+                    u.magic->last_spell = sp.id();
+                }
+            } );
             break;
         }
         case ACTION_TOGGLE_SAFEMODE:
