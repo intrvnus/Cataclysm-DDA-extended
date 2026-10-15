@@ -38,3 +38,11 @@ Test hooks live in the game as env vars `CATA_MP_TEST_*` (see `src/mp_test_*.cpp
 - Escape twice makes the client leave the game; use `space` to close things in scripts.
 - The container restarts when the session idles: the scratch dir and Xvfb may vanish.
 - Quote the exact log lines when reporting a result. Check a first "pass"/"fail" against the logs.
+- If the build copy was first built with other flags than `bld.sh` uses (e.g. without `BACKTRACE=0`),
+  ccache can hand back the old precompiled header and every file fails with
+  "main-pch.hpp.gch: not used because `BACKTRACE' not defined". Fix: delete `pch/main-pch.hpp.gch`
+  and build it once with `CCACHE=0` and the same flags as `bld.sh`.
+- Making a test world: start the game with a fresh `--userdir`, choose New Game, "Play Now!
+  (Default Scenario)", then Escape, `f` (save and quit); rename `save/<world>` to `save/Leeds` and
+  copy the user dir to `ud_client` and `ud_host`. Starting with `--world Leeds` when that world does
+  not exist shows only a popup (with some old option files a black window).
