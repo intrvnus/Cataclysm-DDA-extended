@@ -10,6 +10,7 @@
 #include "npc_opinion.h"
 
 class Character;
+class Creature;
 class npc;
 enum class om_vision_level : int8_t;
 
@@ -27,6 +28,13 @@ std::string group_of( const Character &who );
 bool same_group( const Character &a, const Character &b );
 /** A player came into the world: with MP_GROUPING "solo" they start in a group of their own. */
 void on_join( Character &who );
+/** True if @p who is a player (the host's character or a client's body). */
+bool is_player( const Creature &who );
+/** Server rules (C16): players may not hurt @p victim (a player) with this attack: other groups
+ * unless the world option MP_PVP is on, the own group unless MP_FRIENDLY_FIRE is on. */
+bool protected_from( const Creature &attacker, const Creature &victim );
+/** Melee may target @p victim, a player of another group (MP_PVP on). */
+bool pvp_target( const Character &attacker, const Creature &victim );
 /** A "/group ..." chat line of @p who (the text after "/group"); returns the answer for them. */
 std::string command( Character &who, const std::string &args );
 /** Missions belong to the group of the player who accepted them (kept with the world). */

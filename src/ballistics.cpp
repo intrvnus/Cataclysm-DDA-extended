@@ -20,6 +20,7 @@
 #include "enums.h"
 #include "explosion.h"
 #include "fluid.h"
+#include "mp_groups.h"
 #include "game.h"
 #include "item.h"
 #include "itype.h"
@@ -550,6 +551,10 @@ void projectile_attack( dealt_projectile_attack &attack, const projectile &proj_
                 // avoid friendly fire
                 if( critter->attitude_to( *origin ) == Creature::Attitude::FRIENDLY &&
                     origin->check_avoid_friendly_fire() ) {
+                    continue;
+                }
+                // multiplayer server rules (C16): no PvP / no friendly fire between players
+                if( origin != nullptr && mp_groups::protected_from( *origin, *critter ) ) {
                     continue;
                 }
                 critter->deal_projectile_attack( here, null_source ? nullptr : origin, attack, cur_missed_by,

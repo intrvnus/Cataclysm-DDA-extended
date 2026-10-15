@@ -38,6 +38,7 @@
 #include "math_defines.h"
 #include "messages.h"
 #include "monster.h"
+#include "mp_groups.h"
 #include "mtype.h"
 #include "net_session.h"
 #include "npc.h"
@@ -600,6 +601,9 @@ bool is_valid_target( const Character &who, const Creature &c )
 {
     if( c.is_dead_state() || &c == &who ) {
         return false;
+    }
+    if( mp_groups::pvp_target( who, c ) ) {
+        return true;
     }
     const Creature::Attitude att = who.attitude_to( c );
     if( c.is_monster() ) {

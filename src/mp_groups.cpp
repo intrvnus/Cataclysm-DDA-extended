@@ -410,6 +410,31 @@ void save()
     }, _( "multiplayer group notes" ) );
 }
 
+bool is_player( const Creature &who )
+{
+    const Character *ch = who.as_character();
+    if( ch == nullptr || !net::is_host() ) {
+        return false;
+    }
+    return ( ch->is_avatar() && !net::dedicated() ) || net::is_remote_player( *ch );
+}
+
+bool protected_from( const Creature &attacker, const Creature &victim )
+{
+    if( &attacker == &victim || !is_player( attacker ) || !is_player( victim ) ) {
+        return false;
+    }
+    const bool same = same_group( *attacker.as_character(), *victim.as_character() );
+    return same ? !get_option<bool>( "MP_FRIENDLY_FIRE" ) : !get_option<bool>( "MP_PVP" );
+}
+
+bool pvp_target( const Character &attacker, const Creature &victim )
+{
+    return &attacker != &victim && is_player( attacker ) && is_player( victim ) &&
+           !victim.is_dead_state() && get_option<bool>( "MP_PVP" ) &&
+           !same_group( attacker, *victim.as_character() );
+}
+
 std::string group_of( const Character &who )
 {
     return who.get_value( "mp_group" ).str();

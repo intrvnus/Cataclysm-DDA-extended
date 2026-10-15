@@ -85,6 +85,9 @@ Host and client need this build (network protocol 3).
       stranger in conversation; trading/favours with one group do not change its opinion of another.
 - [ ] Map notes as a client: a note made on the map (M, then N) is still there after reconnecting,
       other members of your group see it, other groups do not; deleting it works the same way.
+- [ ] Server rules: with "Multiplayer: PvP" off, shooting through a player of another group does
+      not hurt them; on, you can also hit them in melee. With "friendly fire" off your shots pass
+      through your own group.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
 - [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport

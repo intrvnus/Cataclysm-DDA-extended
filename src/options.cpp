@@ -2921,6 +2921,16 @@ void options_manager::add_options_world_default()
     "shared"
        );
 
+    add( "MP_PVP", "world_default", to_translation( "Multiplayer: PvP" ),
+         to_translation( "Multiplayer: players may hurt players of other groups (melee and shots).  Off: shots pass through them and melee does not target them." ),
+         false
+       );
+
+    add( "MP_FRIENDLY_FIRE", "world_default", to_translation( "Multiplayer: friendly fire" ),
+         to_translation( "Multiplayer: shots can hurt players of the own group (as in the normal game).  Off: they pass through them." ),
+         true
+       );
+
     add( "MP_CLIENT_DEBUG", "world_default", to_translation( "Debug menu for clients" ),
          to_translation( "Multiplayer: clients may open the debug menu; its entries act on their own character (the host runs them).  Entries that would quit, reload or dump the whole world stay off.  Meant for testing." ),
          true
