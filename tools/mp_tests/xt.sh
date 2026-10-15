@@ -7,7 +7,7 @@ shot() { import -window root "$S/$1.png"; }
 # send keys to a given window id (host/client are separate X windows, no WM => use --window)
 k() { local w=$1; shift; xdotool key --window "$w" "$@"; }
 winid() { xdotool search --pid "$1" 2>/dev/null | tail -1; }
-start_host() { (cd $G; export CATA_MP_TEST_NPC=1; [ -z "$NO_STAIRS" ] && export CATA_MP_TEST_STAIRS=1; ./cataclysm-tiles --userdir $S/ud_host/ --world Leeds --mp-host > $S/host.log 2>&1 & echo $! > $S/host.pid); }
+start_host() { (cd $G; export CATA_MP_TEST_NPC=1; [ -z "$NO_STAIRS" ] && export CATA_MP_TEST_STAIRS=1; ./cataclysm-tiles --userdir $S/ud_host/ --world Leeds --mp-host-classic > $S/host.log 2>&1 & echo $! > $S/host.pid); }
 start_client() { (cd $G; ./cataclysm-tiles --userdir $S/ud_client/ --world Leeds --mp-connect 127.0.0.1 > $S/client.log 2>&1 & echo $! > $S/client.pid); }
 
 # make sure the virtual display exists (it can disappear when the machine restarts)

@@ -2196,8 +2196,41 @@ bool host_try_revive( Character &helper, const tripoint_abs_ms &p )
 namespace impl
 {
 
+// Host = server + client (A2): the first time a world is hosted this way the world's
+// character goes to the host's player (as their saved body) and the avatar stays behind as the
+// server's empty, invisible anchor.  Such a world stays a multiplayer world (Noah, 2026-10-15).
+void listen_handover()
+{
+    avatar &u = get_avatar();
+    if( u.get_value( "mp_listen_anchor" ).str() == "1" ) {
+        return;
+    }
+    const std::string key = client_key();
+    if( !valid_key( key ) ) {
+        return;
+    }
+    if( !saved_body( key ) ) {
+        assure_dir_exist( PATH_INFO::world_base_save_path() / "mp_players" );
+        write_to_file( player_file( key ), [&]( std::ostream & fout ) {
+            JsonOut jo( fout );
+            u.serialize( jo );
+        }, _( "multiplayer player" ) );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the world's character " << u.get_name() <<
+                                   " now belongs to the host's player";
+    }
+    // the anchor carries nothing: the character's things went with it
+    u.remove_items_with( []( const item & ) {
+        return true;
+    } );
+    u.set_value( "mp_listen_anchor", "1" );
+    g->save();
+}
+
 void server_on_start()
 {
+    if( listen_child() ) {
+        listen_handover();
+    }
     // Bodies of players that were in the world when it was saved: their real copy is in
     // mp_players/, they come back when their player connects (A4).
     std::vector<character_id> stale;
@@ -2235,7 +2268,16 @@ void server_on_disconnect( ENetPeer *peer )
             store_and_remove_body( *iter );
             add_msg( m_info, _( "Multiplayer: %s left." ),
                      iter->name.empty() ? _( "a player" ) : iter->name );
+            const bool owner_left = listen_child() && iter->key == client_key();
             list.erase( iter );
+            if( owner_left ) {
+                // the host's player left: the background server saves and ends
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: the host left, the server saves and stops";
+                if( g->save() ) {
+                    get_avatar().set_moves( 0 );
+                    g->uquit = QUIT_SAVED;
+                }
+            }
             return;
         }
     }

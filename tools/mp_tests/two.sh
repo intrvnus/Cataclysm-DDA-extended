@@ -8,7 +8,7 @@ pkill -9 cataclysm-tiles; sleep 3
 rm -rf $S/ud_host/save/Leeds && cp -a $S/ud_client/save/Leeds $S/ud_host/save/Leeds
 rm -rf $S/ud_client2/save/Leeds && cp -a $S/ud_client/save/Leeds $S/ud_client2/save/Leeds
 : > $S/ud_host/config/debug.log
-(cd $G; export CATA_MP_TEST_NPC=1 CATA_MP_TEST_VEHICLE=1; ./cataclysm-tiles --userdir $S/ud_host/ --world Leeds --mp-host > $S/host.log 2>&1 & echo $! > $S/host.pid); sleep 90
+(cd $G; export CATA_MP_TEST_NPC=1 CATA_MP_TEST_VEHICLE=1; ./cataclysm-tiles --userdir $S/ud_host/ --world Leeds --mp-host-classic > $S/host.log 2>&1 & echo $! > $S/host.pid); sleep 90
 (cd $G; ./cataclysm-tiles --userdir $S/ud_client/ --world Leeds --mp-connect 127.0.0.1 > $S/client.log 2>&1 & echo $! > $S/client.pid); sleep 100
 (cd $G; ./cataclysm-tiles --userdir $S/ud_client2/ --world Leeds --mp-connect 127.0.0.1 > $S/client2.log 2>&1 & echo $! > $S/client2.pid); sleep 100
 WINS=($(xwininfo -root -tree | grep -i cataclysm | awk '{print $1}')); W1=${WINS[1]}; W2=${WINS[0]}; echo "all windows: ${WINS[*]}" >> $R

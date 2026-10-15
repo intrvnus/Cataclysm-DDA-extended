@@ -1483,6 +1483,8 @@ bool client_item_action_impl( int key, const item_location &chosen )
     }
 }
 
+} // namespace
+
 // A4: a secret that identifies this player to hosts, kept in the user folder.
 std::string client_key()
 {
@@ -1512,6 +1514,9 @@ std::string client_key()
     }
     return key;
 }
+
+namespace
+{
 
 // A4: the host's copy of the own character (inventory, skills, needs ...).
 void apply_full_character( std::string json )
@@ -1593,6 +1598,10 @@ void client_on_disconnect()
         add_msg( m_bad, _( "Multiplayer: the connection to the host was lost." ) );
     } else {
         add_msg( m_bad, _( "Multiplayer: could not reach the host." ) );
+    }
+    // the host's own client: its server may still be loading the world
+    if( !cs.connected ) {
+        listen_connect_failed();
     }
     cs.connected = false;
     cs.lost = true;

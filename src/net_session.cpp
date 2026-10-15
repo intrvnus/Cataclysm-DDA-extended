@@ -183,6 +183,7 @@ role current_role()
 
 void start_pending()
 {
+    listen_tick();
     session_state &s = state();
     if( s.pending == role::none || s.current != role::none ) {
         return;

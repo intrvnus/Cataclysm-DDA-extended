@@ -349,7 +349,22 @@ cli_opts parse_commandline( int argc, const char **argv )
             },
             {
                 "--mp-host", "[port]",
-                "Experimental multiplayer: host a game once it is loaded (default port 7777)",
+                "Experimental multiplayer: host a game (default port 7777); the world runs in a server in the background, so your menus never stop it for the others",
+                section_default,
+                0,
+                []( int n, const char **params ) -> int {
+                    if( n > 0 && params[0][0] != '-' )
+                    {
+                        net::request_listen( std::atoi( params[0] ) );
+                        return 1;
+                    }
+                    net::request_listen( net::default_port );
+                    return 0;
+                }
+            },
+            {
+                "--mp-host-classic", "[port]",
+                "Experimental multiplayer: host inside this game (menus of the host stop the world for everybody)",
                 section_default,
                 0,
                 []( int n, const char **params ) -> int {
@@ -359,6 +374,16 @@ cli_opts parse_commandline( int argc, const char **argv )
                         return 1;
                     }
                     net::request_host( net::default_port );
+                    return 0;
+                }
+            },
+            {
+                "--mp-listen-child", "",
+                "Internal: the server process started by --mp-host",
+                section_default,
+                0,
+                []( int, const char ** ) -> int {
+                    net::set_listen_child();
                     return 0;
                 }
             },
@@ -738,6 +763,11 @@ int main( int argc, const char *argv[] )
 
     cli_opts cli = parse_commandline( argc, const_cast<const char **>( argv ) );
 
+    // multiplayer host = a server in the background + this game as its client (A2)
+    if( net::listen_requested() && !net::prepare_listen( cli.world, argv[0] ) ) {
+        net::request_host( net::default_port );
+    }
+
     if( !dir_exist( PATH_INFO::datadir() ) ) {
         printf( "Fatal: Can't find data directory \"%s\"\nPlease ensure the current working directory is correct or specify data directory with --datadir.  Perhaps you meant to start \"cataclysm-launcher\"?\n",
                 PATH_INFO::datadir().c_str() );
@@ -919,6 +949,10 @@ int main( int argc, const char *argv[] )
         while( !do_turn() ) {}
         // Experimental multiplayer: leaving the game ends the session.
         net::shutdown();
+        // host = server + client: both processes end with the game
+        if( net::listen_child() || net::listen_local() ) {
+            break;
+        }
         alerts::set_in_game( false );
         stations::reset();
     }

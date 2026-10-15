@@ -56,6 +56,24 @@ bool dedicated_requested();
 void dedicated_turn();
 void request_connect( const std::string &address, int port );
 
+/** Command line --mp-host: host = server + client (A2).  See net_listen.cpp. */
+void request_listen( int port );
+bool listen_requested();
+/** Starts the server for @p world in the background and makes this process its client (own
+ * user folder mp_local/).  False if that is not possible (then host the old way). */
+bool prepare_listen( const std::string &world, const char *argv0 );
+/** This process is the server started by prepare_listen (--mp-listen-child). */
+void set_listen_child();
+bool listen_child();
+/** This process is the host's own client (started with --mp-host). */
+bool listen_local();
+/** The host's own client could not reach its server (still loading): try again soon. */
+void listen_connect_failed();
+/** Once per frame: a planned new connection attempt of the host's own client. */
+void listen_tick();
+/** This player's identity key (config/mp_identity.txt, made if missing). */
+std::string client_key();
+
 /** Starts the requested session (once). Called from the main game loop. */
 void start_pending();
 /** Closes all connections. */
