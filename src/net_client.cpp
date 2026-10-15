@@ -55,6 +55,7 @@
 #include "coordinates.h"
 #include "crafting_gui.h"
 #include "debug.h"
+#include "debug_menu.h"
 #include "faction.h"
 #include "filesystem.h"
 #include "flexbuffer_json.h"
@@ -1063,10 +1064,31 @@ bool handle_input()
         case ACTION_SUICIDE:
         case ACTION_QUICKLOAD:
         case ACTION_QUICKSAVE:
-        case ACTION_DEBUG:
         case ACTION_TOGGLE_DEBUG_MODE:
             add_msg( m_info, _( "Not available in multiplayer." ) );
             break;
+        case ACTION_DEBUG: {
+            // the debug menu for testing: chosen here, run by the host for this body
+            const std::optional<debug_menu::debug_menu_index> dbg = debug_menu::choose();
+            if( !dbg ) {
+                break;
+            }
+            switch( debug_menu::where_in_multiplayer( *dbg ) ) {
+                case debug_menu::debug_where::local:
+                    debug_menu::run( *dbg );
+                    break;
+                case debug_menu::debug_where::not_in_multiplayer:
+                    add_msg( m_info, _( "Not available in multiplayer." ) );
+                    break;
+                case debug_menu::debug_where::server:
+                    send_ui( "debug", [dbg] {
+                        remote_ui::record( "dbg", std::to_string( static_cast<int>( *dbg ) ) );
+                        debug_menu::run( *dbg );
+                    } );
+                    break;
+            }
+            break;
+        }
         case ACTION_TOGGLE_SAFEMODE:
             add_msg( m_info, _( "Danger warnings are always on in multiplayer." ) );
             break;

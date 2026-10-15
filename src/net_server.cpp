@@ -39,6 +39,7 @@
 #include "creature.h"
 #include "creature_tracker.h"
 #include "debug.h"
+#include "debug_menu.h"
 #include "faction.h"
 #include "filesystem.h"
 #include "flexbuffer_json.h"
@@ -1735,6 +1736,15 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             g->pickup();
         } else if( what == "pickup_all" ) {
             g->pickup_all();
+        } else if( what == "debug" ) {
+            const int idx = std::atoi( remote_ui::answer( "dbg" ).value_or( "-1" ).c_str() );
+            if( !get_option<bool>( "MP_CLIENT_DEBUG" ) ) {
+                send_text( rp, _( "The debug menu is turned off for this world (option \"Debug menu for clients\")." ) );
+            } else if( idx >= 0 && idx < static_cast<int>( debug_menu::debug_menu_index::last ) &&
+                       debug_menu::where_in_multiplayer( static_cast<debug_menu::debug_menu_index>( idx ) ) ==
+                       debug_menu::debug_where::server ) {
+                debug_menu::run( static_cast<debug_menu::debug_menu_index>( idx ) );
+            }
         } else {
             send_text( rp, _( "That is not available in multiplayer yet." ) );
         }

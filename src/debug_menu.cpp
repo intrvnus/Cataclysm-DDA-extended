@@ -434,12 +434,12 @@ bool _discard_temporary( std::filesystem::path const &dep )
 
 void write_min_archive()
 {
-    tripoint_abs_seg const seg = project_to<coords::seg>( get_avatar().pos_abs() );
+    tripoint_abs_seg const seg = project_to<coords::seg>( get_player_character().pos_abs() );
     tripoint_range<tripoint> const segs = points_in_radius( tripoint{ seg.xy().raw(), 0 }, 1 );
-    point sm = project_to<coords::sm>( get_avatar().pos_abs() ).raw().xy();
+    point sm = project_to<coords::sm>( get_player_character().pos_abs() ).raw().xy();
     point const reg = sm_to_mmr_remain( sm.x, sm.y );
     tripoint_range<tripoint> const regs = points_in_radius( tripoint{ reg, 0 }, 1 );
-    tripoint_abs_om const om = project_to<coords::om>( get_avatar().pos_abs() );
+    tripoint_abs_om const om = project_to<coords::om>( get_player_character().pos_abs() );
     tripoint_range<tripoint> const oms = points_in_radius( tripoint{ om.raw().xy(), 0 }, 1 );
 
     std::filesystem::path const save_root( PATH_INFO::world_base_save_path() );
@@ -745,9 +745,9 @@ static void run_eoc_menu( Creature *target = nullptr, bool target_as_alpha = fal
     if( eoc_menu.ret >= 0 && eoc_menu.ret < static_cast<int>( eocs.size() ) ) {
         dialogue newDialog;
         if( target_as_alpha ) {
-            newDialog = dialogue( get_talker_for( target ), get_talker_for( get_avatar() ) );
+            newDialog = dialogue( get_talker_for( target ), get_talker_for( get_player_character() ) );
         } else {
-            newDialog = dialogue( get_talker_for( get_avatar() ), target ? get_talker_for( target ) : nullptr );
+            newDialog = dialogue( get_talker_for( get_player_character() ), target ? get_talker_for( target ) : nullptr );
         }
 
         using chrono_scale = std::chrono::microseconds;
@@ -911,13 +911,13 @@ static void monster_edit_menu()
             break;
         }
         case D_TELE: {
-            if( tripoint_abs_ms newpos = player_picks_tile(); newpos != get_avatar().pos_abs() ) {
+            if( tripoint_abs_ms newpos = player_picks_tile(); newpos != get_player_character().pos_abs() ) {
                 critter->setpos( newpos );
             }
             break;
         }
         case D_WANDER_DES: {
-            if( tripoint_abs_ms newpos = player_picks_tile(); newpos != get_avatar().pos_abs() ) {
+            if( tripoint_abs_ms newpos = player_picks_tile(); newpos != get_player_character().pos_abs() ) {
                 critter->wander_to( newpos, 1000 );
             }
             break;
@@ -2347,7 +2347,7 @@ static void character_edit_menu()
     uilist charmenu;
     charmenu.title = _( "Edit which character?" );
     int charnum = 0;
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     charmenu.addentry( charnum++, true, MENU_AUTOASSIGN, "%s", _( "You" ) );
     locations.emplace_back( player_character.pos_bub() );
     for( const npc &guy : g->all_npcs() ) {
@@ -3221,7 +3221,7 @@ static void debug_menu_game_state()
 
 static void debug_menu_spawn_vehicle()
 {
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     map &here = get_map();
     if( here.veh_at( player_character.pos_bub() ) ) {
         dbg( D_ERROR ) << "game:load: There's already vehicle here";
@@ -3428,7 +3428,7 @@ static void bleed_self()
             break;
     }
     if( query_int( intensity, false, _( "Add bleeding duration in minutes, equal to intensity:" ) ) ) {
-        get_avatar().add_effect( effect_bleed,  1_minutes * intensity, part );
+        get_player_character().add_effect( effect_bleed,  1_minutes * intensity, part );
     }
 }
 
@@ -3452,11 +3452,11 @@ static void change_weather()
         static_cast<size_t>( weather_menu.ret ) < wgen.sorted_weather.size() ) {
         const weather_type_id selected_weather = wgen.sorted_weather[weather_menu.ret]->id;
         if( weather.weather_id->debug_leave_eoc.has_value() ) {
-            dialogue d( get_talker_for( get_avatar() ), nullptr );
+            dialogue d( get_talker_for( get_player_character() ), nullptr );
             effect_on_condition_id( weather.weather_id->debug_leave_eoc.value() )->activate( d );
         }
         if( selected_weather->debug_cause_eoc.has_value() ) {
-            dialogue d( get_talker_for( get_avatar() ), nullptr );
+            dialogue d( get_talker_for( get_player_character() ), nullptr );
             effect_on_condition_id( selected_weather->debug_cause_eoc.value() )->activate( d );
         }
         weather.weather_override = selected_weather;
@@ -3466,7 +3466,7 @@ static void change_weather()
 
 static void damage_self()
 {
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     const std::vector<bodypart_id> parts = player_character.get_all_body_parts(
             get_body_part_flags::only_main );
     uilist smenu;
@@ -3565,7 +3565,7 @@ static void import_folower()
         g->add_npc_follower( temp->getID() );
         temp->set_attitude( NPCATT_FOLLOW );
         temp->set_fac( faction_your_followers );
-        temp->spawn_at_precise( get_avatar().pos_abs() + point( -4, -4 ) );
+        temp->spawn_at_precise( get_player_character().pos_abs() + point( -4, -4 ) );
         overmap_buffer.insert_npc( temp );
         g->load_npcs();
     } catch( const std::exception &err ) {
@@ -3580,7 +3580,7 @@ static void kill_area()
     popup.on_top( true );
     popup.message( "%s", _( "Select first point." ) );
 
-    tripoint_bub_ms initial_pos = get_avatar().pos_bub();
+    tripoint_bub_ms initial_pos = get_player_character().pos_bub();
     const look_around_result first = g->look_around( false, initial_pos, initial_pos,
                                      false, true, false );
 
@@ -3662,7 +3662,7 @@ static void show_sound()
 #if defined(TILES)
     map &here = get_map();
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     const tripoint_bub_ms pos = player_character.pos_bub( here );
     const auto &sounds_to_draw = sounds::get_monster_sounds();
 
@@ -3692,7 +3692,7 @@ static void show_sound()
 
 static void set_automove()
 {
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     const std::optional<tripoint_bub_ms> dest = g->look_around();
     if( !dest || *dest == player_character.pos_bub() ) {
         return;
@@ -3709,7 +3709,7 @@ static void set_automove()
 
 static void spawn_npc()
 {
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     shared_ptr_fast<npc> temp = make_shared_fast<npc>();
     temp->normalize();
     temp->randomize();
@@ -3746,7 +3746,7 @@ static void spawn_named_npc()
         return;
     }
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     shared_ptr_fast<npc> temp = make_shared_fast<npc>();
     temp->normalize();
     temp->load_npc_template( npc_template );
@@ -3805,7 +3805,7 @@ static void vehicle_export()
 {
     map &here = get_map();
 
-    if( optional_vpart_position ovp = here.veh_at( get_avatar().pos_abs() ) ) {
+    if( optional_vpart_position ovp = here.veh_at( get_player_character().pos_abs() ) ) {
         cata_path export_dir{ cata_path::root_path::user,  "export_dir" };
         assure_dir_exist( export_dir );
         const std::string text = string_input_popup()
@@ -4013,7 +4013,7 @@ void do_debug_quick_setup()
         debug_mode = true;
         debugmode::enabled_filters.clear();
     }
-    Character &u = get_avatar();
+    Character &u = get_player_character();
     normalize_body( u );
     // Specifically only adds mutations instead of toggling them.
     u.set_mutations( setup_traits );
@@ -4058,10 +4058,79 @@ void debug()
     if( !action ) {
         return;
     }
+    run( *action );
+}
 
+debug_where where_in_multiplayer( debug_menu_index a )
+{
+    using d = debug_menu_index;
+    switch( a ) {
+        // whole-game or file actions: the server's world must not be reloaded, quit or dumped
+        // from a client
+        case d::QUIT_NOSAVE:
+        case d::QUICKLOAD:
+        case d::CRASH_GAME:
+        case d::BENCHMARK:
+        case d::CONTROL_NPC:
+        case d::MAP_EDITOR:
+        case d::OM_EDITOR:
+        case d::IMPORT_FOLLOWER:
+        case d::EXPORT_FOLLOWER:
+        case d::EXPORT_SELF:
+        case d::GAME_REPORT:
+        case d::GAME_MIN_ARCHIVE:
+        case d::WRITE_GLOBAL_EOCS:
+        case d::WRITE_GLOBAL_VARS:
+        case d::WRITE_TIMED_EVENTS:
+        case d::WRITE_CITY_LIST:
+        case d::PRINT_OVERMAPS:
+        case d::TEST_MAP_EXTRA_DISTRIBUTION:
+        case d::GENERATE_EFFECT_LIST:
+        case d::VEHICLE_EXPORT:
+        case d::TEST_WEATHER:
+        case d::TEST_IT_GROUP:
+        case d::ENABLE_ACHIEVEMENTS:
+        case d::UNLOCK_ALL:
+        case d::IMGUI_DEMO:
+            return debug_where::not_in_multiplayer;
+        // views of the own screen
+        case d::DISPLAY_HORDES:
+        case d::SHOW_SOUND:
+        case d::DISPLAY_WEATHER:
+        case d::DISPLAY_SCENTS:
+        case d::DISPLAY_SCENTS_LOCAL:
+        case d::DISPLAY_SCENTS_TYPE_LOCAL:
+        case d::DISPLAY_NPC_ATTACK:
+        case d::DISPLAY_TEMP:
+        case d::DISPLAY_VEHICLE_AI:
+        case d::DISPLAY_VISIBILITY:
+        case d::DISPLAY_LIGHTING:
+        case d::DISPLAY_RADIATION:
+        case d::DISPLAY_TRANSPARENCY:
+        case d::DISPLAY_NPC_PATH:
+        case d::SHOW_MUT_CAT:
+        case d::SHOW_MSG:
+        case d::HOUR_TIMER:
+        case d::SET_AUTOMOVE:
+        case d::SAVE_SCREENSHOT:
+        case d::PALETTE_VIEWER:
+            return debug_where::local;
+        default:
+            return debug_where::server;
+    }
+}
+
+std::optional<debug_menu_index> choose()
+{
+    return debug_menu_uilist( hotkey_for_action( ACTION_DEBUG, -1, false ).has_value() );
+}
+
+void run( debug_menu_index action_index )
+{
+    const std::optional<debug_menu_index> action = action_index;
     get_event_bus().send<event_type::uses_debug_menu>( *action );
 
-    avatar &player_character = get_avatar();
+    Character &player_character = get_player_character();
     map &here = get_map();
     switch( *action ) {
         case debug_menu_index::WISH:
@@ -4336,7 +4405,8 @@ void debug()
         case debug_menu_index::TRAIT_GROUP:
             trait_group::debug_spawn();
             break;
-        case debug_menu_index::ENABLE_ACHIEVEMENTS:
+        case debug_menu_index::ENABLE_ACHIEVEMENTS: {
+            achievements_tracker &achievements = get_achievements();
             if( achievements.is_enabled() ) {
                 popup( _( "Achievements are already enabled" ) );
             } else {
@@ -4344,6 +4414,7 @@ void debug()
                 popup( _( "Achievements enabled" ) );
             }
             break;
+        }
         case debug_menu_index::UNLOCK_ALL:
             unlock_all();
             break;
@@ -4499,7 +4570,7 @@ void debug()
         }
 
         case debug_menu_index::EXPORT_SELF: {
-            cata_path export_name = prepare_export_dir_and_find_unused_name( get_avatar().name );
+            cata_path export_name = prepare_export_dir_and_find_unused_name( get_player_character().name );
             get_avatar().export_as_npc( export_name );
             popup( _( "Written: %s" ), export_name.get_unrelative_path().string() );
             break;
@@ -4511,7 +4582,7 @@ void debug()
         }
 
         case debug_menu_index::TOGGLE_SETUP_MUTATION: {
-            Character &u = get_avatar();
+            Character &u = get_player_character();
             for( trait_id &trait : setup_traits ) {
                 u.toggle_trait( trait );
             }
@@ -4519,12 +4590,12 @@ void debug()
         }
 
         case debug_menu_index::NORMALIZE_BODY_STAT: {
-            normalize_body( get_avatar() );
+            normalize_body( get_player_character() );
             break;
         }
 
         case debug_menu_index::SIX_MILLION_DOLLAR_SURVIVOR: {
-            Character &u = get_avatar();
+            Character &u = get_player_character();
             for( const bionic_data &bionic : bionic_data::get_all() ) {
                 u.add_bionic( bionic.id, 0, true );
             }

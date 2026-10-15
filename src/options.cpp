@@ -2916,6 +2916,11 @@ void options_manager::add_options_world_default()
     "shared"
        );
 
+    add( "MP_CLIENT_DEBUG", "world_default", to_translation( "Debug menu for clients" ),
+         to_translation( "Multiplayer: clients may open the debug menu; its entries act on their own character (the host runs them).  Entries that would quit, reload or dump the whole world stay off.  Meant for testing." ),
+         true
+       );
+
     add( "REALTIME_DAY_MINUTES", "world_default", to_translation( "Realtime day length" ),
          to_translation( "Multiplayer and fluid (realtime) play: how many real minutes a whole game day lasts.  Hunger, thirst, healing, rot, plant growth and weather follow this clock; combat and movement keep their speed.  Seasons keep their number of days.  0 = a game day lasts 24 real hours.  Has no effect in turn-based single player." ),
          0, 1440, 60

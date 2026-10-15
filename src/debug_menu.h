@@ -141,6 +141,13 @@ void wishskill( Character *you, bool change_theory = false );
 void wishproficiency( Character *you );
 
 void debug();
+/** Run one entry of the debug menu (multiplayer: the host runs a client's choice for its body). */
+void run( debug_menu_index action );
+/** The menu of debug entries without running one (multiplayer clients choose here). */
+std::optional<debug_menu_index> choose();
+/** Where a multiplayer client's choice runs: on the server for its body, on its own screen, or not at all. */
+enum class debug_where : int { server, local, not_in_multiplayer };
+debug_where where_in_multiplayer( debug_menu_index action );
 
 void do_debug_quick_setup();
 
