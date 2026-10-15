@@ -81,6 +81,19 @@ Host and client need this build (network protocol 3).
       loot uses your group's zones.
 - [ ] Groups and missions: a mission accepted by one group is not listed for another group.
 - [ ] Recruited NPC follows the player who recruited it, not the nearest player.
+- [ ] Debug menu as a client (debug key): spawning an item puts it on your character, teleport
+      moves you, overlays show on your screen; quit/quickload/map editor say "Not available in
+      multiplayer". World option "Debug menu for clients" turns it off.
+- [ ] Combat, wind-up: a zombie about to hit makes the tile it hits glow red and gets a red frame;
+      stepping out of the red tile dodges.
+- [ ] Combat, hit feel: a hit freezes the swing for a moment, the target flashes white, shakes and
+      jerks back. Heavy blunt weapons (bat, sledge) sometimes push the target a tile back (option
+      "Melee knockback").
+- [ ] Combat, shove: F or the middle mouse button pushes the zombie in front back, sometimes to
+      the ground; costs stamina, "too winded" when out.
+- [ ] Shooting: tracers from the gun to where the shot ended (also for other players' shots);
+      the aim circle grows while walking (more while running) and shrinks while standing.
+- [ ] Reloading while walking (free movement, not running): the reload goes on, a bit slower.
 - [ ] Waiting (`|`) in multiplayer is a short break that takes away weariness; walking alone no
       longer makes you weary.
 
