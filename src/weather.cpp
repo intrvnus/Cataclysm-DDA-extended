@@ -103,9 +103,8 @@ weather_type_id get_bad_weather()
  * Causes glare effect to player's eyes if they are not wearing applicable eye protection.
  * @param intensity Level of sun brightness
  */
-void glare( const weather_type_id &w )
+static void glare_on( Character &player_character, const weather_type_id &w )
 {
-    Character &player_character = get_player_character();//todo npcs, also
     //General prerequisites for glare
     if( g->is_sheltered( player_character.pos_bub() ) ||
         player_character.in_sleep_state() ||
@@ -138,6 +137,20 @@ void glare( const weather_type_id &w )
         for( bodypart_id &bp : player_character.get_all_body_parts_of_type(
                  body_part_type::type::sensor ) ) {
             player_character.add_effect( *effect, dur, bp );
+        }
+    }
+}
+
+void glare( const weather_type_id &w )
+{
+    glare_on( get_player_character(), w ); //todo npcs, also
+    // the bodies of multiplayer clients, each checked on the map of its own bubble
+    map &here = get_map();
+    for( npc &guy : g->all_npcs() ) {
+        if( net::is_remote_player( guy ) && !guy.is_dead() ) {
+            map *own = bubbles::extra_containing( guy.pos_abs() );
+            swap_map swap( own != nullptr ? *own : here );
+            glare_on( guy, w );
         }
     }
 }
