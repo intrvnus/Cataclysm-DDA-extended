@@ -844,16 +844,9 @@ int border_helper::border_connection::as_curses_line() const
 
 bool query_yn( const std::string &text )
 {
-    // Multiplayer: the host does a client's action with the client's answers
-    if( remote_ui::replaying() ) {
-        return remote_ui::answer( "y" ).value_or( "0" ) == "1";
-    }
-    // Realtime / multiplayer: no window, no time stop, "do it again" means yes.
-    if( alerts::nonblocking() ) {
-        const bool yes = alerts::confirm( remove_color_tags( text ) );
-        remote_ui::record( "y", yes ? "1" : "0" );
-        return yes;
-    }
+    // (multiplayer: query_popup::query records the answer on a client and replays it on the
+    // host; realtime / multiplayer: a normal question box; on a client it backs out on danger, see
+    // net::input_idle; the old "do it again to confirm" is gone, Noah 2026-10-15)
 #if defined(__ANDROID__)
     if( get_option<bool>( "ANDROID_NATIVE_UI" ) ) {
         JNIEnv *env = ( JNIEnv * )SDL_AndroidGetJNIEnv();
@@ -894,15 +887,6 @@ bool query_yn( const std::string &text )
 
 query_ynq_result query_ynq( const std::string &text )
 {
-    if( remote_ui::replaying() ) {
-        return remote_ui::answer( "y" ).value_or( "0" ) == "1" ? query_ynq_result::yes :
-               query_ynq_result::quit;
-    }
-    if( alerts::nonblocking() ) {
-        const bool yes = alerts::confirm( remove_color_tags( text ) );
-        remote_ui::record( "y", yes ? "1" : "0" );
-        return yes ? query_ynq_result::yes : query_ynq_result::no;
-    }
     // TODO: android native UI
     const bool force_uc = get_option<bool>( "FORCE_CAPITAL_YN" );
     const auto &allow_key = force_uc ? input_context::disallow_lower_case_or_non_modified_letters
