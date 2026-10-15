@@ -1329,8 +1329,17 @@ bool main_menu::start_listen_view( const std::string &worldname )
             popup( _( "The server did not finish the world in time.  Look at its window for a message." ) );
             return false;
         }
-        // read the world's list of characters again
-        world_generator->init();
+        // the characters the server saved: added to this world (worldfactory::init would rebuild
+        // every world and free the active one, which is still in use here)
+        WORLD *w = world_generator->get_world( worldname );
+        if( w != nullptr ) {
+            const std::string dir = w->folder_path().generic_u8string();
+            for( std::string f : get_files_from_path( ".sav", dir, false ) ) {
+                const size_t start = dir.size() + 1;
+                f = f.substr( start, f.find( ".sav", start ) - start );
+                w->add_save( save_t::from_base_path( f ) );
+            }
+        }
     } else if( !wait_for_server() ) {
         popup( _( "The server did not finish starting in time.  Look at its window for a message." ) );
         return false;
