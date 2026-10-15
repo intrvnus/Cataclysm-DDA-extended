@@ -263,6 +263,9 @@ void train_finish( player_activity *act, Character *you );
 void vehicle_finish( player_activity *act, Character *you );
 void vibe_finish( player_activity *act, Character *you );
 void wait_finish( player_activity *act, Character *you );
+/** Realtime / multiplayer (B10): sit down for a short break (about 45 s real time); when it is
+ * over a chunk of weariness is gone. */
+void take_a_break( Character &who );
 void wait_npc_finish( player_activity *act, Character *you );
 void wait_weather_finish( player_activity *act, Character *you );
 

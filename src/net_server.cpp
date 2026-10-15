@@ -21,6 +21,7 @@
 #include <enet/enet.h>
 
 #include "action.h"
+#include "activity_handlers.h"
 #include "activity_actor_definitions.h"
 #include "alerts.h"
 #include "avatar_action.h"
@@ -1449,6 +1450,8 @@ void execute( npc &guy, const command &cmd )
                 send_text( *rp, _( "You can't close that." ) );
             }
         }
+    } else if( cmd.action == "break" ) {
+        activity_handlers::take_a_break( guy );
     } else if( cmd.action == "sleep" ) {
         // B6: sleep until morning (the time skips when everybody sleeps)
         if( !guy.in_sleep_state() ) {

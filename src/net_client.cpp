@@ -962,7 +962,8 @@ bool handle_input()
             }, true );
             break;
         case ACTION_WAIT:
-            add_msg( m_info, _( "Waiting is not possible in multiplayer: the world does not stop for you." ) );
+            // a short break on the host (B10)
+            send_action( "break" );
             break;
         // views and settings that stay on this computer
         case ACTION_ZOOM_IN:

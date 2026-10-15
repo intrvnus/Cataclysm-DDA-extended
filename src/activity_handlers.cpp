@@ -41,6 +41,7 @@
 #include "event_bus.h"
 #include "fault.h"
 #include "flag.h"
+#include "fluid.h"
 #include "game.h"
 #include "game_constants.h"
 #include "game_inventory.h"
@@ -1775,8 +1776,31 @@ void activity_handlers::dismember_do_turn( player_activity * /*act*/, Character 
 
 void activity_handlers::wait_finish( player_activity *act, Character *you )
 {
+    if( act->name == "take_a_break" ) {
+        // B10 (Noah 2026-10-15): a short break clears a chunk of weariness
+        const int tracker = you->activity_history.debug_get_tracker();
+        you->activity_history.debug_set_tracker( tracker * 7 / 10 );
+        you->add_msg_if_player( m_good, _( "You feel a bit less weary after your break." ) );
+        act->set_to_null();
+        return;
+    }
     you->add_msg_if_player( _( "You finish waiting." ) );
     act->set_to_null();
+}
+
+void activity_handlers::take_a_break( Character &who )
+{
+    if( who.activity ) {
+        who.add_msg_if_player( m_info, _( "You are busy." ) );
+        return;
+    }
+    // about 45 seconds of real time in fluid mode, else 15 minutes
+    const int turns = fluid::enabled() ? std::max( 10, 45000 / std::max( 1, fluid::turn_ms() ) ) :
+                      to_turns<int>( 15_minutes );
+    player_activity act( ACT_WAIT, turns * 100 );
+    act.name = "take_a_break";
+    who.assign_activity( act );
+    who.add_msg_if_player( m_info, _( "You sit down for a short break." ) );
 }
 
 void activity_handlers::wait_weather_finish( player_activity *act, Character *you )

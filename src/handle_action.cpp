@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "action.h"
+#include "activity_handlers.h"
 #include "activity_actor_definitions.h"
 #include "advanced_inv.h"
 #include "auto_note.h"
@@ -2800,7 +2801,8 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
 
         case ACTION_WAIT:
             if( net::active() ) {
-                add_msg( m_info, _( "Waiting is not possible in multiplayer: the world does not stop for you." ) );
+                // the world does not stop: a short break instead (B10)
+                activity_handlers::take_a_break( player_character );
                 break;
             }
             wait();
