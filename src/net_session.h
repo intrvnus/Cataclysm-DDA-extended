@@ -167,6 +167,9 @@ int client_send_input( const fluid::input_frame &in );
  * host (messages are queued until the menu closes) and returns true when danger appeared (own
  * hit points went down, a hostile monster next to the own character): the menu backs out. */
 bool input_idle();
+/** Host: a client's body pushed into a ledge: that client opens the climb-down menu (examines
+ * the tile in direction @p dx, @p dy) on its own screen. */
+void request_climb( const Character &body, int dx, int dy );
 /** Client, free movement: puts the shadow of another player on @p tile (from the
  * interpolated body position). */
 void client_place_shadow( int actor, const tripoint_abs_ms &tile );

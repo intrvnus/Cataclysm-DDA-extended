@@ -1576,6 +1576,14 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free soft id=" << who.getID().get_value() <<
                                            " t=" << now << " dx=" << in.move_x << " dy=" << in.move_y << " ledge=" << ledge;
             }
+            // warn instead of asking: what is there, and that pushing on goes in
+            if( ledge ) {
+                who.add_msg_if_player( m_warning, _( "A ledge!  Keep pushing to climb down." ) );
+            } else {
+                const std::vector<std::string> harm = g->get_dangerous_tile( ahead_b );
+                who.add_msg_if_player( m_warning, string_format( _( "%s ahead!  Keep pushing to step in." ),
+                                       harm.empty() ? _( "Danger" ) : uppercase_first_letter( enumerate_as_string( harm ) ) ) );
+            }
         }
         st.soft_last = now;
         if( now - st.soft_since < tn.soft_wall_ms ) {
@@ -1583,9 +1591,9 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
         }
         st.soft_since = 0;
         if( ledge && !who.is_avatar() ) {
-            // the host's avatar gets the native climb-down menu; a player's body climbs down
-            // through examine, whose menus run on the player's own screen
-            who.add_msg_if_player( m_info, _( "There is a ledge here.  Examine it to climb down." ) );
+            // the host's avatar gets the native climb-down menu; a player's body gets the same
+            // menu on the player's own screen (the client examines the ledge)
+            net::request_climb( who, in.move_x, in.move_y );
             st.ready_at = now + 1500;
             return false;
         }

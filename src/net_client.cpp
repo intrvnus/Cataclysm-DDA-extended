@@ -1631,6 +1631,16 @@ void client_on_message( const JsonObject &msg )
         apply_submaps( msg.get_array( "list" ) );
     } else if( type == "fx" ) {
         apply_fx( msg.get_array( "list" ) );
+    } else if( type == "climb" ) {
+        // the body pushed into a ledge on the host: the climb-down menu, here
+        const int dx = std::clamp( msg.get_int( "dx", 0 ), -1, 1 );
+        const int dy = std::clamp( msg.get_int( "dy", 0 ), -1, 1 );
+        if( dx != 0 || dy != 0 ) {
+            send_ui( "examine_at", [dx, dy] {
+                remote_ui::record( "d", std::to_string( dx ) + " " + std::to_string( dy ) );
+                g->examine( get_avatar().pos_bub() + tripoint_rel_ms( dx, dy, 0 ), false );
+            } );
+        }
     } else if( type == "bp" ) {
         // free movement: where every player's body is (channel 1, ~20 times a second)
         std::vector<fluid::body_sample> list;

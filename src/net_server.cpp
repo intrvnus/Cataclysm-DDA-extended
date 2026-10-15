@@ -1700,6 +1700,14 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
             guy.replay_bionics_menu();
         } else if( what == "examine" || what == "examine_pickup" ) {
             g->examine( what == "examine_pickup" );
+        } else if( what == "examine_at" ) {
+            // a tile next to the body chosen by the host (e.g. a ledge the body pushed into)
+            std::istringstream is( remote_ui::answer( "d" ).value_or( "0 0" ) );
+            int dx = 0;
+            int dy = 0;
+            if( is >> dx >> dy && std::abs( dx ) <= 1 && std::abs( dy ) <= 1 && ( dx != 0 || dy != 0 ) ) {
+                g->examine( guy.pos_bub() + tripoint_rel_ms( dx, dy, 0 ), false );
+            }
         } else if( what == "pickup" ) {
             g->pickup();
         } else if( what == "pickup_all" ) {
@@ -2821,6 +2829,19 @@ bool everyone_asleep()
 bool is_remote_player( const Character &who )
 {
     return is_host() && find_client( who.getID() ) != nullptr;
+}
+
+void request_climb( const Character &body, int dx, int dy )
+{
+    remote_player *rp = is_host() ? find_client( body.getID() ) : nullptr;
+    if( rp == nullptr ) {
+        return;
+    }
+    impl::send_json( rp->peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "climb" );
+        jo.member( "dx", dx );
+        jo.member( "dy", dy );
+    } ) );
 }
 
 void tell_player( const Character &who, const std::string &text, bool good )
