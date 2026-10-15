@@ -1410,18 +1410,29 @@ void reveal_map_actor::load( const JsonObject &obj, const std::string & )
     }
 }
 
-void reveal_map_actor::reveal_targets( const tripoint_abs_omt &center,
+void reveal_map_actor::reveal_targets( Character &who, const tripoint_abs_omt &center,
                                        const std::pair<std::string, ot_match_type> &target,
                                        int reveal_distance ) const
 {
     const auto places = overmap_buffer.find_all( center, target.first, radius, false,
                         target.second );
+    // multiplayer: a player of a group other than the shared one learns it for the group only
+    const bool own_group = mp_groups::is_player( who ) && !mp_groups::group_of( who ).empty();
     for( const tripoint_abs_omt &place : places ) {
-        if( overmap_buffer.seen( place ) != om_vision_level::full ) {
-            // Should be replaced with the character using the item passed as an argument if NPCs ever learn to use maps
-            get_avatar().map_revealed_omts.emplace( place );
+        const om_vision_level known = own_group ? mp_groups::seen_by( who, place ) :
+                                      overmap_buffer.seen( place );
+        if( known < om_vision_level::full ) {
+            who.map_revealed_omts.emplace( place );
         }
-        overmap_buffer.reveal( place, reveal_distance );
+        if( own_group ) {
+            for( int dy = -reveal_distance; dy <= reveal_distance; ++dy ) {
+                for( int dx = -reveal_distance; dx <= reveal_distance; ++dx ) {
+                    mp_groups::reveal( who, place + point_rel_omt( dx, dy ) );
+                }
+            }
+        } else {
+            overmap_buffer.reveal( place, reveal_distance );
+        }
     }
 }
 
@@ -1446,7 +1457,7 @@ std::optional<int> reveal_map_actor::use( Character *p, item &it, map *,
     p->map_revealed_omts.clear();
     for( const auto &omt : omt_types ) {
         for( int z = -OVERMAP_DEPTH; z <= OVERMAP_HEIGHT; z++ ) {
-            reveal_targets( tripoint_abs_omt( center.xy(), z ), omt, 0 );
+            reveal_targets( *p, tripoint_abs_omt( center.xy(), z ), omt, 0 );
         }
     }
     if( !message.empty() ) {

@@ -462,9 +462,9 @@ class reveal_map_actor : public iuse_actor
          */
         translation message;
 
-        void reveal_targets(
-            const tripoint_abs_omt &center, const std::pair<std::string, ot_match_type> &target,
-            int reveal_distance ) const;
+        void reveal_targets( Character &who,
+                             const tripoint_abs_omt &center, const std::pair<std::string, ot_match_type> &target,
+                             int reveal_distance ) const;
 
         explicit reveal_map_actor( const std::string &type = "reveal_map" ) : iuse_actor( type ) {}
 
