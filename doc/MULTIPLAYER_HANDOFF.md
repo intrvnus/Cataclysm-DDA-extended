@@ -30,6 +30,10 @@ tasks; 3.5-flash-lite still worked. Delegated and merged after review: a typo, t
 | Rain: scent washes out in every bubble; client bodies get wet; sun/snow glare reaches client bodies | Compile + CI |
 | Lives: new character's starting items move into worn containers (`migrate_items_to_storage`) | Compile + CI |
 | `fluid_layout.json` reformatted (repo JSON style; the local build's lint stopped on it) | formatter + JSON equality |
+| Host crashes: a mounted client throwing or firing an energy weapon read the host's `mounted_creature` (null when the host was not riding) | Compile + CI |
+| Construction (log to planks, digging refund), crafting component choice and disassembly ownership use the acting player; vehicle remote control refused for clients (it took over the host's view) | Compile + CI |
+| Client notice when the host's world pauses (no message for 2 s: "The world waits: the host is busy") | Compile + CI |
+| Prediction: sprint only when the character can run; no prediction while downed or asleep | Compile + CI |
 
 ### Open / for Noah
 - Hands-on test of the night's build (checklist in the morning report).
