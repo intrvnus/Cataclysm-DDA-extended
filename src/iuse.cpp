@@ -3327,7 +3327,7 @@ std::optional<int> iuse::geiger( Character *p, item *it, const tripoint_bub_ms &
     return 1;
 }
 
-std::optional<int> iuse::geiger_active( Character *, item *, const tripoint_bub_ms &pos )
+std::optional<int> iuse::geiger_active( Character *p, item *, const tripoint_bub_ms &pos )
 {
     const int rads = get_map().get_radiation( pos );
     if( rads == 0 ) {
@@ -3339,24 +3339,26 @@ std::optional<int> iuse::geiger_active( Character *, item *, const tripoint_bub_
                             rads > 25 ? _( "geiger_medium" ) : _( "geiger_low" );
 
     sounds::sound( pos, 6, sounds::sound_t::alarm, description, true, "tool", sound_var );
-    if( !get_avatar().can_hear( pos, 6 ) ) {
+    // the one carrying it (multiplayer: may be a client's body), else the host's character
+    Character &hearer = p != nullptr ? *p : get_avatar();
+    if( !hearer.can_hear( pos, 6 ) ) {
         // can not hear it, but may have alarmed other creatures
         return 1;
     }
     if( rads > 50 ) {
-        add_msg( m_warning, _( "The geiger counter buzzes intensely." ) );
+        hearer.add_msg_if_player( m_warning, _( "The geiger counter buzzes intensely." ) );
     } else if( rads > 35 ) {
-        add_msg( m_warning, _( "The geiger counter clicks wildly." ) );
+        hearer.add_msg_if_player( m_warning, _( "The geiger counter clicks wildly." ) );
     } else if( rads > 25 ) {
-        add_msg( m_warning, _( "The geiger counter clicks rapidly." ) );
+        hearer.add_msg_if_player( m_warning, _( "The geiger counter clicks rapidly." ) );
     } else if( rads > 15 ) {
-        add_msg( m_warning, _( "The geiger counter clicks steadily." ) );
+        hearer.add_msg_if_player( m_warning, _( "The geiger counter clicks steadily." ) );
     } else if( rads > 8 ) {
-        add_msg( m_warning, _( "The geiger counter clicks slowly." ) );
+        hearer.add_msg_if_player( m_warning, _( "The geiger counter clicks slowly." ) );
     } else if( rads > 4 ) {
-        add_msg( _( "The geiger counter clicks intermittently." ) );
+        hearer.add_msg_if_player( _( "The geiger counter clicks intermittently." ) );
     } else {
-        add_msg( _( "The geiger counter clicks once." ) );
+        hearer.add_msg_if_player( _( "The geiger counter clicks once." ) );
     }
     return 1;
 }
@@ -3445,7 +3447,6 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
         int modified_stat = current_stat + modify_by;
         current_stat = std::max( current_stat, std::min( 15, modified_stat ) );
     };
-    avatar &player_character = get_avatar();
     switch( effect_roll ) {
         case 1:
             sounds::sound( pos, 100, sounds::sound_t::electronic_speech, _( "BUGFIXES!" ),
@@ -3469,7 +3470,8 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
                     critter.set_speed_base(
                         critter.get_speed_base() * rng_float( 1.1, 2.0 ) );
                     critter.set_hp( critter.get_hp() * rng_float( 1.1, 2.0 ) );
-                } else if( npc *const person = creatures.creature_at<npc>( dest ) ) {
+                } else if( npc *const person = creatures.creature_at<npc>( dest );
+                            person != nullptr && !net::is_remote_player( *person ) ) {
                     /** @EFFECT_STR_MAX increases possible granade str buff for NPCs */
                     buff_stat( person->str_max, rng( 0, person->str_max / 2 ) );
                     /** @EFFECT_DEX_MAX increases possible granade dex buff for NPCs */
@@ -3478,7 +3480,9 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
                     buff_stat( person->int_max, rng( 0, person->int_max / 2 ) );
                     /** @EFFECT_PER_MAX increases possible granade per buff for NPCs */
                     buff_stat( person->per_max, rng( 0, person->per_max / 2 ) );
-                } else if( player_character.pos_bub() == dest ) {
+                } else if( Character *const pc = creatures.creature_at<Character>( dest ) ) {
+                    // a player (the host or a multiplayer client's body)
+                    Character &player_character = *pc;
                     /** @EFFECT_STR_MAX increases possible granade str buff */
                     buff_stat( player_character.str_max, rng( 0, player_character.str_max / 2 ) );
                     /** @EFFECT_DEX_MAX increases possible granade dex buff */
@@ -3511,7 +3515,8 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
                     critter.set_speed_base(
                         rng( 0, critter.get_speed_base() ) );
                     critter.set_hp( rng( 1, critter.get_hp() ) );
-                } else if( npc *const person = creatures.creature_at<npc>( dest ) ) {
+                } else if( npc *const person = creatures.creature_at<npc>( dest );
+                            person != nullptr && !net::is_remote_player( *person ) ) {
                     /** @EFFECT_STR_MAX increases possible granade str debuff for NPCs (NEGATIVE) */
                     person->str_max -= rng( 0, person->str_max / 2 );
                     /** @EFFECT_DEX_MAX increases possible granade dex debuff for NPCs (NEGATIVE) */
@@ -3520,7 +3525,9 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
                     person->int_max -= rng( 0, person->int_max / 2 );
                     /** @EFFECT_PER_MAX increases possible granade per debuff for NPCs (NEGATIVE) */
                     person->per_max -= rng( 0, person->per_max / 2 );
-                } else if( player_character.pos_bub() == dest ) {
+                } else if( Character *const pc = creatures.creature_at<Character>( dest ) ) {
+                    // a player (the host or a multiplayer client's body)
+                    Character &player_character = *pc;
                     /** @EFFECT_STR_MAX increases possible granade str debuff (NEGATIVE) */
                     player_character.str_max -= rng( 0, player_character.str_max / 2 );
                     /** @EFFECT_DEX_MAX increases possible granade dex debuff (NEGATIVE) */
@@ -3551,9 +3558,12 @@ std::optional<int> iuse::granade_act( Character *, item *it, const tripoint_bub_
                     critter.set_speed_base( critter.type->speed );
                     critter.set_hp( critter.get_hp_max() );
                     critter.clear_effects();
-                } else if( npc *const person = creatures.creature_at<npc>( dest ) ) {
+                } else if( npc *const person = creatures.creature_at<npc>( dest );
+                            person != nullptr && !net::is_remote_player( *person ) ) {
                     person->environmental_revert_effect();
-                } else if( player_character.pos_bub() == dest ) {
+                } else if( Character *const pc = creatures.creature_at<Character>( dest ) ) {
+                    // a player (the host or a multiplayer client's body)
+                    Character &player_character = *pc;
                     player_character.environmental_revert_effect();
                     do_purify( player_character );
                 }
@@ -7281,8 +7291,8 @@ static void sendRadioSignal( Character &p, const flag_id &signal )
 std::optional<int> iuse::radiocontrol_tick( Character *p, item *it, const tripoint_bub_ms & )
 {
     if( !p ) {
-        // Player has dropped the controller
-        avatar &player = get_avatar();
+        // Player has dropped the controller (multiplayer: the one who used it)
+        Character &player = item_user( *it );
         it->active = false;
         player.remove_value( "remote_controlling" );
         return 1;
@@ -7337,6 +7347,7 @@ std::optional<int> iuse::radiocontrol( Character *p, item *it, const tripoint_bu
 
                 // FIXME: migrate to abs
                 p->set_value( "remote_controlling", tripoint_abs_ms{ rc_item_location.raw() } );
+                it->set_var( "mp_user", p->getID().get_value() );
                 it->active = true;
             }
         }
