@@ -725,9 +725,6 @@ bool main_menu::start_queued_world( bool &load_game )
         start = start_listen_view( queued_world );
         if( start ) {
             load_game = true;
-        } else {
-            // back to the main menu: the server stops, this game connects nowhere
-            net::listen_cancel();
         }
     } else if( !queued_save.empty() || !queued->world_saves.empty() ) {
         save_t const &save_to_load = queued_save.empty() ? queued->world_saves.front() :
@@ -760,6 +757,11 @@ bool main_menu::start_queued_world( bool &load_game )
     } else {
         // empty world: go to character creation like the new game menu does
         start = start_new_character( queued, character_type::CUSTOM );
+    }
+    if( !start ) {
+        // back in the main menu: nothing of a multiplayer session that did not start stays
+        // (a pending connection would join the next single-player game to the server)
+        net::listen_cancel();
     }
     return start;
 }
@@ -829,8 +831,17 @@ bool main_menu::opening_screen()
     } );
     ui.mark_resize();
 
+    if( queued_world_to_load.empty() && net::dedicated_requested() ) {
+        DebugLog( D_ERROR, D_MAIN ) << "Multiplayer server: no world given (start it with --world <name>); the server stops";
+        return false;
+    }
     if( !queued_world_to_load.empty() ) {
         start = start_queued_world( load_game );
+        if( !start && net::dedicated_requested() ) {
+            // a server has no main menu anybody could use: it says why and ends
+            DebugLog( D_ERROR, D_MAIN ) << "Multiplayer server: the world could not be started; the server stops";
+            return false;
+        }
     }
 
 #if defined(EMSCRIPTEN)
