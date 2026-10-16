@@ -20,6 +20,11 @@ morning report in Claude Docs ("CDDA Multiplayer – Morning Report 2026-10-16")
 - Smaller: server log without the timing spam, no audio on servers, umlaut-safe paths, spawn on
   the near side of walls, client world never the server's own, world options not saved by clients,
   music stops on leaving, station crafts keep their crafter's speed.
+- Later the same night: a session that ends by itself (host left, server stopped, refused, full,
+  unreachable) sends the player to the main menu with the reason (`take_session_end_notice`,
+  shown in main.cpp); the hello carries build + mod list and the server refuses differences;
+  unattended servers cancel uilist/text input outside replays; the debug menu from the game menu
+  shows every category (`debug_menu::choose_all`); vanilla `damage_self` garbage default fixed.
 - **How it was tested**: Xvfb + xdotool + gdb in this container (`/tmp/mp_test`, see
   `tools/mp_tests`): host from the menu (existing and new world, with character creation), leave,
   host again, cancel the character screen, dedicated server + join now, join/leave/join again,
