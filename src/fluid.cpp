@@ -3141,6 +3141,9 @@ bool swallows( const std::string &action )
         case ACTION_FIRE:
             note_classic_action( act );
             return true;
+        case ACTION_CLICK_AND_DRAG:
+            // a held mouse button: the device state already has it (aim / attack)
+            return true;
         default:
             return false;
     }

@@ -82,6 +82,10 @@ enum bit : unsigned {
 
 struct device_state {
     int primary_presses = 0;
+    // when the mouse buttons were last seen going down here (a click event of the game counts
+    // only if it was too short to be seen: else it is the same click twice)
+    ms_t primary_down_at = -100000;
+    ms_t secondary_down_at = -100000;
     int secondary_presses = 0;
     int throw_presses = 0;
     int shove_presses = 0;
@@ -454,10 +458,15 @@ void note_own_step_started()
 void note_classic_action( int action )
 {
     device_state &d = dev();
+    // (a click the device saw held is counted by the held state already)
     if( action == ACTION_SELECT ) {
-        ++d.primary_presses;
+        if( now_ms() - d.primary_down_at > 250 ) {
+            ++d.primary_presses;
+        }
     } else if( action == ACTION_SEC_SELECT ) {
-        ++d.secondary_presses;
+        if( now_ms() - d.secondary_down_at > 250 ) {
+            ++d.secondary_presses;
+        }
     } else if( action == ACTION_THROW || action == ACTION_THROW_WIELDED ) {
         ++d.throw_presses;
     } else if( action == ACTION_FIRE ) {
@@ -520,6 +529,12 @@ bool poll_device( input_frame &out )
     raw &= ~d.suppressed;
     if( ( raw & bit_shove ) && !( d.last_raw & bit_shove ) ) {
         ++d.shove_presses;
+    }
+    if( ( raw & bit_primary ) && !( d.last_raw & bit_primary ) ) {
+        d.primary_down_at = now_ms();
+    }
+    if( ( raw & bit_secondary ) && !( d.last_raw & bit_secondary ) ) {
+        d.secondary_down_at = now_ms();
     }
     d.last_raw = raw;
 

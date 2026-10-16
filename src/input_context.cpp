@@ -139,6 +139,25 @@ static const std::string TIMEOUT = "TIMEOUT";
 
 const std::string &input_context::input_to_action( const input_event &inp ) const
 {
+    // A letter that is both a menu's own key (wield, wear, sort ...) and a navigation key (the
+    // WASD layout moves the cursor with w/a/s/d): the menu's key wins, navigation only applies
+    // when the menu has no other use for the letter.  Arrow keys and the rest are unchanged.
+    const bool letter = inp.sequence.size() == 1 && inp.sequence.front() < 128 &&
+                        std::isalpha( inp.sequence.front() ) &&
+                        ( inp.type == input_event_t::keyboard_char || inp.type == input_event_t::keyboard_code );
+    if( letter ) {
+        static const std::array<std::string, 4> navigation = { "UP", "DOWN", "LEFT", "RIGHT" };
+        for( const std::string &action : registered_actions ) {
+            if( std::find( navigation.begin(), navigation.end(), action ) != navigation.end() ) {
+                continue;
+            }
+            for( const input_event &check_inp_i : inp_mngr.get_input_for_action( action, category ) ) {
+                if( check_inp_i == inp ) {
+                    return action;
+                }
+            }
+        }
+    }
     for( const std::string &elem : registered_actions ) {
         const std::string &action = elem;
         const std::vector<input_event> &check_inp = inp_mngr.get_input_for_action( action, category );
