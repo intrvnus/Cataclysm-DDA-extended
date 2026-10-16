@@ -19,6 +19,8 @@
 #include "input.h"
 #include "memory_fast.h"
 #include "output.h"
+#include "alerts.h"
+#include "debug.h"
 #include "remote_ui.h"
 #include "sdltiles.h"
 #include "string_formatter.h"
@@ -961,6 +963,13 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
                 selected = sel;
             }
         }
+        return nullptr;
+    }
+    if( loop && alerts::unattended() ) {
+        // a server: nobody is at its window to choose (the world would stand still for everyone)
+        DebugLog( D_INFO, D_MAIN ) << "Unattended server: menu cancelled: " << remove_color_tags( text.empty() ?
+                                   title : text );
+        ret = UILIST_CANCEL;
         return nullptr;
     }
     ret = UILIST_WAIT_INPUT;

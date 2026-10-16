@@ -11,6 +11,8 @@
 #include "input_context.h"
 #include "input_enums.h"
 #include "output.h"
+#include "alerts.h"
+#include "debug.h"
 #include "remote_ui.h"
 #include "point.h"
 #include "ret_val.h"
@@ -388,6 +390,13 @@ const std::string &string_input_popup::query_string( const bool loop, const bool
         const std::string got = remote_ui::answer( "s" ).value_or( "c" );
         _canceled = got.empty() || got[0] != 't';
         _text = _canceled ? std::string() : got.substr( 1 );
+        return _text;
+    }
+    if( loop && !draw_only && alerts::unattended() ) {
+        // a server: nobody can type
+        DebugLog( D_INFO, D_MAIN ) << "Unattended server: text input cancelled: " << _title;
+        _canceled = true;
+        _text.clear();
         return _text;
     }
     const std::string &res = query_string_local( loop, draw_only );
