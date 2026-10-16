@@ -1786,7 +1786,13 @@ void client_on_disconnect()
     }
     // the host's own client: its server may still be loading the world
     if( !cs.connected ) {
-        listen_connect_failed();
+        if( !listen_connect_failed() ) {
+            // no retry: nothing to play, back to the main menu with what to check
+            session_end_notice() = _( "The host could not be reached.\n\nCheck the address and the port, that the "
+                                      "host's game is running, and (over the internet) that the host's router "
+                                      "forwards the UDP port and the firewall lets the game through." );
+            cs.session_over = true;
+        }
     } else {
         // after connecting (joined or refused): nothing more comes, back to the main menu
         cs.session_over = true;

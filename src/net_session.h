@@ -100,8 +100,9 @@ bool listen_stop_requested();
 void listen_end();
 /** The server joined was just started from this computer: retry while it loads its world. */
 void retry_join_while_loading();
-/** The host's own client could not reach its server (still loading): try again soon. */
-void listen_connect_failed();
+/** The client could not reach the server: true if it tries again soon (the host's own server or
+ * one just started on this computer may still be loading). */
+bool listen_connect_failed();
 /** Once per frame: a planned new connection attempt of the host's own client. */
 void listen_tick();
 /** This player's identity key (config/mp_identity.txt, made if missing). */

@@ -381,16 +381,17 @@ void listen_end()
     hosted_world().clear();
 }
 
-void listen_connect_failed()
+bool listen_connect_failed()
 {
     listen_state &ls = lstate();
     if( ( !ls.local && !ls.retry_join ) || ls.retries >= 60 ) {
-        return;
+        return false;
     }
     // the server is still loading the world: try again in a moment
     ls.retries++;
     ls.retry_pending = true;
     ls.retry_at = std::chrono::steady_clock::now() + std::chrono::seconds( 3 );
+    return true;
 }
 
 void listen_tick()
