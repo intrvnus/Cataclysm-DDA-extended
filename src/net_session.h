@@ -240,8 +240,10 @@ bool dialogue_protected( const Creature &who );
  * that is done locally. */
 bool client_item_action( int key, const item_location &loc );
 /** Fluid mode: sends the input of this frame (only if something changed, or now and then).
- * Returns the sequence number of the frame sent, or -1 if nothing was sent. */
-int client_send_input( const fluid::input_frame &in );
+ * A frame that moves the body (free movement) is always sent, with its duration @p dt_ms,
+ * together with the earlier ones the host has not confirmed yet.  Returns that movement
+ * frame's number (the host's body positions answer to it), or -1 if this frame does not move. */
+int client_send_input( const fluid::input_frame &in, int dt_ms = 0 );
 /** Called while the game waits for a key.  Multiplayer client inside a menu: keeps hearing the
  * host (messages are queued until the menu closes) and returns true when danger appeared (own
  * hit points went down, a hostile monster next to the own character): the menu backs out. */

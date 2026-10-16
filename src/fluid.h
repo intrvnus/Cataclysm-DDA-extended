@@ -306,9 +306,23 @@ struct event {
     int spread = 0;
 };
 
-/** Runs one frame for a character. New events are appended to @p out (may be null). */
+/** One frame of a player's movement as the client predicted it.  The host moves the body by
+ * exactly these frames (direction and duration), so its position after frame @c seq is the one
+ * the client predicted for it; only real differences (a refused door, a creature in the way)
+ * are corrected on the client (deterministic input frames). */
+struct move_frame {
+    int seq = 0;
+    int dt = 0;
+    int move_x = 0;
+    int move_y = 0;
+    bool sprint = false;
+};
+
+/** Runs one frame for a character. New events are appended to @p out (may be null).
+ * @p moves: a remote player's movement frames to apply this frame (free movement); null for
+ * the host's own avatar and NPCs, which move by the frame time. */
 void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
-            std::vector<event> *out );
+            std::vector<event> *out, const std::vector<move_frame> *moves = nullptr );
 
 /** The autoattack key (Tab): the actor swings at the weakest hostile creature next to it as soon
  * as it is ready (fluid melee: wind-up and blow). */

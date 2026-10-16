@@ -128,6 +128,10 @@ struct client_state {
     // the connection ended after joining (the host left, the server stopped or the network
     // failed): the game goes back to the main menu
     bool session_over = false;
+    // free movement frames sent but not confirmed by the host yet (repeated in every message),
+    // and the number of the newest one
+    std::deque<fluid::move_frame> unconfirmed_moves;
+    int move_seq = 0;
     // the overmap tile the terrain around was last asked for
     tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
 };
@@ -137,6 +141,20 @@ client_state &cstate()
     static client_state s;
     return s;
 }
+
+// test runs (CATA_MP_TEST_TRACE): which part of a client frame is slow
+struct frame_timer {
+    const char *what;
+    fluid::ms_t t0;
+    explicit frame_timer( const char *w ) : what( w ), t0( fluid::now_ms() ) {}
+    ~frame_timer() {
+        static const bool on = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+        const fluid::ms_t took = fluid::now_ms() - t0;
+        if( on && took > 30 ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace slow " << what << " " << took << " ms";
+        }
+    }
+};
 
 // why the last session ended by itself (shown in the main menu)
 std::string &session_end_notice()
@@ -1806,6 +1824,10 @@ void client_on_disconnect()
 void client_on_message( const JsonObject &msg )
 {
     const std::string type = msg.get_string( "t", "" );
+    // test runs: which message is slow to handle
+    static std::string timed_type;
+    timed_type = "msg " + type;
+    const frame_timer timed( timed_type.c_str() );
     cstate().last_host_msg = fluid::now_ms();
     if( cstate().host_wait_shown ) {
         cstate().host_wait_shown = false;
@@ -1863,8 +1885,13 @@ void client_on_message( const JsonObject &msg )
             b.z = a.get_int( 3 );
             list.push_back( b );
         }
+        const int confirmed = msg.get_int( "q", -1 );
+        std::deque<fluid::move_frame> &unconfirmed = cstate().unconfirmed_moves;
+        while( !unconfirmed.empty() && unconfirmed.front().seq <= confirmed ) {
+            unconfirmed.pop_front();
+        }
         if( cstate().fluid_on ) {
-            fluid::client_bodies( list, msg.get_int( "q", -1 ), fluid::now_ms() );
+            fluid::client_bodies( list, confirmed, fluid::now_ms() );
         }
     } else if( type == "aim" ) {
         fluid::client_aim_status( msg.get_int( "s", 0 ) / 1000.0, msg.get_int( "r", 0 ) / 1000.0,
@@ -2116,11 +2143,27 @@ bool input_idle()
     return cs.menu_danger;
 }
 
-int client_send_input( const fluid::input_frame &in )
+int client_send_input( const fluid::input_frame &in, int dt_ms )
 {
     client_state &cs = cstate();
     if( !cs.welcomed || !cs.fluid_on || impl::state().server_peer == nullptr ) {
         return -1;
+    }
+    // a frame that moves the body: numbered, kept until the host confirms it, sent at once
+    int move_seq = -1;
+    if( ( in.move_x != 0 || in.move_y != 0 ) && dt_ms > 0 ) {
+        fluid::move_frame mf;
+        mf.seq = ++cs.move_seq;
+        mf.dt = dt_ms;
+        mf.move_x = in.move_x;
+        mf.move_y = in.move_y;
+        mf.sprint = in.sprint;
+        cs.unconfirmed_moves.push_back( mf );
+        // (a host that stopped answering: no endless list)
+        while( cs.unconfirmed_moves.size() > 120 ) {
+            cs.unconfirmed_moves.pop_front();
+        }
+        move_seq = mf.seq;
     }
     static int seq = 0;
     fluid::input_frame &last = last_input_sent();
@@ -2135,7 +2178,7 @@ int client_send_input( const fluid::input_frame &in )
                          in.shove_presses != last.shove_presses ||
                          in.cursor_valid != last.cursor_valid;
     const double moved = std::abs( in.cursor_x - last.cursor_x ) + std::abs( in.cursor_y - last.cursor_y );
-    const bool send = ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
+    const bool send = move_seq >= 0 || ( now - last_at >= 100 ) || ( buttons && now - last_at >= 12 ) ||
                       ( in.cursor_valid && moved > 0.12 && now - last_at >= 40 );
     if( !send ) {
         return -1;
@@ -2160,8 +2203,24 @@ int client_send_input( const fluid::input_frame &in )
         jo.member( "cx", in.cursor_x );
         jo.member( "cy", in.cursor_y );
         jo.member( "cz", in.cursor_z );
+        // the newest unconfirmed movement frames (a lost packet loses nothing: the next
+        // message repeats them; the host skips the ones it has)
+        jo.member( "f" );
+        jo.start_array();
+        const size_t first = cs.unconfirmed_moves.size() > 12 ? cs.unconfirmed_moves.size() - 12 : 0;
+        for( size_t i = first; i < cs.unconfirmed_moves.size(); ++i ) {
+            const fluid::move_frame &mf = cs.unconfirmed_moves[i];
+            jo.start_array();
+            jo.write( mf.seq );
+            jo.write( mf.dt );
+            jo.write( mf.move_x );
+            jo.write( mf.move_y );
+            jo.write( mf.sprint ? 1 : 0 );
+            jo.end_array();
+        }
+        jo.end_array();
     } ) );
-    return seq;
+    return move_seq;
 }
 
 void client_place_shadow( int actor, const tripoint_abs_ms &tile )
@@ -2177,9 +2236,14 @@ void client_place_shadow( int actor, const tripoint_abs_ms &tile )
     }
 }
 
+
 bool client_do_turn()
 {
-    poll();
+    frame_timer whole( "frame" );
+    {
+        frame_timer t( "poll" );
+        poll();
+    }
     if( cstate().session_over ) {
         // shown when the main menu is back (popups do not wait while a game runs)
         if( session_end_notice().empty() ) {
@@ -2211,9 +2275,15 @@ bool client_do_turn()
             add_msg( m_warning, _( "The world waits: the host is busy (probably in a menu)." ) );
         }
     }
-    fluid::client_frame();
+    {
+        frame_timer t( "client_frame" );
+        fluid::client_frame();
+    }
     mp_test_mapmem_client();
-    ui_manager::redraw_invalidated();
+    {
+        frame_timer t( "redraw" );
+        ui_manager::redraw_invalidated();
+    }
     // the overmap copy gets the terrain around the player whenever it moves to another tile
     {
         tripoint_abs_omt &last_omt = cstate().last_omt;
@@ -2233,14 +2303,22 @@ bool client_do_turn()
         cs.menu_danger = false;
         cs.menu_hp_base = -1;
     }
-    if( handle_input() ) {
+    bool leave = false;
+    {
+        frame_timer t( "input" );
+        leave = handle_input();
+    }
+    if( leave ) {
         // what this player has seen stays with them for the next visit (the world itself is not saved)
         get_avatar().save_map_memory();
         shutdown();
         // The next do_turn() ends the game without saving.
         g->uquit = QUIT_NOSAVED;
     }
-    poll();
+    {
+        frame_timer t( "poll2" );
+        poll();
+    }
     return false;
 }
 

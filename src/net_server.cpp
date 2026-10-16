@@ -2,6 +2,7 @@
 // the world state to the clients. See net_session.h.
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <optional>
 #include <iterator>
@@ -131,6 +132,12 @@ struct remote_player {
     // positions were last sent
     int input_seq = -1;
     fluid::ms_t bodies_sent = 0;
+    // free movement frames not applied yet, the last one applied (what the body positions
+    // answer to) and the real time the body may still move (no faster than real time)
+    std::deque<fluid::move_frame> moves;
+    int applied_seq = -1;
+    double move_bank_ms = 0.0;
+    fluid::ms_t move_bank_at = 0;
     // hash of the last version of every submap sent to this client
     std::map<tripoint_abs_sm, size_t> sent_submaps;
     // A4: last full character sent to the owner (hash) and when
@@ -1254,6 +1261,47 @@ std::vector<tripoint_abs_sm> submaps_around( const tripoint_abs_ms &p, int radiu
 }
 
 // Sends the submaps that changed since they were last sent to this client.
+// A submap's JSON without the values items change by themselves all the time (rot, temperature):
+// the players' copies need no update for those, only for what they can see change.
+std::string submap_visible_json( const std::string &json )
+{
+    static const std::array<std::string, 5> volatile_keys = {
+        "\"last_temp_check\":", "\"rot\":", "\"specific_energy\":", "\"temperature\":",
+        "\"turn_last_touched\":"
+    };
+    std::string out;
+    out.reserve( json.size() );
+    size_t i = 0;
+    while( i < json.size() ) {
+        bool skipped = false;
+        for( const std::string &key : volatile_keys ) {
+            if( json.compare( i, key.size(), key ) == 0 ) {
+                // skip the key and its value (a number or a string) and a following comma
+                size_t j = i + key.size();
+                if( j < json.size() && json[j] == '"' ) {
+                    j = json.find( '"', j + 1 );
+                    j = j == std::string::npos ? json.size() : j + 1;
+                } else {
+                    while( j < json.size() && json[j] != ',' && json[j] != '}' && json[j] != ']' ) {
+                        ++j;
+                    }
+                }
+                if( j < json.size() && json[j] == ',' ) {
+                    ++j;
+                }
+                i = j;
+                skipped = true;
+                break;
+            }
+        }
+        if( !skipped ) {
+            out += json[i];
+            ++i;
+        }
+    }
+    return out;
+}
+
 void send_submaps( remote_player &rp, const std::vector<tripoint_abs_sm> &list )
 {
     std::string payload;
@@ -1264,12 +1312,29 @@ void send_submaps( remote_player &rp, const std::vector<tripoint_abs_sm> &list )
             continue;
         }
         std::string json = os.str();
-        const size_t hash = std::hash<std::string> {}( json );
+        // (sent again only for a change a player can see: not for items rotting or cooling)
+        const size_t hash = std::hash<std::string> {}( submap_visible_json( json ) );
         auto iter = rp.sent_submaps.find( p );
         if( iter != rp.sent_submaps.end() && iter->second == hash ) {
             continue;
         }
         rp.sent_submaps[p] = hash;
+        static const bool trace_sm = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+        if( trace_sm ) {
+            // test runs: what changed since this submap was last sent
+            static std::map<tripoint_abs_sm, std::string> last_json;
+            std::string &old = last_json[p];
+            if( !old.empty() ) {
+                size_t at = 0;
+                while( at < old.size() && at < json.size() && old[at] == json[at] ) {
+                    ++at;
+                }
+                const size_t from = at > 60 ? at - 60 : 0;
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace submap resent " << p.to_string() << " size " <<
+                                           json.size() << " differs at " << at << ": ..." << json.substr( from, 120 );
+            }
+            old = json;
+        }
         if( !payload.empty() ) {
             payload += ',';
         }
@@ -2759,6 +2824,31 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         rp->input_seq = msg.get_int( "q", -1 );
         rp->has_input = true;
         rp->input_at = fluid::now_ms();
+        // free movement frames: the client repeats the unconfirmed ones in every message (a lost
+        // packet loses nothing); the new ones are queued in order
+        if( msg.has_array( "f" ) ) {
+            int newest = rp->moves.empty() ? rp->applied_seq : rp->moves.back().seq;
+            for( JsonArray a : msg.get_array( "f" ) ) {
+                if( a.size() < 5 ) {
+                    continue;
+                }
+                fluid::move_frame mf;
+                mf.seq = a.get_int( 0 );
+                if( mf.seq <= newest ) {
+                    continue;
+                }
+                mf.dt = std::clamp( a.get_int( 1 ), 0, fluid::tune().max_move_frame_ms );
+                mf.move_x = std::clamp( a.get_int( 2 ), -1, 1 );
+                mf.move_y = std::clamp( a.get_int( 3 ), -1, 1 );
+                mf.sprint = a.get_int( 4 ) != 0;
+                rp->moves.push_back( mf );
+                newest = mf.seq;
+            }
+            // a client far ahead (a long hitch): the oldest frames go, the body catches up
+            while( rp->moves.size() > 240 ) {
+                rp->moves.pop_front();
+            }
+        }
     } else if( type == "act" && rp->npc_id.is_valid() ) {
         command cmd;
         cmd.action = msg.get_string( "a", "wait" );
@@ -2885,6 +2975,11 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
         }
         npc *guy = g->find_npc( rp.npc_id );
         if( guy == nullptr || guy->is_dead() || rp.downed ) {
+            // no movement saved up for later (it would play back all at once)
+            if( !rp.moves.empty() ) {
+                rp.applied_seq = rp.moves.back().seq;
+                rp.moves.clear();
+            }
             continue;
         }
         fluid::input_frame frame = rp.input;
@@ -2928,9 +3023,27 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             }
         }
         fluid::actor_state &st = fluid::state_of( guy->getID().get_value() );
+        // this frame's movement: the client's frames in order, as much as real time allows
+        // (the bank fills with real time and is spent by the frames' durations)
+        if( rp.move_bank_at == 0 ) {
+            rp.move_bank_at = now;
+        }
+        rp.move_bank_ms = std::min( 1000.0, rp.move_bank_ms + static_cast<double>( now - rp.move_bank_at ) );
+        rp.move_bank_at = now;
+        std::vector<fluid::move_frame> moves;
+        while( !rp.moves.empty() && rp.moves.front().dt <= rp.move_bank_ms ) {
+            rp.move_bank_ms -= rp.moves.front().dt;
+            rp.applied_seq = rp.moves.front().seq;
+            moves.push_back( rp.moves.front() );
+            rp.moves.pop_front();
+        }
+        if( moves.empty() && rp.moves.empty() ) {
+            // standing still does not save up time for a dash later
+            rp.move_bank_ms = std::min( rp.move_bank_ms, 100.0 );
+        }
         // the host's message log is forwarded to the owner, like in the classic protocol
         const size_t messages_before = Messages::size();
-        fluid::drive( *guy, st, frame, now, events );
+        fluid::drive( *guy, st, frame, now, events, &moves );
         // stamina comes back in real time for the player's body
         guy->update_stamina( 0 );
         const size_t messages_after = Messages::size();
@@ -2958,7 +3071,8 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             if( !bodies.empty() ) {
                 impl::send_json_fast( rp.peer, message( [&]( JsonOut & jo ) {
                     jo.member( "t", "bp" );
-                    jo.member( "q", rp.input_seq );
+                    // the last movement frame applied: the client compares with its prediction
+                    jo.member( "q", rp.applied_seq );
                     jo.member( "l" );
                     jo.start_array();
                     for( const fluid::body_sample &b : bodies ) {

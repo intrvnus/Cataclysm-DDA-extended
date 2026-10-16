@@ -2503,7 +2503,7 @@ void forget_state( int character_id )
 // the driver
 
 void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
-            std::vector<event> *out )
+            std::vector<event> *out, const std::vector<move_frame> *moves )
 {
     if( who.is_dead_state() ) {
         return;
@@ -2534,6 +2534,33 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     const bool free = free_movement();
     const int body_dt = free ? body_sync( who, st, now ) : 0;
     st.body_moving = false;
+    // the body's free movement this frame: a remote player's frames one by one (each with its
+    // own direction and duration, like the client predicted them), else the frame time
+    const bool wants_move = moves != nullptr ? std::any_of( moves->begin(), moves->end(),
+    []( const move_frame & f ) {
+        return f.move_x != 0 || f.move_y != 0;
+    } ) : ( in.move_x != 0 || in.move_y != 0 );
+    const auto move_body = [&]() {
+        if( moves == nullptr ) {
+            return free_move( who, st, in, body_dt, now, out );
+        }
+        bool moved = false;
+        for( const move_frame &f : *moves ) {
+            if( f.move_x == 0 && f.move_y == 0 ) {
+                continue;
+            }
+            input_frame step = in;
+            step.move_x = f.move_x;
+            step.move_y = f.move_y;
+            step.sprint = f.sprint;
+            moved = free_move( who, st, step, f.dt, now, out ) || moved;
+            if( trace_enabled() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace srvframe seq=" << f.seq << " dt=" << f.dt <<
+                                           " x=" << st.body_x << " y=" << st.body_y << " tile=" << who.pos_abs().y();
+            }
+        }
+        return moved;
+    };
     if( !st.initialised ) {
         st.initialised = true;
         st.seen_primary_presses = in.primary_presses;
@@ -2592,6 +2619,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.melee = phase::idle;
     }
     const bool idle = acting && st.melee == phase::idle && now >= st.ready_at;
+    if( trace_enabled() && moves != nullptr && !moves->empty() && !idle ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace frames skipped n=" << moves->size() << " moves=" <<
+                                   who.get_moves() << " activity=" << static_cast<bool>( who.activity ) << " melee=" <<
+                                   static_cast<int>( st.melee ) << " ready_in=" << st.ready_at - now;
+    }
     if( !idle && primary_pressed ) {
         // too early (walking, recovering from a blow ...): the click is remembered and used
         // the moment the actor is ready
@@ -2686,13 +2718,15 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             }
         }
 
-        if( !started && free && ( in.move_x != 0 || in.move_y != 0 ) ) {
-            st.body_moving = free_move( who, st, in, body_dt, now, out );
+        if( !started && free && wants_move ) {
+            st.body_moving = move_body();
             if( st.body_moving && who.is_avatar() ) {
                 // a tap has been used: the input resolver lets go of it
                 note_own_step_started();
             }
-        } else if( !started && ( in.move_x != 0 || in.move_y != 0 ) ) {
+        } else if( !started && !free && ( in.move_x != 0 || in.move_y != 0 ) ) {
+            // (tile steps only without free movement: a frame without movement frames of a
+            // remote player is a frame without movement)
             // While walking continuously the next step starts exactly when the last one ended,
             // even if the world turn in between took longer than a frame: no lost time (and
             // no pause on the tile) after a hitch.
@@ -2704,9 +2738,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         } else {
             st.stepping = false;
         }
-    } else if( reloading && free && ( in.move_x != 0 || in.move_y != 0 ) &&
+    } else if( reloading && free && wants_move &&
                !who.is_dead_state() && now >= st.ready_at ) {
-        st.body_moving = free_move( who, st, in, body_dt, now, out );
+        st.body_moving = move_body();
         if( st.body_moving && who.is_avatar() ) {
             note_own_step_started();
         }
@@ -3317,6 +3351,10 @@ void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now 
     // for play tests: big corrections are worth knowing about (rubber banding)
     static ms_t last_log = 0;
     const double err = std::sqrt( ex * ex + ey * ey );
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace correction err=" << err << " ex=" << ex << " ey=" << ey <<
+                                   " seq=" << seq << " unconfirmed=" << fc.history.size();
+    }
     if( err > 0.3 && now - last_log > 1000 ) {
         last_log = now;
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: free movement correction " << err <<
@@ -3343,7 +3381,7 @@ void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now 
 
 // Client, every frame: the own body moves on, other bodies are interpolated; both go to the
 // renderer through body_draws().
-void client_free_frame( const input_frame &in, int seq, ms_t now )
+void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
 {
     free_client &fc = fclient();
     client_info &ci = cinfo();
@@ -3355,8 +3393,6 @@ void client_free_frame( const input_frame &in, int seq, ms_t now )
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
         fc.history.clear();
     }
-    const int dt = static_cast<int>( std::clamp<ms_t>( now - fc.last, 0, tune().max_move_frame_ms ) );
-    fc.last = now;
     if( u.controlling_vehicle || u.in_vehicle ) {
         // riding: the vehicle moves the character, the body stays on its tile
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
@@ -3369,6 +3405,10 @@ void client_free_frame( const input_frame &in, int seq, ms_t now )
         predict_free_move( u, st, in, dt );
     }
     if( seq >= 0 ) {
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace cliframe seq=" << seq << " dt=" << dt <<
+                                       " x=" << st.body_x << " y=" << st.body_y;
+        }
         fc.history.emplace_back( seq, st.body_x, st.body_y );
         while( fc.history.size() > 120 ) {
             fc.history.pop_front();
@@ -3647,10 +3687,16 @@ void client_frame()
         return;
     }
     client_auto_travel( u, in );
-    const int seq = net::client_send_input( in );
+    // the frame's duration: the host moves the body by exactly this (with the same direction),
+    // so its positions match the prediction below
+    free_client &fc = fclient();
+    const int dt = fc.last == 0 ? 0 : static_cast<int>( std::clamp<ms_t>( now - fc.last, 0,
+                   tune().max_move_frame_ms ) );
+    fc.last = now;
+    const int seq = net::client_send_input( in, client_free_movement() ? dt : 0 );
     note_cursor( in, now );
     if( client_free_movement() ) {
-        client_free_frame( in, seq, now );
+        client_free_frame( in, seq, dt, now );
     }
 
     // ---- prediction of the own step
