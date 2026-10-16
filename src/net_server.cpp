@@ -1077,10 +1077,14 @@ npc *spawn_remote_npc( remote_player &rp )
     creature_tracker &creatures = get_creature_tracker();
 
     tripoint_bub_ms spot = u.pos_bub( here );
-    for( const tripoint_bub_ms &p : here.points_in_radius( u.pos_bub( here ), 2 ) ) {
-        if( p != u.pos_bub( here ) && here.passable( p ) && creatures.creature_at( p ) == nullptr ) {
-            spot = p;
-            break;
+    // the nearest free tile on the host's side of any wall (a straight walkable line)
+    for( int r = 1; r <= 2 && spot == u.pos_bub( here ); ++r ) {
+        for( const tripoint_bub_ms &p : here.points_in_radius( u.pos_bub( here ), r ) ) {
+            if( p != u.pos_bub( here ) && rl_dist( p, u.pos_bub( here ) ) == r && here.passable( p ) &&
+                creatures.creature_at( p ) == nullptr && here.clear_path( u.pos_bub( here ), p, r + 1, 1, 100 ) ) {
+                spot = p;
+                break;
+            }
         }
     }
     // new players start next to somebody who is already playing (in that player's bubble)
@@ -1153,10 +1157,16 @@ npc *spawn_remote_npc( remote_player &rp )
         map &bm = bubbles::map_for( *buddy );
         swap_map swap( bm );
         const tripoint_bub_ms at = buddy->pos_bub( bm );
-        for( const tripoint_bub_ms &p : bm.points_in_radius( at, 2 ) ) {
-            if( p != at && bm.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
-                start_at = bm.get_abs( p );
-                break;
+        // the nearest free tile on the buddy's side of any wall (a straight walkable line)
+        bool found = false;
+        for( int r = 1; r <= 2 && !found; ++r ) {
+            for( const tripoint_bub_ms &p : bm.points_in_radius( at, r ) ) {
+                if( p != at && rl_dist( p, at ) == r && bm.passable( p ) &&
+                    get_creature_tracker().creature_at( p ) == nullptr && bm.clear_path( at, p, r + 1, 1, 100 ) ) {
+                    start_at = bm.get_abs( p );
+                    found = true;
+                    break;
+                }
             }
         }
     } else if( returning || go_home ) {
