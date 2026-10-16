@@ -319,5 +319,49 @@
       { "input_method": "keyboard_any", "key": "RIGHT" },
       { "input_method": "gamepad", "key": "JOY_RIGHT" }
     ]
+  },
+  {
+    "type": "keybinding",
+    "id": "UILIST.UP",
+    "name": "Move cursor up",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "w" },
+      { "input_method": "keyboard_any", "key": "UP" },
+      { "input_method": "keyboard_any", "key": "8" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_8" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "UILIST.DOWN",
+    "name": "Move cursor down",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "s" },
+      { "input_method": "keyboard_any", "key": "DOWN" },
+      { "input_method": "keyboard_any", "key": "2" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_2" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "UILIST.LEFT",
+    "name": "Previous category",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "a" },
+      { "input_method": "keyboard_any", "key": "LEFT" },
+      { "input_method": "keyboard_any", "key": "4" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_4" }
+    ]
+  },
+  {
+    "type": "keybinding",
+    "id": "UILIST.RIGHT",
+    "name": "Next category",
+    "bindings": [
+      { "input_method": "keyboard_any", "key": "d" },
+      { "input_method": "keyboard_any", "key": "RIGHT" },
+      { "input_method": "keyboard_any", "key": "6" },
+      { "input_method": "keyboard_code", "key": "KEYPAD_6" }
+    ]
   }
 ]

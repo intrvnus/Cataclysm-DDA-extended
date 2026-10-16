@@ -119,8 +119,9 @@ struct tuning {
     int ease_back_ms = 100;
     // the melee click hits the tile of the 45 degree sector the cursor is in
     bool melee_sectors = true;
-    // camera leads toward the cursor by this many tiles (0 = off)
-    double camera_lead_tiles = 0.7;
+    // camera leads toward the cursor by this many tiles (0 = off).  Off (Noah 2026-10-16): the
+    // view drifting with the mouse made the character look off-centre and jittery
+    double camera_lead_tiles = 0.0;
     // ---- free (grid-free) movement, see doc/MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md
     // half the width of a player's body, in tiles (0.3 = a body 0.6 tiles wide)
     double body_half = 0.3;

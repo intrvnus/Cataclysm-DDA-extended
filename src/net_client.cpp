@@ -128,6 +128,9 @@ struct client_state {
     bool in_main_input = false;
     bool menu_danger = false;
     int menu_hp_base = -1;
+    // hostile monsters next to the own character when the menu opened (-1: not counted yet):
+    // only one more than these is new danger
+    int menu_adjacent_base = -1;
     // the connection ended after joining (the host left, the server stopped or the network
     // failed): the game goes back to the main menu
     bool session_over = false;
@@ -2120,9 +2123,11 @@ void client_peek_message( const std::string &json )
             hp += m.get_int();
         }
         if( cs.menu_hp_base >= 0 && hp < cs.menu_hp_base ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: menu danger: hit points " << hp << " < " << cs.menu_hp_base;
             cs.menu_danger = true;
             return;
         }
+        int adjacent = 0;
         for( JsonObject mon : msg.get_array( "monsters" ) ) {
             mon.allow_omitted_members();
             const mtype_id type( mon.get_string( "id", "" ) );
@@ -2131,9 +2136,17 @@ void client_peek_message( const std::string &json )
                 continue;
             }
             if( rl_dist( read_pos( mon.get_array( "pos" ) ), me ) <= 1 ) {
-                cs.menu_danger = true;
-                return;
+                ++adjacent;
             }
+        }
+        // a monster that was already there when the menu opened is no news (the player opened
+        // the menu in the fight on purpose); one more coming close is
+        if( cs.menu_adjacent_base < 0 ) {
+            cs.menu_adjacent_base = adjacent;
+        } else if( adjacent > cs.menu_adjacent_base ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: menu danger: monsters next to you " << adjacent << " > " <<
+                                       cs.menu_adjacent_base;
+            cs.menu_danger = true;
         }
     } catch( const std::exception & ) {
         // a bad message is reported when it is handled for real
@@ -2174,10 +2187,40 @@ fluid::input_frame &last_input_sent()
 }
 } // namespace
 
+namespace
+{
+int &quick_prompts()
+{
+    static int n = 0;
+    return n;
+}
+} // namespace
+
+quick_prompt_scope::quick_prompt_scope()
+{
+    ++quick_prompts();
+}
+
+quick_prompt_scope::~quick_prompt_scope()
+{
+    --quick_prompts();
+}
+
+bool quick_prompt_open()
+{
+    return quick_prompts() > 0;
+}
+
 bool input_idle()
 {
     client_state &cs = cstate();
     if( !is_client() || !cs.welcomed || !cs.fluid_on || cs.in_main_input ) {
+        return false;
+    }
+    if( quick_prompt_open() ) {
+        // a direction prompt (close where? smash where?) is answered in a moment and is what a
+        // fight needs: it never backs out; the network is still heard
+        impl::menu_poll();
         return false;
     }
     static fluid::ms_t last = 0;
@@ -2372,6 +2415,7 @@ bool client_do_turn()
         }
         cs.menu_danger = false;
         cs.menu_hp_base = -1;
+        cs.menu_adjacent_base = -1;
     }
     bool leave = false;
     {

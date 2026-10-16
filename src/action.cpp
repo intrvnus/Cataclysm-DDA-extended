@@ -34,6 +34,7 @@
 #include "map.h"
 #include "map_iterator.h"
 #include "map_scale_constants.h"
+#include "net_session.h"
 #include "mapdata.h"
 #include "memory_fast.h"
 #include "messages.h"
@@ -1147,6 +1148,8 @@ static std::optional<tripoint_rel_ms> choose_direction_impl( const std::string &
         const std::function<std::pair<bool, std::optional<tripoint_rel_ms>>(
             const input_context &ctxt, const std::string &action )> &action_cb )
 {
+    // multiplayer: a direction prompt does not back out when a monster is near (see input_idle)
+    const net::quick_prompt_scope quick;
     input_context ctxt( "DEFAULTMODE", keyboard_mode::keycode );
     if( timeout >= 0 ) {
         ctxt.set_timeout( timeout );

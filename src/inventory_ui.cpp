@@ -4149,13 +4149,13 @@ void inventory_multiselector::toggle_categorize_contained()
 
 void inventory_multiselector::on_input( const inventory_input &input )
 {
-    if( net::active() && ( input.ch == 'a' || input.ch == 'd' ) &&
-        ( input.action.empty() || input.action == "LEFT" || input.action == "RIGHT" ||
-          input.action == "ANY_INPUT" ) ) {
-        // multiplayer: a marks the highlighted entry (all of it), d unmarks it
+    if( net::active() && input.ch == 'd' &&
+        ( input.action.empty() || input.action == "RIGHT" || input.action == "ANY_INPUT" ) ) {
+        // multiplayer (Noah): d ticks the highlighted entry (all of it) or unticks it; a keeps
+        // switching between the columns
         inventory_entry &entry = get_active_column().get_highlighted();
         if( entry.is_selectable() ) {
-            toggle_entry( entry, input.ch == 'a' ? entry.get_available_count() : 0 );
+            toggle_entry( entry, entry.chosen_count > 0 ? 0 : entry.get_available_count() );
         }
         return;
     }

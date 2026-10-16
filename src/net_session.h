@@ -248,6 +248,15 @@ int client_send_input( const fluid::input_frame &in, int dt_ms = 0 );
  * host (messages are queued until the menu closes) and returns true when danger appeared (own
  * hit points went down, a hostile monster next to the own character): the menu backs out. */
 bool input_idle();
+/** While one exists, a quick prompt (a direction) is open: input_idle() never backs out of it
+ * for danger (the player answers it in a moment, often in a fight). */
+struct quick_prompt_scope {
+    quick_prompt_scope();
+    ~quick_prompt_scope();
+    quick_prompt_scope( const quick_prompt_scope & ) = delete;
+    quick_prompt_scope &operator=( const quick_prompt_scope & ) = delete;
+};
+bool quick_prompt_open();
 /** Host: a client's body pushed into a ledge: that client opens the climb-down menu (examines
  * the tile in direction @p dx, @p dy) on its own screen. */
 void request_climb( const Character &body, int dx, int dy );
