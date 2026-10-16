@@ -440,8 +440,10 @@ static void WinCreate()
         gamepad::init();
     }
 
-    // Set up audio mixer.
-    init_sound();
+    // Set up audio mixer (a multiplayer server plays nothing: its players hear the sounds).
+    if( !net::dedicated_requested() ) {
+        init_sound();
+    }
 
     DebugLog( D_INFO, DC_ALL ) << "USE_COLOR_MODULATED_TEXTURES is set to " <<
                                get_option<bool>( "USE_COLOR_MODULATED_TEXTURES" );
