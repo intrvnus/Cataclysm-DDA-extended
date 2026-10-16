@@ -1381,9 +1381,20 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
         // sprite are in the world (a shake is a jump in these)
         const tripoint_abs_ms at = get_avatar().pos_abs();
         const fluid::offset spr = fluid::sprite_offset( at );
+        // and the nearest monster's sprite (its movement is a slide from the host's steps)
+        std::string mon = "-";
+        int best = INT_MAX;
+        for( const monster &z : g->all_monsters() ) {
+            const int d = rl_dist( z.pos_abs(), at );
+            if( d < best && d <= 20 ) {
+                best = d;
+                const fluid::offset mo = fluid::sprite_offset( z.pos_abs() );
+                mon = string_format( "%.3f,%.3f", z.pos_abs().x() + 0.5 + mo.x, z.pos_abs().y() + 0.5 + mo.y );
+            }
+        }
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace draw fc=" << fluid_camera << " cam=" <<
                                    at.x() + 0.5 + cam.x << "," << at.y() + 0.5 + cam.y << " spr=" << at.x() + 0.5 + spr.x << "," <<
-                                   at.y() + 0.5 + spr.y;
+                                   at.y() + 0.5 + spr.y << " mon=" << mon;
     }
     screentile_width = s.x;
     screentile_height = s.y;

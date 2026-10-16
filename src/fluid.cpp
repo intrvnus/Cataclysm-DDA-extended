@@ -2077,7 +2077,8 @@ void begin_slide( const tripoint_abs_ms &to, double from_x, double from_y, ms_t 
     s.from_x = from_x;
     s.from_y = from_y;
     s.t0 = t0;
-    s.dur = std::clamp( dur, 1, tune().slide_max_ms );
+    // (a safety limit; callers pass their own: a slow creature on a busy host may glide for seconds)
+    s.dur = std::clamp( dur, 1, 6000 );
     slides()[to] = s;
 }
 
@@ -2931,6 +2932,23 @@ void snapshot_after_monsters()
     }
     auto &m = before_positions();
     const ms_t now = now_ms();
+    // the real time between world turns (smoothed): a turn can take longer than the turn
+    // length option (a busy host); glides that assume the option end early and the creature
+    // stands until its next step - stop and go instead of walking (Noah's test, 2026-10-16)
+    static ms_t last_turn_at = 0;
+    static double turn_interval = 0.0;
+    if( last_turn_at > 0 ) {
+        const double gap = static_cast<double>( std::clamp<ms_t>( now - last_turn_at, 50, 5000 ) );
+        turn_interval = turn_interval <= 0.0 ? gap : turn_interval * 0.8 + gap * 0.2;
+    }
+    last_turn_at = now;
+    const int real_turn_ms = std::max( turn_ms(), static_cast<int>( turn_interval ) );
+    static ms_t last_turn_log = 0;
+    if( trace_enabled() && now - last_turn_log > 5000 ) {
+        last_turn_log = now;
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace world turn every " << turn_interval <<
+                                   " ms (option " << turn_ms() << ")";
+    }
     std::vector<event> events;
     const auto handle = [&]( Creature & c ) {
         const auto iter = m.find( &c );
@@ -2949,8 +2967,12 @@ void snapshot_after_monsters()
         // phase 6: the creature glides for as long as the steps take at its own speed (a slow
         // zombie does not dash and then wait), continuing from where its sprite is now
         const int speed = std::max( 1, c.get_speed() );
-        const int dur = std::clamp( dist * 100 * turn_ms() / speed, turn_ms() / 2,
-                                    std::min( 3 * turn_ms(), tune().slide_max_ms ) );
+        // steps come on whole turns: a creature slower than one tile per turn steps on some
+        // turns and not on others (speed 70: 7 of 10), so a glide of exactly the average step
+        // time ends before a late step and the creature stands still for a moment.  Half a turn
+        // more lets the next step arrive while the glide still runs: the glides join into a walk
+        const int dur = std::clamp( dist * 100 * real_turn_ms / speed + real_turn_ms / 2, real_turn_ms / 2,
+                                    std::max( tune().slide_max_ms, 3 * real_turn_ms ) );
         begin_slide( from, to, now, dur );
         event ev;
         ev.type = fx_type::step;
