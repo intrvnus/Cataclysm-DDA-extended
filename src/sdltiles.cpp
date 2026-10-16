@@ -258,6 +258,48 @@ static bool SetupRenderTarget()
 }
 
 //Registers, creates, and shows the Window!!
+// the game's own mouse cursors (gfx/cursor/): a bone arrow, and a red crosshair over enemies
+namespace
+{
+SDL_Cursor *game_cursor_normal = nullptr;
+SDL_Cursor *game_cursor_hostile = nullptr;
+bool game_cursor_is_hostile = false;
+} // namespace
+
+static SDL_Cursor *load_game_cursor( const char *file, int hot_x, int hot_y )
+{
+    const cata_path path = PATH_INFO::gfxdir() / "cursor" / file;
+    SDL_Surface *surface = IMG_Load( path.get_unrelative_path().u8string().c_str() );
+    if( surface == nullptr ) {
+        // a game folder without the images keeps the system cursor
+        return nullptr;
+    }
+    SDL_Cursor *cursor = SDL_CreateColorCursor( surface, hot_x, hot_y );
+    SDL_FreeSurface( surface );
+    return cursor;
+}
+
+static void init_game_cursors()
+{
+    if( game_cursor_normal == nullptr ) {
+        game_cursor_normal = load_game_cursor( "cursor.png", 1, 1 );
+        game_cursor_hostile = load_game_cursor( "cursor_hostile.png", 11, 11 );
+    }
+    if( game_cursor_normal != nullptr ) {
+        SDL_SetCursor( game_cursor_normal );
+    }
+}
+
+void set_hostile_cursor( bool hostile )
+{
+    if( hostile == game_cursor_is_hostile || game_cursor_normal == nullptr ||
+        game_cursor_hostile == nullptr ) {
+        return;
+    }
+    game_cursor_is_hostile = hostile;
+    SDL_SetCursor( hostile ? game_cursor_hostile : game_cursor_normal );
+}
+
 static void WinCreate()
 {
     // Common flags used for fulscreen and for windowed
@@ -435,6 +477,7 @@ static void WinCreate()
     } else {
         SDL_ShowCursor( SDL_ENABLE );
     }
+    init_game_cursors();
 
     if( get_option<bool>( "ENABLE_JOYSTICK" ) ) {
         gamepad::init();

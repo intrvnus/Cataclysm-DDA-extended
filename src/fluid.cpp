@@ -312,6 +312,19 @@ void note_cursor( const input_frame &in, ms_t now )
     cs.cursor_y = in.cursor_y;
     cs.cursor_z = in.cursor_z;
     cs.cursor_stamp = now;
+    // the cursor turns into the red crosshair over a hostile creature the player can see
+    bool hostile = false;
+    if( in.cursor_valid ) {
+        map &here = get_map();
+        const avatar &u = get_avatar();
+        const tripoint_abs_ms tile( static_cast<int>( std::floor( in.cursor_x ) ), static_cast<int>( std::floor( in.cursor_y ) ), in.cursor_z );
+        if( here.inbounds( tile ) ) {
+            const Creature *c = get_creature_tracker().creature_at( here.get_bub( tile ) );
+            hostile = c != nullptr && c != &u && u.sees( here, *c ) &&
+                      u.attitude_to( *c ) == Creature::Attitude::HOSTILE;
+        }
+    }
+    set_hostile_cursor( hostile );
 }
 
 // Where the camera wants to be, in tiles from the avatar: toward the cursor, by an amount that

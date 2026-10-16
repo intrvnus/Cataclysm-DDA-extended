@@ -394,6 +394,9 @@ extern input_manager inp_mngr;
 /** A menu or question opens: the keys held down right now (e.g. a movement key that walked into
  * an NPC) do not repeat into it; they count again once released and pressed anew. */
 void input_ignore_held_keys();
+/** The mouse is over a hostile creature (or not any more): the game's cursor turns into the red
+ * crosshair (gfx/cursor/), else it is the normal arrow.  Without those images, nothing changes. */
+void set_hostile_cursor( bool hostile );
 
 /**
  * Check whether a gamepad is plugged in/available.

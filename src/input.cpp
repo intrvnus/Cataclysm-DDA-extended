@@ -1048,4 +1048,8 @@ keyboard_mode input_manager::actual_keyboard_mode( const keyboard_mode preferred
 void input_ignore_held_keys()
 {
 }
+
+void set_hostile_cursor( bool )
+{
+}
 #endif
