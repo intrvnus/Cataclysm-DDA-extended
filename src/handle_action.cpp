@@ -748,7 +748,9 @@ static void grab()
         return;
     }
 
-    const std::optional<tripoint_bub_ms> grabp_ = choose_adjacent( _( "Grab where?" ) );
+    // asks only if there is more than one thing to grab (option AUTOSELECT_SINGLE_VALID_TARGET)
+    const std::optional<tripoint_bub_ms> grabp_ = choose_adjacent_highlight( here, _( "Grab where?" ),
+            _( "There is nothing to grab nearby." ), ACTION_GRAB, false );
     if( !grabp_ ) {
         add_msg( _( "Never mind." ) );
         return;
@@ -958,7 +960,9 @@ static void haul_toggle()
 void smash_menu()
 {
     const bool allow_floor_bash = debug_mode; // Should later become "true"
-    const std::optional<tripoint_bub_ms> smashp_ = choose_adjacent( _( "Smash where?" ),
+    // asks only if there is more than one thing to smash (option AUTOSELECT_SINGLE_VALID_TARGET)
+    const std::optional<tripoint_bub_ms> smashp_ = choose_adjacent_highlight( get_map(),
+            _( "Smash where?" ), _( "There is nothing to smash nearby." ), ACTION_SMASH,
             allow_floor_bash );
     if( !smashp_ ) {
         return;

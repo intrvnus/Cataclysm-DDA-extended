@@ -741,6 +741,16 @@ bool can_interact_at( action_id action, map &here, const tripoint_bub_ms &p )
             return can_examine_at( here, p, true );
         case ACTION_PICKUP:
             return can_pickup_at( here, p );
+        case ACTION_GRAB:
+            return p != player_pos && ( here.veh_at( p ) || here.has_furn( p ) );
+        case ACTION_SMASH: {
+            for( const item &maybe_corpse : here.i_at( p ) ) {
+                if( maybe_corpse.can_revive() ) {
+                    return true;
+                }
+            }
+            return p != player_pos && here.is_bashable( p );
+        }
         default:
             return false;
     }

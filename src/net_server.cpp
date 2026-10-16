@@ -1775,7 +1775,7 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 other->reorder_worn( order );
             }
         } else if( what == "grab" ) {
-            std::istringstream is( remote_ui::answer( "d" ).value_or( "-" ) );
+            std::istringstream is( remote_ui::answer( "p" ).value_or( "-" ) );
             int x = 0;
             int y = 0;
             int z = 0;
@@ -3073,6 +3073,8 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
                     jo.member( "t", "bp" );
                     // the last movement frame applied: the client compares with its prediction
                     jo.member( "q", rp.applied_seq );
+                    // holding furniture or a vehicle: the grab key lets go without asking
+                    jo.member( "g", guy->grab_point != tripoint_rel_ms::zero );
                     jo.member( "l" );
                     jo.start_array();
                     for( const fluid::body_sample &b : bodies ) {

@@ -133,6 +133,8 @@ struct client_state {
     // and the number of the newest one
     std::deque<fluid::move_frame> unconfirmed_moves;
     int move_seq = 0;
+    /** The own body holds furniture or a vehicle (from the host). */
+    bool body_grabbing = false;
     // the overmap tile the terrain around was last asked for
     tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
 };
@@ -590,8 +592,13 @@ void send_craft( bool is_long )
 // Open / close: the direction is chosen here.
 void send_door( const std::string &what )
 {
-    const std::optional<tripoint_bub_ms> where = choose_adjacent( what == "open" ?
-            _( "Open where?" ) : _( "Close where?" ) );
+    // asks only if there is more than one door (option AUTOSELECT_SINGLE_VALID_TARGET)
+    const bool open = what == "open";
+    const std::optional<tripoint_bub_ms> where = choose_adjacent_highlight( get_map(),
+            open ? _( "Open where?" ) : _( "Close where?" ),
+            open ? _( "There is nothing that can be opened nearby." ) :
+            _( "There is nothing that can be closed nearby." ),
+            open ? ACTION_OPEN : ACTION_CLOSE, false );
     if( !where ) {
         return;
     }
@@ -1422,7 +1429,18 @@ bool handle_input()
             break;
         case ACTION_GRAB:
             send_ui( "grab", [] {
-                choose_adjacent( _( "Grab where?  (Your own tile lets go.)" ) );
+                if( cstate().body_grabbing ) {
+                    // holding something: the key lets go, like in the single-player game
+                    remote_ui::record( "p", "0 0 0" );
+                    return;
+                }
+                map &here = get_map();
+                const tripoint_bub_ms own = get_avatar().pos_bub();
+                // asks only if there is more than one thing to grab
+                choose_adjacent_highlight( here, _( "Grab where?" ), _( "There is nothing to grab nearby." ),
+                [&]( const tripoint_bub_ms & p ) {
+                    return p != own && ( here.veh_at( p ) || here.has_furn( p ) );
+                } );
             } );
             break;
         case ACTION_HAUL_TOGGLE:
@@ -1921,6 +1939,7 @@ void client_on_message( const JsonObject &msg )
             list.push_back( b );
         }
         const int confirmed = msg.get_int( "q", -1 );
+        cstate().body_grabbing = msg.get_bool( "g", false );
         std::deque<fluid::move_frame> &unconfirmed = cstate().unconfirmed_moves;
         while( !unconfirmed.empty() && unconfirmed.front().seq <= confirmed ) {
             unconfirmed.pop_front();
