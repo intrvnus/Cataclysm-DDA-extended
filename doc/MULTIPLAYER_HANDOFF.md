@@ -4,7 +4,21 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Newest: 2026-10-16 day (Opus): Noah's ten test findings of the night build
+## 0. Newest: 2026-10-16 afternoon (Opus): Noah's second test round
+Fixed and run in game (Xvfb): pickup wield (now `e`) / wear (Shift+W) act on the client's body
+(answer `pw`); item menus built for `remote_ui::acting_player()` instead of the host; in
+multiplayer items have no letters, `a` marks / `d` unmarks, examine is `x`; no shake at tile edges
+(own sprite offset from the body's world position, drawn at draw time), walk/run per movement
+frame; debug menu for clients (look_around recorded twice -> every client action using it failed;
+teleports move the body via `move_body_far`); players arrived "Tired" (needs caught up from the
+character's old time: `npc::start_needs_now`); "Food: ERROR!" (no hunger state at join, and
+NO_NPC_FOOD made player bodies foodless); creatures glide without pauses between steps; own
+mouse cursor (`gfx/cursor/`); realtime combat rebalance as in the design note "Multiplayer Combat
+Rebalance – Design Note" (six world options "Realtime combat", dodge on double-tap / mouse side
+button).  Open: attack slots and stagger not yet seen in a test fight; a zombie chase was not
+reproducible in the test world; the cursor's look is not visible in headless screenshots.
+
+## 0y. 2026-10-16 day (Opus): Noah's ten test findings of the night build
 Noah tested the night build and listed ten problems (movement jank, input lag, jank after actions,
 wall glitching, auto-travel, menu keys, direction prompts, preset characters, "Not available in
 multiplayer yet" on clicks and NPC actions). What was done, each run in game under Xvfb:
