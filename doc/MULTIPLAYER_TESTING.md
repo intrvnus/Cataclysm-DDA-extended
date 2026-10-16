@@ -89,6 +89,13 @@ Host and client need this build (network protocol 3).
       (dedicated servers too); no `mp_local` folder any more (an old one can be deleted); walls, doors
       and smashing behave like single player; leaving and hosting again works; on a new world the
       character screen comes first, then "The server is preparing the world…".
+- [ ] Night 2026-10-16 build: Multiplayer → Host on a NEW world: character screen, then "The server
+      is preparing the world… (n s)", then the game (no freeze). Leave (Escape → Leave): "Saving the
+      world…", back in the main menu, no error. Host again: "Welcome back". Cancel the character
+      screen: back in the main menu, the server window closes by itself.
+- [ ] Dedicated server from the menu, "Join it now": the game picks a client world that is not the
+      server's; joining works even while the server still loads.
+- [ ] A friend joins your hosted game: they start next to you, on your side of the walls.
 - [ ] No more "You cannot close the …" while walking. Escape opens a small game menu (options,
       key bindings, debug menu, leave). A message box (e.g. Shift+E with nothing to eat) does not
       let the character walk on.
