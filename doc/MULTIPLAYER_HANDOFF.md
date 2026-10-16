@@ -4,7 +4,32 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Latest addition (2026-10-15 late): one game window, server terminal, new-world freeze
+## 0. Newest: night 2026-10-15/16 (Opus, Noah asleep): hosting hardened, tested end to end
+Noah's instruction: polish and fix bugs all night, quality over quantity (rule now in CLAUDE.md),
+morning report in Claude Docs ("CDDA Multiplayer – Morning Report 2026-10-16").
+- **The freeze after character creation (new world) was a crash**: `start_listen_view` called
+  `worldfactory::init()`, which frees every WORLD while the active one is in use (SIGSEGV in
+  `WORLD::load_options`, found with gdb). Now only the server's new saves are added to the world.
+- The host's game waits for the server's `mp_server_ready` marker for every world (written in
+  `server_on_start` after the handover save); a cancelled start writes `mp_server_stop`, the server
+  saves and quits (`listen_cancel`, checked once a second in `host_end_of_turn`).
+- Sessions in one game: `net::client_reset`, `fluid::reset_session`, `net::listen_end` and a
+  cleaner `shutdown` run at every session end; a failed start cancels everything pending.
+- Leaving a hosted game: `ui.reset()` before the "Saving the world…" wait (it drew the unloaded
+  world), then the main menu. A server without a usable world, or after it quit, exits.
+- Smaller: server log without the timing spam, no audio on servers, umlaut-safe paths, spawn on
+  the near side of walls, client world never the server's own, world options not saved by clients,
+  music stops on leaving, station crafts keep their crafter's speed.
+- **How it was tested**: Xvfb + xdotool + gdb in this container (`/tmp/mp_test`, see
+  `tools/mp_tests`): host from the menu (existing and new world, with character creation), leave,
+  host again, cancel the character screen, dedicated server + join now, join/leave/join again,
+  a second player from another user folder, walking, Shift+E. Servers headless (dummy driver):
+  port in use, no world, unknown world, stop marker. Windows build checks the Windows-only code.
+- Note for the old scene scripts (`scene.sh`): with listen hosting the host is a client too; run
+  them against a dedicated server (`pair_l.sh` idea: `--mp-server` instead of `--mp-host`) and
+  read `debug_server.log`.
+
+## 0b. Earlier the same day (2026-10-15 late): one game window, server terminal, new-world freeze
 - Freeze after character creation (new world, host and play): the server never saved the new
   world, the host's game waited for its `.sav`. Now the server saves right after making it and
   writes `save/<world>/mp_server_ready`; the host's game waits for that marker (responsive window,
