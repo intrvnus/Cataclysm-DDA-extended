@@ -3593,6 +3593,8 @@ void host_end_of_turn()
                 continue;
             }
             rp.npc_id = guy->getID();
+            // now a known player (needs_food): its hunger, thirst and sleep states from the start
+            guy->start_needs_now();
             place_on_test_stairs( *guy );
             place_test_vehicle( *guy );
             test_furniture( *guy, true );

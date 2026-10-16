@@ -5148,7 +5148,8 @@ float Character::activity_level() const
 
 bool Character::needs_food() const
 {
-    return !( is_npc() && get_option<bool>( "NO_NPC_FOOD" ) );
+    // a multiplayer player's body is an NPC on the host, but a player: it eats and drinks
+    return !( is_npc() && get_option<bool>( "NO_NPC_FOOD" ) && !net::is_remote_player( *this ) );
 }
 
 void Character::update_needs( int rate_multiplier )

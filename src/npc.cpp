@@ -3287,6 +3287,10 @@ void npc::on_unload()
 
 void npc::start_needs_now()
 {
+    // one turn of the body's update right away: hunger, thirst and sleep states exist from the
+    // start (the menus of the client show them; npc_update_body comes only every 10 seconds)
+    last_updated = calendar::turn - 1_turns;
+    update_body( last_updated, calendar::turn );
     last_updated = calendar::turn;
 }
 
