@@ -492,6 +492,10 @@ void process_monster_windups( ms_t now );
 /** Client: fluid mode is on for this session (the host plays fluid and so do we). */
 void client_set_mode( bool on, int my_character_id );
 bool client_active();
+/** Client: overmap travel was confirmed: the body walks @p omt_path (as the avatar's omt_path,
+ * the destination first) leg by leg, pressing the movement keys for the player.  Kept here,
+ * because the avatar's own copy is replaced by the host's state. */
+void client_start_travel( const std::vector<tripoint_abs_omt> &omt_path );
 /** Client: one frame. Polls the device, sends the input, predicts the own steps. */
 void client_frame();
 /** Client: an event from the host. @p mine is true if the actor is this client's character.

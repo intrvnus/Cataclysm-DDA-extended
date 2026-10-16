@@ -44,6 +44,7 @@
 #include "npc.h"
 #include "options.h"
 #include "output.h"
+#include "overmap_ui.h"
 #include "player_activity.h"
 #include "projectile.h"
 #include "ranged.h"
@@ -3613,30 +3614,50 @@ std::vector<tripoint_abs_ms> &travel_route()
     return r;
 }
 
+// overmap travel: the overmap tiles still to go (the destination first, as Character::omt_path)
+std::vector<tripoint_abs_omt> &travel_omts()
+{
+    static std::vector<tripoint_abs_omt> r;
+    return r;
+}
+
+void stop_travel( avatar &u, const std::string &why, game_message_type type )
+{
+    travel_route().clear();
+    travel_omts().clear();
+    u.omt_path.clear();
+    ui::omap::force_quit();
+    if( !why.empty() ) {
+        u.add_msg_if_player( type, why );
+    }
+}
+
 void client_auto_travel( avatar &u, input_frame &in )
 {
     map &here = get_map();
     std::vector<tripoint_abs_ms> &route = travel_route();
+    std::vector<tripoint_abs_omt> &omts = travel_omts();
     if( u.has_destination() ) {
         route.clear();
+        omts.clear();
         for( const tripoint_bub_ms &p : u.get_auto_move_route() ) {
             route.push_back( here.get_abs( p ) );
         }
         u.clear_destination();
     }
-    if( route.empty() ) {
+    if( route.empty() && omts.empty() ) {
         return;
     }
+    static const bool trace = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    if( trace ) {
+        DebugLog( D_INFO, D_MAIN ) << "trace travel route " << route.size() << " omt " << omts.size();
+    }
     if( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) {
-        route.clear();
-        u.omt_path.clear();
-        u.add_msg_if_player( m_info, _( "You stop travelling." ) );
+        stop_travel( u, _( "You stop travelling." ), m_info );
         return;
     }
     if( alerts::recent_threat( 1000 ) ) {
-        route.clear();
-        u.omt_path.clear();
-        u.add_msg_if_player( m_warning, _( "Danger!  You stop travelling." ) );
+        stop_travel( u, _( "Danger!  You stop travelling." ), m_warning );
         return;
     }
     const tripoint_abs_ms at = u.pos_abs();
@@ -3644,16 +3665,16 @@ void client_auto_travel( avatar &u, input_frame &in )
     while( !route.empty() && route.front().xy() == at.xy() ) {
         route.erase( route.begin() );
     }
-    if( route.empty() && !u.omt_path.empty() ) {
+    if( route.empty() && !omts.empty() ) {
         // overmap travel: the next leg (as activity_handlers::travel_do_turn)
-        u.omt_path.pop_back();
-        if( u.omt_path.empty() ) {
-            u.add_msg_if_player( m_info, _( "You have reached your destination." ) );
+        omts.pop_back();
+        if( omts.empty() ) {
+            stop_travel( u, _( "You have reached your destination." ), m_info );
             return;
         }
-        const tripoint_abs_omt next_omt = u.omt_path.back();
+        const tripoint_abs_omt next_omt = omts.back();
         tripoint_abs_ms waypoint;
-        if( u.omt_path.size() == 1 ) {
+        if( omts.size() == 1 ) {
             waypoint = midpoint( project_bounds<coords::ms>( next_omt ) );
         } else {
             const tripoint_abs_ms cur_mid = midpoint( project_bounds<coords::ms>( u.pos_abs_omt() ) );
@@ -3662,8 +3683,7 @@ void client_auto_travel( avatar &u, input_frame &in )
         const std::vector<tripoint_bub_ms> leg =
             here.route( u, pathfinding_target::radius( here.get_bub( waypoint ), 2 ) );
         if( leg.empty() ) {
-            u.omt_path.clear();
-            u.add_msg_if_player( m_warning, _( "You cannot reach that destination." ) );
+            stop_travel( u, _( "You cannot reach that destination." ), m_warning );
             return;
         }
         for( const tripoint_bub_ms &p : leg ) {
@@ -3676,15 +3696,19 @@ void client_auto_travel( avatar &u, input_frame &in )
     const tripoint_abs_ms next = route.front();
     if( std::max( std::abs( next.x() - at.x() ), std::abs( next.y() - at.y() ) ) > 2 ) {
         // pushed off the way: stop rather than walk somewhere else
-        route.clear();
-        u.omt_path.clear();
-        u.add_msg_if_player( m_info, _( "You lost the way and stop travelling." ) );
+        stop_travel( u, _( "You lost the way and stop travelling." ), m_info );
         return;
     }
     in.move_x = std::clamp( next.x() - at.x(), -1, 1 );
     in.move_y = std::clamp( next.y() - at.y(), -1, 1 );
 }
 } // namespace
+
+void client_start_travel( const std::vector<tripoint_abs_omt> &omt_path )
+{
+    travel_route().clear();
+    travel_omts() = omt_path;
+}
 
 void client_frame()
 {

@@ -100,6 +100,8 @@
 #include "ui_manager.h"
 #include "uilist.h"
 
+static const activity_id ACT_TRAVELLING( "ACT_TRAVELLING" );
+
 namespace net
 {
 namespace
@@ -1426,6 +1428,15 @@ bool handle_input()
             }
             ui::omap::display();
             send_note_changes();
+            {
+                // travel confirmed on the map: walked here (the avatar is the host's copy, its
+                // activity and path do not last)
+                avatar &you = get_avatar();
+                if( you.activity.id() == ACT_TRAVELLING && !you.omt_path.empty() ) {
+                    fluid::client_start_travel( you.omt_path );
+                    you.activity = player_activity();
+                }
+            }
             break;
         case ACTION_GRAB:
             send_ui( "grab", [] {
