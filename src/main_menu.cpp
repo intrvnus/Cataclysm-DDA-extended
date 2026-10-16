@@ -1328,7 +1328,7 @@ bool main_menu::start_listen_view( const std::string &worldname )
             debugmsg( "Error: %s", err.what() );
             return false;
         }
-        if( !pc.create( character_type::CUSTOM ) ) {
+        if( !pc.create_chosen() ) {
             return false;
         }
         std::ostringstream os;

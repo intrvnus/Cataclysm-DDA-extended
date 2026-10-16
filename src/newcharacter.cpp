@@ -33,6 +33,7 @@
 #include "cursesdef.h"
 #include "debug.h"
 #include "enum_conversions.h"
+#include "filesystem.h"
 #include "flexbuffer_json.h"
 #include "game_constants.h"
 #include "input_context.h"
@@ -739,6 +740,49 @@ static int calculate_cumulative_experience( int level )
     }
 
     return sum;
+}
+
+bool avatar::create_chosen()
+{
+    std::vector<std::string> templates;
+    for( std::string path : get_files_from_path( ".template", PATH_INFO::templatedir(), false,
+            true ) ) {
+        path.erase( path.find( ".template" ), std::string::npos );
+        path.erase( 0, path.find_last_of( "\\/" ) + 1 );
+        templates.push_back( path );
+    }
+    std::sort( templates.begin(), templates.end(), localized_compare );
+
+    uilist menu;
+    menu.title = _( "Your character" );
+    menu.addentry( 0, true, 'c', _( "Custom character" ) );
+    menu.addentry( 1, true, 'p', _( "Preset character (play now)" ) );
+    menu.addentry( 2, true, 'r', _( "Random character" ) );
+    for( size_t i = 0; i < templates.size(); ++i ) {
+        menu.addentry( 3 + static_cast<int>( i ), true, -1,
+                       string_format( _( "Template: %s" ), templates[i] ) );
+    }
+    while( true ) {
+        menu.query();
+        if( menu.ret < 0 ) {
+            return false;
+        }
+        bool made = false;
+        if( menu.ret == 0 ) {
+            made = create( character_type::CUSTOM );
+        } else if( menu.ret == 1 ) {
+            made = create( character_type::NOW );
+        } else if( menu.ret == 2 ) {
+            made = create( character_type::RANDOM );
+        } else {
+            made = create( character_type::TEMPLATE, templates[menu.ret - 3] );
+        }
+        if( made ) {
+            return true;
+        }
+        // backed out of the creation screen: choose again
+        *this = avatar();
+    }
 }
 
 bool avatar::create( character_type type, const std::string &tempname )

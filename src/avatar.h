@@ -96,6 +96,9 @@ class avatar : public Character
 
         // newcharacter.cpp
         bool create( character_type type, const std::string &tempname = "" );
+        /** Asks how to make the character (custom, random, play now or one of the saved
+         * templates, as the main menu's "New game" offers) and makes it.  False if cancelled. */
+        bool create_chosen();
         // initialize avatar and avatar mocks
         void initialize( character_type type );
         bool load_template( const std::string &template_name, pool_type & );

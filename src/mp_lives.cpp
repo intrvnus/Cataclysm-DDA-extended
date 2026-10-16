@@ -329,7 +329,7 @@ void tick( Character &who )
 void make_new_character( avatar &u )
 {
     avatar fresh;
-    while( !fresh.create( character_type::CUSTOM ) ) {
+    while( !fresh.create_chosen() ) {
         fresh = avatar();
     }
     std::ostringstream os;
