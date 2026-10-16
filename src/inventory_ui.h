@@ -1105,6 +1105,11 @@ class pickup_selector : public inventory_multiselector
     private:
         bool wield( int &count );
         bool wear();
+        /** Wield ("w") or wear ("W") @p it from the menu on its character (multiplayer: the host
+         * does it with the client's answer). */
+        void start_equip( char how, const item_location &it, int count );
+        // multiplayer: what wield/wear chose, recorded with the menu's answer
+        std::string equip_answer;
         void remove_from_to_use( item_location &it );
         void reopen_menu();
         const std::optional<tripoint_bub_ms> where;

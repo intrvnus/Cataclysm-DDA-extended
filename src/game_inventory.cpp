@@ -54,6 +54,7 @@
 #include "point.h"
 #include "recipe.h"
 #include "recipe_dictionary.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "ret_val.h"
 #include "skill.h"
@@ -252,7 +253,7 @@ static drop_locations inv_internal_multi( Character &u, const inventory_selector
 
 void game_menus::inv::common()
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     // Return to inventory menu on those inputs
     static const std::set<int> loop_options = { { '\0', '=', 'f', '<', '>'}};
 
@@ -292,7 +293,7 @@ void game_menus::inv::common()
 
 void game_menus::inv::common( item_location &loc )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     // Return to inventory menu on those inputs
     static const std::set<int> loop_options = { { '\0', '=', 'f' } };
 
@@ -442,7 +443,7 @@ class take_off_inventory_preset: public armor_inventory_preset
 {
     public:
         explicit take_off_inventory_preset( const std::string &color ) :
-            armor_inventory_preset( get_avatar(), color )
+            armor_inventory_preset( remote_ui::acting_player(), color )
         {}
 
         bool is_shown( const item_location &loc ) const override {
@@ -462,7 +463,7 @@ class take_off_inventory_preset: public armor_inventory_preset
 
 item_location game_menus::inv::take_off()
 {
-    return inv_internal( get_avatar(), take_off_inventory_preset( "color_red" ), _( "Take off item" ),
+    return inv_internal( remote_ui::acting_player(), take_off_inventory_preset( "color_red" ), _( "Take off item" ),
                          1, _( "You're not wearing anything." ) );
 }
 
@@ -1013,7 +1014,7 @@ static std::string get_consume_needs_hint( Character &you )
 
 item_location game_menus::inv::consume( const item_location &loc )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     static item_location container_location;
     if( !you.has_activity( ACT_EAT_MENU ) ) {
         you.assign_activity( ACT_EAT_MENU );
@@ -1045,7 +1046,7 @@ class comestible_filtered_inventory_preset : public comestible_inventory_preset
 
 item_location game_menus::inv::consume_food()
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     if( !you.has_activity( ACT_CONSUME_FOOD_MENU ) ) {
         you.assign_activity( ACT_CONSUME_FOOD_MENU );
     }
@@ -1062,7 +1063,7 @@ item_location game_menus::inv::consume_food()
 
 item_location game_menus::inv::consume_drink()
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     if( !you.has_activity( ACT_CONSUME_DRINK_MENU ) ) {
         you.assign_activity( ACT_CONSUME_DRINK_MENU );
     }
@@ -1079,7 +1080,7 @@ item_location game_menus::inv::consume_drink()
 
 item_location game_menus::inv::consume_meds()
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     if( !you.has_activity( ACT_CONSUME_MEDS_MENU ) ) {
         you.assign_activity( ACT_CONSUME_MEDS_MENU );
     }
@@ -1096,8 +1097,8 @@ item_location game_menus::inv::consume_meds()
 class activatable_inventory_preset : public pickup_inventory_preset
 {
     public:
-        explicit activatable_inventory_preset() : pickup_inventory_preset( get_avatar() ),
-            you( get_avatar() ) {
+        explicit activatable_inventory_preset() : pickup_inventory_preset( remote_ui::acting_player() ),
+            you( remote_ui::acting_player() ) {
             _collate_entries = true;
             if( get_option<bool>( "INV_USE_ACTION_NAMES" ) ) {
                 append_cell( [ this ]( const item_location & loc ) {
@@ -1201,7 +1202,7 @@ class activatable_inventory_preset : public pickup_inventory_preset
 
 item_location game_menus::inv::use()
 {
-    return inv_internal( get_avatar(), activatable_inventory_preset(),
+    return inv_internal( remote_ui::acting_player(), activatable_inventory_preset(),
                          _( "Use item" ), 1,
                          _( "You don't have any items you can use." ) );
 }
@@ -1545,7 +1546,7 @@ class read_inventory_preset: public pickup_inventory_preset
         }
 
         bool is_known( const item_location &loc ) const {
-            return get_avatar().has_identified( loc->typeId() );
+            return remote_ui::acting_player().has_identified( loc->typeId() );
         }
 
         int get_known_recipes( const islot_book &book ) const {
@@ -1877,7 +1878,7 @@ class steal_inventory_preset : public pickup_inventory_preset
 {
     public:
         explicit steal_inventory_preset( const Character &victim ) :
-            pickup_inventory_preset( get_avatar() ), victim( victim ) {}
+            pickup_inventory_preset( remote_ui::acting_player() ), victim( victim ) {}
 
         bool is_shown( const item_location &loc ) const override {
             return !victim.is_worn( *loc ) && victim.get_wielded_item() != loc;
@@ -2001,13 +2002,13 @@ class weapon_inventory_preset: public inventory_selector_preset
 
 item_location game_menus::inv::wield()
 {
-    return inv_internal( get_avatar(), weapon_inventory_preset( get_avatar() ), _( "Wield item" ), 1,
+    return inv_internal( remote_ui::acting_player(), weapon_inventory_preset( remote_ui::acting_player() ), _( "Wield item" ), 1,
                          _( "You have nothing to wield." ) );
 }
 
 drop_locations game_menus::inv::holster( const item_location &holster )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     const std::string holster_name = holster->tname( 1, false );
     const use_function *use = holster->type->get_use( "holster" );
     const holster_actor *actor = use == nullptr ? nullptr : dynamic_cast<const holster_actor *>
@@ -2019,7 +2020,7 @@ drop_locations game_menus::inv::holster( const item_location &holster )
     const std::string hint = string_format( _( "Choose an item to put into your %s" ),
                                             holster_name );
 
-    inventory_holster_preset holster_preset( holster, &get_avatar() );
+    inventory_holster_preset holster_preset( holster, &remote_ui::acting_player() );
 
     inventory_insert_selector insert_menu( you, holster_preset, _( "ITEMS TO INSERT" ),
                                            /*warn_liquid=*/false );
@@ -2035,7 +2036,7 @@ drop_locations game_menus::inv::holster( const item_location &holster )
 
 void game_menus::inv::insert_items( item_location &holster )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     if( holster->will_spill_if_unsealed()
         && holster.where() != item_location::type::map
         && !you.is_wielding( *holster ) ) {
@@ -2066,7 +2067,7 @@ static bool valid_unload_container( const item_location &container )
 
 drop_locations game_menus::inv::unload_container()
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     inventory_filter_preset unload_preset( valid_unload_container );
 
     inventory_drop_selector insert_menu( you, unload_preset, _( "CONTAINERS TO UNLOAD" ),
@@ -2425,7 +2426,7 @@ drop_locations game_menus::inv::multidrop( Character &you )
 drop_locations game_menus::inv::pickup( const std::optional<tripoint_bub_ms> &target,
                                         const std::vector<drop_location> &selection )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     pickup_inventory_preset preset( you, /*skip_wield_check=*/true, /*ignore_liquidcont=*/true );
     preset.save_state = &pickup_ui_default_state;
 
@@ -2611,7 +2612,7 @@ bool game_menus::inv::compare_item_menu::show()
 
 void game_menus::inv::compare( const std::optional<tripoint_rel_ms> &offset )
 {
-    avatar &you = get_avatar();
+    Character &you = remote_ui::acting_player();
     you.inv->restack( you );
 
     inventory_compare_selector inv_s( you );

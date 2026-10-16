@@ -43,6 +43,7 @@
 #include "map_selector.h"
 #include "memory_fast.h"
 #include "messages.h"
+#include "net_session.h"
 #include "options.h"
 #include "output.h"
 #include "remote_ui.h"
@@ -592,6 +593,11 @@ size_t inventory_entry::get_available_count() const
 
 int inventory_entry::get_invlet() const
 {
+    if( net::active() ) {
+        // multiplayer: no item letters (the letters move in the lists and act on the entries:
+        // w/s move, a/d mark and unmark)
+        return '\0';
+    }
     if( custom_invlet != INT_MIN ) {
         return custom_invlet;
     }
@@ -4143,6 +4149,16 @@ void inventory_multiselector::toggle_categorize_contained()
 
 void inventory_multiselector::on_input( const inventory_input &input )
 {
+    if( net::active() && ( input.ch == 'a' || input.ch == 'd' ) &&
+        ( input.action.empty() || input.action == "LEFT" || input.action == "RIGHT" ||
+          input.action == "ANY_INPUT" ) ) {
+        // multiplayer: a marks the highlighted entry (all of it), d unmarks it
+        inventory_entry &entry = get_active_column().get_highlighted();
+        if( entry.is_selectable() ) {
+            toggle_entry( entry, input.ch == 'a' ? entry.get_available_count() : 0 );
+        }
+        return;
+    }
     if( input.entry != nullptr ) { // Single Item from mouse
         highlight( input.entry->any_item() );
         if( input.action == "SELECT" || input.action == "ANY_INPUT" ) {
@@ -4436,9 +4452,19 @@ void pickup_selector::apply_selection( std::vector<drop_location> selection )
 drop_locations pickup_selector::execute()
 {
     if( remote_ui::replaying() ) {
+        // wield / wear chosen in the client's menu: done here, on the client's body
+        const std::string equip = remote_ui::answer( "pw" ).value_or( "" );
+        if( equip.size() > 2 ) {
+            const drop_locations what = remote_ui::locations_from_string( equip.substr( 2 ) );
+            if( !what.empty() && what.front().first ) {
+                start_equip( equip[0], what.front().first, what.front().second );
+            }
+        }
         return remote_ui::locations_from_string( remote_ui::answer( "m" ).value_or( "" ) );
     }
+    equip_answer.clear();
     drop_locations locs = execute_local();
+    remote_ui::record( "pw", equip_answer );
     remote_ui::record( "m", remote_ui::locations_to_string( locs ) );
     return locs;
 }
@@ -4497,8 +4523,7 @@ bool pickup_selector::wield( int &count )
 
     if( u.can_wield( *it ).success() ) {
         remove_from_to_use( it );
-        reopen_menu();
-        u.assign_activity( wield_activity_actor( it, charges ) );
+        start_equip( 'w', it, charges );
         return true;
     } else {
         popup_getkey( u.can_wield( *it ).c_str() );
@@ -4514,19 +4539,38 @@ bool pickup_selector::wear()
         return false;
     }
 
-    std::vector<item_location> items{ selected.any_item() };
-    std::vector<int> quantities{ 0 };
+    item_location it = selected.any_item();
 
-    if( u.can_wear( *items.front() ).success() ) {
-        remove_from_to_use( items.front() );
-        reopen_menu();
-        u.assign_activity( wear_activity_actor( items, quantities ) );
+    if( u.can_wear( *it ).success() ) {
+        remove_from_to_use( it );
+        start_equip( 'W', it, 0 );
         return true;
     } else {
-        popup_getkey( _( "You can't wear the %s." ), items.front()->display_name() );
+        popup_getkey( _( "You can't wear the %s." ), it->display_name() );
     }
 
     return false;
+}
+
+void pickup_selector::start_equip( char how, const item_location &it, int count )
+{
+    if( remote_ui::recording() ) {
+        // a multiplayer client: the host wields / wears on the real body (the copy here would
+        // only be overwritten by the host's state)
+        equip_answer = std::string( 1, how ) + " " +
+                       remote_ui::locations_to_string( { std::make_pair( it, count ) } );
+        return;
+    }
+    if( !remote_ui::replaying() ) {
+        // (the single-player game opens the pickup menu again afterwards; in multiplayer the
+        // menu is the client's, so that would open it on the host)
+        reopen_menu();
+    }
+    if( how == 'w' ) {
+        u.assign_activity( wield_activity_actor( it, count ) );
+    } else {
+        u.assign_activity( wear_activity_actor( std::vector<item_location> { it }, std::vector<int> { 0 } ) );
+    }
 }
 
 void pickup_selector::reopen_menu()
