@@ -2131,6 +2131,112 @@ void cata_tiles::draw_fluid_overlays()
     }
 
     // explosions: an orange flash that grows to the blast radius and fades
+    // combat flourishes (dodge streak, evade ring, stagger burst, winded puff): short, soft,
+    // drawn on the characters themselves
+    for( const fluid::flourish_view &f : fluid::flourishes() ) {
+        if( f.z != get_avatar().pos_abs().z() ) {
+            continue;
+        }
+        const double fade = 1.0 - f.progress;
+        const auto vertex = []( double x, double y, SDL_Color c ) {
+            SDL_Vertex v;
+            v.position = { static_cast<float>( x ), static_cast<float>( y ) };
+            v.color = c;
+            v.tex_coord = { 0.0f, 0.0f };
+            return v;
+        };
+        // a ring (or a disc when inner == 0) around centre c
+        const auto ring = [&]( const point & c, double inner, double outer, SDL_Color ci, SDL_Color co ) {
+            constexpr int segments = 24;
+            std::array<SDL_Vertex, segments * 6> v;
+            for( int i = 0; i < segments; ++i ) {
+                const double a0 = 2.0 * M_PI * i / segments;
+                const double a1 = 2.0 * M_PI * ( i + 1 ) / segments;
+                const SDL_Vertex i0 = vertex( c.x + std::cos( a0 ) * inner, c.y + std::sin( a0 ) * inner, ci );
+                const SDL_Vertex i1 = vertex( c.x + std::cos( a1 ) * inner, c.y + std::sin( a1 ) * inner, ci );
+                const SDL_Vertex o0 = vertex( c.x + std::cos( a0 ) * outer, c.y + std::sin( a0 ) * outer, co );
+                const SDL_Vertex o1 = vertex( c.x + std::cos( a1 ) * outer, c.y + std::sin( a1 ) * outer, co );
+                v[i * 6] = i0;
+                v[i * 6 + 1] = o0;
+                v[i * 6 + 2] = o1;
+                v[i * 6 + 3] = i0;
+                v[i * 6 + 4] = o1;
+                v[i * 6 + 5] = i1;
+            }
+            SDL_RenderGeometry( r, nullptr, v.data(), static_cast<int>( v.size() ), nullptr, 0 );
+        };
+        // the creature it belongs to, where it is drawn now
+        const fluid::offset so = fluid::sprite_offset( f.on );
+        const point on = to_screen( f.on.x() + 0.5 + so.x, f.on.y() + 0.5 + so.y, f.on.z() );
+        switch( f.kind ) {
+            case fluid::flourish_kind::dash: {
+                // three thin speed lines behind the dodging character (they stop short of the
+                // sprite, so nobody is covered) and a soft puff where the dodge began
+                const point a = to_screen( f.x, f.y, f.z );
+                const double travel = 1.5 * tile_width * std::min( 1.0, f.progress * 2.5 );
+                const double reach = std::max( 0.0, travel - 0.35 * tile_width );
+                const double px = -f.dy;
+                const double py = f.dx;
+                for( int i = -1; i <= 1; ++i ) {
+                    const double side = i * 0.18 * tile_width;
+                    // the middle line is the longest
+                    const double len = reach * ( i == 0 ? 1.0 : 0.75 );
+                    const double sx = a.x + px * side;
+                    const double sy = a.y + py * side;
+                    const double ex = sx + f.dx * len;
+                    const double ey = sy + f.dy * len;
+                    const double w = 1.2;
+                    const SDL_Color head = { 230, 242, 255, static_cast<Uint8>( 170 * fade ) };
+                    const SDL_Color tail = { 230, 242, 255, 0 };
+                    const std::array<SDL_Vertex, 6> q = {
+                        vertex( sx + px * w, sy + py * w, tail ), vertex( ex + px * w, ey + py * w, head ),
+                        vertex( ex - px * w, ey - py * w, head ),
+                        vertex( sx + px * w, sy + py * w, tail ), vertex( ex - px * w, ey - py * w, head ),
+                        vertex( sx - px * w, sy - py * w, tail )
+                    };
+                    SDL_RenderGeometry( r, nullptr, q.data(), 6, nullptr, 0 );
+                }
+                ring( a, 0.0, ( 0.15 + 0.25 * f.progress ) * tile_width,
+                { 235, 235, 230, static_cast<Uint8>( 60 * fade ) }, { 235, 235, 230, 0 } );
+                break;
+            }
+            case fluid::flourish_kind::evade: {
+                // a thin white ring opening around the player: the blow went through the dash
+                const double rad = ( 0.35 + 0.4 * f.progress ) * tile_width;
+                ring( on, rad - 2.0, rad + 1.5, { 255, 255, 255, static_cast<Uint8>( 210 * fade ) },
+                { 255, 255, 255, static_cast<Uint8>( 60 * fade ) } );
+                break;
+            }
+            case fluid::flourish_kind::stagger: {
+                // six short warm rays bursting out of the monster
+                const SDL_Color c0 = { 255, 220, 90, static_cast<Uint8>( 230 * fade ) };
+                const SDL_Color c1 = { 255, 160, 40, 0 };
+                for( int i = 0; i < 6; ++i ) {
+                    const double ang = M_PI / 6.0 + i * M_PI / 3.0;
+                    const double r0 = ( 0.25 + 0.2 * f.progress ) * tile_width;
+                    const double r1 = r0 + 0.3 * tile_width;
+                    const double ux = std::cos( ang );
+                    const double uy = std::sin( ang );
+                    const double w = 0.06 * tile_width;
+                    const std::array<SDL_Vertex, 3> t = {
+                        vertex( on.x + ux * r0 - uy * w, on.y + uy * r0 + ux * w, c0 ),
+                        vertex( on.x + ux * r0 + uy * w, on.y + uy * r0 - ux * w, c0 ),
+                        vertex( on.x + ux * r1, on.y + uy * r1, c1 )
+                    };
+                    SDL_RenderGeometry( r, nullptr, t.data(), 3, nullptr, 0 );
+                }
+                break;
+            }
+            case fluid::flourish_kind::winded: {
+                // a small grey puff at the feet
+                const point feet( on.x, on.y + tile_height / 3 );
+                ring( feet, 0.0, ( 0.15 + 0.2 * f.progress ) * tile_width,
+                { 170, 170, 165, static_cast<Uint8>( 120 * fade ) }, { 170, 170, 165, 0 } );
+                break;
+            }
+        }
+    }
+
     for( const fluid::boom_view &b : fluid::booms() ) {
         if( b.at.z() != get_avatar().pos_abs().z() ) {
             continue;

@@ -220,6 +220,72 @@ std::vector<boom_fx> &boom_list()
     return v;
 }
 
+struct flourish_fx {
+    flourish_kind kind = flourish_kind::dash;
+    double x = 0.0;
+    double y = 0.0;
+    int z = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+    tripoint_abs_ms on;
+    ms_t t0 = 0;
+};
+
+int flourish_ms( flourish_kind k )
+{
+    switch( k ) {
+        case flourish_kind::dash:
+            return 260;
+        case flourish_kind::evade:
+            return 320;
+        case flourish_kind::stagger:
+            return 420;
+        case flourish_kind::winded:
+            return 380;
+    }
+    return 300;
+}
+
+std::vector<flourish_fx> &flourish_list()
+{
+    static std::vector<flourish_fx> v;
+    return v;
+}
+
+void add_flourish( flourish_kind kind, double x, double y, int z, double dx, double dy,
+                   const tripoint_abs_ms &on, ms_t t0 )
+{
+    flourish_fx f;
+    f.kind = kind;
+    f.x = x;
+    f.y = y;
+    f.z = z;
+    f.dx = dx;
+    f.dy = dy;
+    f.on = on;
+    f.t0 = t0;
+    flourish_list().push_back( f );
+}
+
+// the same as an event for the clients (positions in 1/1000 tile)
+event flourish_event( flourish_kind kind, double x, double y, int z, double dx, double dy,
+                      const tripoint_abs_ms &on, int actor )
+{
+    event ev;
+    ev.type = fx_type::flourish;
+    ev.actor = actor;
+    ev.windup_ms = static_cast<int>( kind );
+    const int tx = static_cast<int>( std::floor( x ) );
+    const int ty = static_cast<int>( std::floor( y ) );
+    ev.from = tripoint_abs_ms( tx, ty, z );
+    ev.steadiness = static_cast<int>( std::lround( ( x - tx ) * 1000.0 ) );
+    ev.spread = static_cast<int>( std::lround( ( y - ty ) * 1000.0 ) );
+    ev.dx = static_cast<int>( std::lround( dx * 1000.0 ) );
+    ev.dy = static_cast<int>( std::lround( dy * 1000.0 ) );
+    ev.to = on;
+    return ev;
+}
+
 struct aim_line_fx {
     tripoint_abs_ms from;
     tripoint_abs_ms to;
@@ -522,6 +588,10 @@ void prune_animations( ms_t now )
     bl.erase( std::remove_if( bl.begin(), bl.end(), [now]( const boom_fx & b ) {
         return now >= b.t0 + boom_ms;
     } ), bl.end() );
+    std::vector<flourish_fx> &fl = flourish_list();
+    fl.erase( std::remove_if( fl.begin(), fl.end(), [now]( const flourish_fx & f ) {
+        return now >= f.t0 + flourish_ms( f.kind );
+    } ), fl.end() );
     std::vector<tracer_fx> &tl = tracer_list();
     tl.erase( std::remove_if( tl.begin(), tl.end(), [now]( const tracer_fx & t ) {
         return now >= t.t0 + tracer_ms;
@@ -1864,10 +1934,34 @@ bool body_bump_worthy( const Character &who, const actor_state &st, int dx, int 
 // Realtime combat (Noah 2026-10-16): a dodge = a 150 ms dash at three times the speed and
 // 250 ms in which monster blows miss; 15% stamina, at most one per 1.2 s.  @p predict: the
 // client's prediction (the host spends the stamina).  False if it is not possible now.
-bool start_dodge( Character &who, actor_state &st, ms_t now, bool predict )
+bool start_dodge( Character &who, actor_state &st, ms_t now, bool predict, int dir_x, int dir_y,
+                  std::vector<event> *out )
 {
-    if( !get_option<bool>( "MP_DODGE" ) || now < st.dodge_ready_at ||
-        who.get_stamina() < who.get_stamina_max() * 15 / 100 ) {
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace dodge try predict=" << predict << " option=" <<
+                                   get_option<bool>( "MP_DODGE" ) << " dir=" << dir_x << "," << dir_y << " ready_in=" <<
+                                   st.dodge_ready_at - now << " stamina=" << who.get_stamina() << "/" << who.get_stamina_max();
+    }
+    if( !get_option<bool>( "MP_DODGE" ) || ( dir_x == 0 && dir_y == 0 ) ) {
+        st.dodge_buffered_until = 0;
+        return false;
+    }
+    if( now < st.dodge_ready_at ) {
+        // a press a moment too early is kept and goes when the dodge is ready (as in Hades)
+        if( st.dodge_ready_at - now <= 200 ) {
+            st.dodge_buffered_until = st.dodge_ready_at + 50;
+        }
+        return false;
+    }
+    st.dodge_buffered_until = 0;
+    if( who.get_stamina() < who.get_stamina_max() * 15 / 100 ) {
+        if( !predict ) {
+            // once per attempt: a grey puff and a word, no spam
+            emit( out, flourish_event( flourish_kind::winded, st.body_x, st.body_y, who.posz(), 0, 0,
+                                       who.pos_abs(), who.getID().get_value() ) );
+            who.add_msg_if_player( m_bad, _( "You are too winded to dodge." ) );
+        }
+        st.dodge_ready_at = now + 400;
         return false;
     }
     if( !predict ) {
@@ -1876,6 +1970,16 @@ bool start_dodge( Character &who, actor_state &st, ms_t now, bool predict )
     st.dash_left_ms = 150;
     st.invuln_until = now + 250;
     st.dodge_ready_at = now + 1200;
+    const double len = std::sqrt( static_cast<double>( dir_x * dir_x + dir_y * dir_y ) );
+    const double ux = dir_x / len;
+    const double uy = dir_y / len;
+    if( predict ) {
+        // the own dash is drawn at once, from where the body is
+        add_flourish( flourish_kind::dash, st.body_x, st.body_y, who.posz(), ux, uy, who.pos_abs(), now );
+    } else {
+        emit( out, flourish_event( flourish_kind::dash, st.body_x, st.body_y, who.posz(), ux, uy,
+                                   who.pos_abs(), who.getID().get_value() ) );
+    }
     return true;
 }
 
@@ -2246,6 +2350,28 @@ void note_explosion( const tripoint_abs_ms &at, int radius )
     }
 }
 
+std::vector<flourish_view> flourishes()
+{
+    std::vector<flourish_view> out;
+    const ms_t now = now_ms();
+    for( const flourish_fx &f : flourish_list() ) {
+        const int dur = flourish_ms( f.kind );
+        if( now >= f.t0 && now < f.t0 + dur ) {
+            flourish_view v;
+            v.kind = f.kind;
+            v.x = f.x;
+            v.y = f.y;
+            v.z = f.z;
+            v.dx = f.dx;
+            v.dy = f.dy;
+            v.on = f.on;
+            v.progress = static_cast<double>( now - f.t0 ) / dur;
+            out.push_back( v );
+        }
+    }
+    return out;
+}
+
 std::vector<boom_view> booms()
 {
     std::vector<boom_view> out;
@@ -2520,7 +2646,7 @@ offset camera_offset()
 bool animating()
 {
     if( !slides().empty() || !lunges().empty() || !hits().empty() || !tracer_list().empty() || !aim_line_list().empty() ||
-        !boom_list().empty() || pred().active ||
+        !boom_list().empty() || !flourish_list().empty() || pred().active ||
         aim_view_rw().active ) {
         return true;
     }
@@ -2653,8 +2779,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 who.set_movement_mode( move_mode_walk );
             }
             st.prev_sprint = f.sprint;
-            if( f.dodge ) {
-                start_dodge( who, st, now, false );
+            if( f.dodge || now <= st.dodge_buffered_until ) {
+                start_dodge( who, st, now, false, f.move_x, f.move_y, out );
             }
             const ms_t ready_before = st.ready_at;
             const tripoint_abs_ms tile_before = who.pos_abs();
@@ -3125,6 +3251,13 @@ void stagger_monster( monster &z, int ms, ms_t now )
     end_lunge( z.pos_abs() );
     ms_t &until = monster_recover_until()[&z];
     until = std::max( until, now + ms );
+    // everybody sees it: the red warning goes at once, a yellow burst on the monster
+    event cancel;
+    cancel.type = fx_type::cancel;
+    cancel.from = z.pos_abs();
+    net::host_send_events( { cancel, flourish_event( flourish_kind::stagger, z.pos_abs().x() + 0.5,
+                                    z.pos_abs().y() + 0.5, z.posz(), 0, 0, z.pos_abs(), 0 )
+                           } );
 }
 
 bool monster_melee_windup( monster &z, Character &target )
@@ -3172,6 +3305,12 @@ bool monster_melee_windup( monster &z, Character &target )
     const int windup = std::clamp( attack_ms * 7 / 6, windup_min, windup_min + 350 );
     if( trace_enabled() ) {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace combat windup t=" << now << " ms=" << windup;
+    }
+    // the first blow coming at a player in this session: one line on how to get out of it
+    static std::set<int> told;
+    if( get_option<bool>( "MP_DODGE" ) && told.insert( target.getID().get_value() ).second ) {
+        net::tell_player( target, _( "Tip: press Space or tap a direction twice to dodge; blows miss you while you dash." ),
+                          true );
     }
     monster_windup w;
     w.attacker = g->shared_from( z );
@@ -3225,7 +3364,11 @@ void process_monster_windups( ms_t now )
         // dodging: the blow misses
         const actor_state &tst = w.target_is_avatar ? avatar_state() : state_of( w.target_id );
         if( now < tst.invuln_until ) {
-            target->add_msg_if_player( m_good, _( "You dodge the %s's blow!" ), z->get_name() );
+            // the blow passes through the dash: a white ring on the player, no words
+            net::host_send_events( { flourish_event( flourish_kind::evade, target->pos_abs().x() + 0.5,
+                                     target->pos_abs().y() + 0.5, target->posz(), 0, 0, target->pos_abs(),
+                                     target->getID().get_value() )
+                                   } );
             continue;
         }
         // in reach when the blow lands: body to body, one tile plus the bodies' width
@@ -3399,6 +3542,11 @@ void apply_visual_event( const event &ev, ms_t arrival )
             boom_list().push_back( b );
             break;
         }
+        case fx_type::flourish:
+            add_flourish( static_cast<flourish_kind>( ev.windup_ms ), ev.from.x() + ev.steadiness / 1000.0,
+                          ev.from.y() + ev.spread / 1000.0, ev.from.z(), ev.dx / 1000.0, ev.dy / 1000.0, ev.to,
+                          arrival );
+            break;
         case fx_type::shot:
         case fx_type::aim:
             break;
@@ -3676,9 +3824,9 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
         // (a downed or sleeping body does not move on the host: predicting it would only be
         // corrected back again and again)
-        if( in.dodge && seq >= 0 ) {
+        if( ( in.dodge || now <= st.dodge_buffered_until ) && seq >= 0 ) {
             // the same dodge the host starts with this frame
-            start_dodge( u, st, now, true );
+            start_dodge( u, st, now, true, in.move_x, in.move_y, nullptr );
         }
         if( st.frame_wait_ms > 0 && ( in.move_x != 0 || in.move_y != 0 ) && seq >= 0 ) {
             // opening a door: this movement frame passes standing, as on the host
@@ -3873,6 +4021,12 @@ void client_event( const event &ev, ms_t arrival, bool mine )
         case fx_type::boom:
             apply_visual_event( ev, arrival );
             break;
+        case fx_type::flourish:
+            // the own dash is drawn from the prediction, at once; the rest as it comes
+            if( static_cast<flourish_kind>( ev.windup_ms ) != flourish_kind::dash ) {
+                apply_visual_event( ev, arrival );
+            }
+            break;
         case fx_type::aim:
             break;
     }
@@ -4008,6 +4162,9 @@ void client_frame()
     if( in.dodge_presses != seen_dodges ) {
         seen_dodges = in.dodge_presses;
         in.dodge = in.move_x != 0 || in.move_y != 0;
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace dodge pressed moving=" << in.dodge;
+        }
     }
     // the frame's duration: the host moves the body by exactly this (with the same direction),
     // so its positions match the prediction below

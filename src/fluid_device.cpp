@@ -543,6 +543,11 @@ bool poll_device( input_frame &out )
     if( ( raw & bit_dodge ) && !( d.last_raw & bit_dodge ) ) {
         ++d.dodge_presses;
     }
+    static const bool dtrace = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    if( dtrace && ( raw & ~d.last_raw ) != 0 ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace device new bits " << ( raw & ~d.last_raw ) <<
+                                   " dodge keys " << d.dodge_keys.size() << " presses " << d.dodge_presses;
+    }
     // a movement key pressed twice within 250 ms: a dodge in that direction
     for( size_t i = 0; i < d.move_pressed_at.size(); ++i ) {
         const unsigned b = 1u << i;

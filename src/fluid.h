@@ -201,6 +201,8 @@ struct actor_state {
     double dash_left_ms = 0;
     ms_t invuln_until = 0;
     ms_t dodge_ready_at = 0;
+    // a dodge asked for just before it was ready: it goes as soon as it is (input buffer)
+    ms_t dodge_buffered_until = 0;
     // sprint key state of the last frame (hold to sprint)
     bool prev_sprint = false;
     bool prev_cancel = false;
@@ -294,8 +296,32 @@ enum class fx_type : int {
     aim,        // aim state of a remote player (steadiness for its crosshair)
     tracer,     // the path of a shot, from -> to
     aimline,    // a monster takes aim: from -> to for dur_ms
-    boom        // an explosion at from, radius in dx
+    boom,       // an explosion at from, radius in dx
+    flourish    // a combat effect (windup_ms = its kind, see flourish_kind) at from
 };
+
+/** Small combat effects drawn on the characters (realtime combat, Noah 2026-10-16): no HUD,
+ * the feedback is where the eyes already are (as in Hades / Enter the Gungeon). */
+enum class flourish_kind : int {
+    dash = 0,   // a dodge: a streak in direction dx, dy from the start point
+    evade,      // a blow missed the dodging player: a white ring
+    stagger,    // a monster lost its blow: a yellow burst
+    winded      // a dodge without the stamina for it: a grey puff
+};
+struct flourish_view {
+    flourish_kind kind = flourish_kind::dash;
+    // start point in absolute tiles (0.5 = tile centre), direction for the dash
+    double x = 0.0;
+    double y = 0.0;
+    int z = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+    // 0 at the start .. 1 when gone
+    double progress = 0.0;
+    // the creature it belongs to stands on this tile now (rings and bursts follow it)
+    tripoint_abs_ms on;
+};
+std::vector<flourish_view> flourishes();
 
 /** Something that happened and that the other players must see. */
 struct event {

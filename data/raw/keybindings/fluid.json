@@ -2,7 +2,7 @@
   {
     "type": "keybinding",
     "id": "FLUID_CANCEL",
-    "name": "Cancel attack / drop aim",
+    "name": "Cancel attack / drop aim (Space also dodges while walking)",
     "category": "FLUID",
     "bindings": [ { "input_method": "keyboard_any", "key": "SPACE" } ]
   },
@@ -32,6 +32,6 @@
     "id": "FLUID_DODGE",
     "name": "Dodge in the walking direction (also a movement key tapped twice, or a mouse side button)",
     "category": "FLUID",
-    "bindings": [  ]
+    "bindings": [ { "input_method": "keyboard_any", "key": "SPACE" } ]
   }
 ]
