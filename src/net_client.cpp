@@ -1905,8 +1905,11 @@ void client_on_message( const JsonObject &msg )
         cstate().my_id = msg.get_int( "id", 0 );
         cstate().fluid_on = msg.get_bool( "fluid", false ) && fluid::enabled();
         fluid::client_set_mode( cstate().fluid_on, cstate().my_id );
-        add_msg( m_good, respawn ? _( "Multiplayer: you are back with a new character." ) :
-                 _( "Multiplayer: you joined the game." ) );
+        if( !msg.get_bool( "moved", false ) ) {
+            // (moved by a teleport or a translocator: the same character, nothing to say)
+            add_msg( m_good, respawn ? _( "Multiplayer: you are back with a new character." ) :
+                     _( "Multiplayer: you joined the game." ) );
+        }
     } else if( type == "out_of_lives" ) {
         // C1: no extra life left: a new character, made here, then join again
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: out of lives, making a new character";

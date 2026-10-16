@@ -8071,31 +8071,10 @@ std::optional<std::vector<tripoint_bub_ms>> game::safe_route_to( Character &who,
 
 std::optional<tripoint_bub_ms> game::look_around()
 {
-    // multiplayer: the tile a client picked on its own screen (the picker can not run on the host)
-    if( remote_ui::replaying() ) {
-        std::istringstream is( remote_ui::answer( "lk" ).value_or( "-" ) );
-        int x = 0;
-        int y = 0;
-        int z = 0;
-        if( !( is >> x >> y >> z ) ) {
-            return std::nullopt;
-        }
-        const tripoint_abs_ms abs( x, y, z );
-        map &here = get_map();
-        return here.inbounds( abs ) ? std::optional<tripoint_bub_ms>( here.get_bub( abs ) ) : std::nullopt;
-    }
+    // multiplayer: the tile is recorded (and replayed on the host) by the look_around below
     tripoint_bub_ms center = u.pos_bub() + u.view_offset;
     look_around_result result = look_around( /*show_window=*/true, center, center, false, false,
                                 false );
-    if( remote_ui::recording() ) {
-        const std::optional<tripoint_bub_ms> &p = result.position;
-        std::string answer = "-";
-        if( p ) {
-            const tripoint_abs_ms abs = get_map().get_abs( *p );
-            answer = string_format( "%d %d %d", abs.x(), abs.y(), abs.z() );
-        }
-        remote_ui::record( "lk", answer );
-    }
     return result.position;
 }
 

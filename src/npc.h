@@ -1424,6 +1424,9 @@ class npc : public Character
          * Update body, but throttled.
          */
         void npc_update_body();
+        /** Multiplayer: a player's body joins: its needs count from now, without catching up on
+         * the time since it was made or stored (on_load would simulate up to two days). */
+        void start_needs_now();
 
         bool get_known_to_u() const;
 

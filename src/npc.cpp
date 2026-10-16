@@ -3285,6 +3285,11 @@ void npc::on_unload()
 {
 }
 
+void npc::start_needs_now()
+{
+    last_updated = calendar::turn;
+}
+
 // A throtled version of player::update_body since npc's don't need to-the-turn updates.
 void npc::npc_update_body()
 {

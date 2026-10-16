@@ -1,3 +1,4 @@
+#include "debug.h"
 #include "remote_ui.h"
 
 #include <cstddef>
@@ -176,6 +177,9 @@ std::optional<std::string> answer( const std::string &kind )
     }
     if( s.next >= s.answers.size() || s.answers[s.next].first != kind ) {
         // asked something the player was not asked: give up here
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: replay wanted answer '" << kind << "', next is '" <<
+                                   ( s.next < s.answers.size() ? s.answers[s.next].first : std::string( "(none)" ) ) <<
+                                   "' (" << s.next << " of " << s.answers.size() << ")";
         s.failed = true;
         return std::nullopt;
     }

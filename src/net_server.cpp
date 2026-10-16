@@ -152,6 +152,8 @@ struct remote_player {
     bool respawn_to_bed = false;
     // translocators: the body goes far away at the end of the turn
     std::optional<tripoint_abs_ms> move_far;
+    // the body is coming back after move_far (teleport, translocator): no welcome texts
+    bool moved_far = false;
     // test helper (CATA_MP_TEST_DOWN): where we are in the down/revive/bleed-out cycle
     int test_stage = 0;
     fluid::ms_t test_at = 0;
@@ -1124,6 +1126,10 @@ npc *spawn_remote_npc( remote_player &rp )
             guy->name = rp.name;
         }
     }
+    // the body's needs (hunger, thirst, sleep) count from now: a character made on the client
+    // carries the time of its own new game, a returning one the time it was stored; catching up
+    // from there made every player arrive tired and hungry (Noah's test, 2026-10-16)
+    guy->start_needs_now();
     // the next character of a player who ran out of lives starts at the old one's bed or home
     std::optional<tripoint_abs_ms> next_home;
     if( !returning && valid_key( rp.key ) ) {
@@ -1206,7 +1212,7 @@ npc *spawn_remote_npc( remote_player &rp )
             g->load_npcs( &own );
         }
     }
-    if( returning ) {
+    if( returning && !rp.moved_far ) {
         send_text( rp, _( "Welcome back.  Your character was waiting for you." ) );
     }
     return g->find_npc( id );
@@ -3556,6 +3562,7 @@ void host_end_of_turn()
                 guy->spawn_at_precise( dest );
                 store_and_remove_body( rp );
                 guy = nullptr;
+                rp.moved_far = true;
             }
         }
         if( rp.respawn_to_bed ) {
@@ -3597,7 +3604,9 @@ void host_end_of_turn()
                 jo.member( "v", protocol_version );
                 jo.member( "id", guy->getID().get_value() );
                 jo.member( "fluid", fluid::enabled() );
+                jo.member( "moved", rp.moved_far );
             } ) );
+            rp.moved_far = false;
         }
         report_traffic();
         if( guy != nullptr && !rp.downed && !guy->is_dead() ) {

@@ -93,6 +93,7 @@
 #include "monster.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "npc_class.h"
 #include "npc_opinion.h"
@@ -100,6 +101,7 @@
 #include "omdata.h"
 #include "options.h"
 #include "output.h"
+#include "remote_ui.h"
 #include "overmap.h"
 #include "overmap_ui.h"
 #include "overmapbuffer.h"
@@ -1823,11 +1825,33 @@ static void spawn_artifact()
     }
 }
 
+// Multiplayer: a debug teleport chosen by a client.  On the client (while its answers are
+// recorded) nothing moves: the host does it.  On the host, replaying for a player's body, the
+// body goes there (stored and back in a reality bubble of its own, like returning to a bed);
+// g->place_player would move the host's own avatar.  False: move the player the usual way.
+static bool teleport_handled_for_multiplayer( const tripoint_abs_ms &dest )
+{
+    if( remote_ui::recording() ) {
+        return true;
+    }
+    Character *who = remote_ui::actor();
+    return who != nullptr && !who->is_avatar() && net::move_body_far( *who, dest );
+}
+
+static bool teleport_handled_for_multiplayer( const tripoint_abs_omt &dest )
+{
+    return teleport_handled_for_multiplayer( midpoint( project_bounds<coords::ms>( dest ) ) );
+}
+
 static void teleport_short()
 {
     const std::optional<tripoint_bub_ms> where = g->look_around();
     const Character &player_character = get_player_character();
     if( !where || *where == player_character.pos_bub() ) {
+        return;
+    }
+    if( teleport_handled_for_multiplayer( get_map().get_abs( *where ) ) ) {
+        add_msg( _( "You teleport to point %s." ), where->to_string() );
         return;
     }
     g->place_player( *where );
@@ -1842,7 +1866,9 @@ static void teleport_long()
     if( where.is_invalid() ) {
         return;
     }
-    g->place_player_overmap( where );
+    if( !teleport_handled_for_multiplayer( where ) ) {
+        g->place_player_overmap( where );
+    }
     add_msg( _( "You teleport to submap %s." ), where.to_string() );
 }
 
@@ -1863,6 +1889,10 @@ static void teleport_overmap( bool specific_coordinates = false )
         where = player_character.pos_abs_omt() + offset;
     }
     if( !!where ) {
+        if( teleport_handled_for_multiplayer( *where ) ) {
+            add_msg( _( "You teleport to overmap %s." ), project_to<coords::om>( *where ).to_string() );
+            return;
+        }
         g->place_player_overmap( *where );
 
         const tripoint_abs_om new_pos =
@@ -1884,7 +1914,9 @@ static void teleport_city()
     if( c.has_value() ) {
         const tripoint_abs_omt where = tripoint_abs_omt(
                                            project_to<coords::omt>( c->pos_om ) + c->pos.raw(), 0 );
-        g->place_player_overmap( where );
+        if( !teleport_handled_for_multiplayer( where ) ) {
+            g->place_player_overmap( where );
+        }
     }
 }
 
