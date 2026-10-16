@@ -2846,7 +2846,8 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
                 mf.dt = std::clamp( a.get_int( 1 ), 0, fluid::tune().max_move_frame_ms );
                 mf.move_x = std::clamp( a.get_int( 2 ), -1, 1 );
                 mf.move_y = std::clamp( a.get_int( 3 ), -1, 1 );
-                mf.sprint = a.get_int( 4 ) != 0;
+                mf.sprint = ( a.get_int( 4 ) & 1 ) != 0;
+                mf.dodge = ( a.get_int( 4 ) & 2 ) != 0;
                 rp->moves.push_back( mf );
                 newest = mf.seq;
             }

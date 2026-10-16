@@ -26,5 +26,12 @@
     "name": "Shove the creature in front (also the middle mouse button)",
     "category": "FLUID",
     "bindings": [ { "input_method": "keyboard_any", "key": "f" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "FLUID_DODGE",
+    "name": "Dodge in the walking direction (also a movement key tapped twice, or a mouse side button)",
+    "category": "FLUID",
+    "bindings": [  ]
   }
 ]

@@ -158,6 +158,10 @@ struct input_frame {
     int throw_presses = 0;
     // presses of the shove key / middle mouse button
     int shove_presses = 0;
+    // dodges asked for: a movement key tapped twice, a mouse side button or the dodge key
+    int dodge_presses = 0;
+    // client: this frame starts a dodge (set from dodge_presses, sent with the movement frame)
+    bool dodge = false;
     // cancels a wind-up / drops the aim
     bool cancel = false;
     // held: sprint (B4)
@@ -193,6 +197,10 @@ struct actor_state {
     // movement frames of a player (fluid::move_frame): time the body still stands after a push
     // that opened a door, counted in the frames' durations (the client predicts the same frames)
     double frame_wait_ms = 0;
+    // dodge (realtime combat): dash time left (frame time), blows miss until, next dodge from
+    double dash_left_ms = 0;
+    ms_t invuln_until = 0;
+    ms_t dodge_ready_at = 0;
     // sprint key state of the last frame (hold to sprint)
     bool prev_sprint = false;
     bool prev_cancel = false;
@@ -319,6 +327,8 @@ struct move_frame {
     int move_x = 0;
     int move_y = 0;
     bool sprint = false;
+    // the dodge (a dash in which monster blows miss) starts with this frame
+    bool dodge = false;
 };
 
 /** Runs one frame for a character. New events are appended to @p out (may be null).

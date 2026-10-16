@@ -2937,6 +2937,37 @@ void options_manager::add_options_world_default()
          true
        );
 
+    // realtime combat rebalance (Noah, 2026-10-16: test as proposed in the design note)
+    add( "MP_ATTACK_SLOTS", "world_default", to_translation( "Realtime combat: attackers at once" ),
+         to_translation( "Realtime (fluid) play: how many monsters may wind up a melee blow at the same player at the same time; the others wait until a slot is free.  0 = no limit." ),
+         0, 8, 2
+       );
+
+    add( "MP_MONSTER_WINDUP_MS", "world_default", to_translation( "Realtime combat: monster wind-up" ),
+         to_translation( "Realtime (fluid) play: shortest warning (ms) before a monster's melee blow lands; slow attacks warn up to 350 ms longer.  Stepping out of reach in time dodges the blow." ),
+         150, 1500, 450
+       );
+
+    add( "MP_MONSTER_RECOVERY_MS", "world_default", to_translation( "Realtime combat: monster recovery" ),
+         to_translation( "Realtime (fluid) play: after a melee blow a monster waits this long (ms) before it can wind up the next one." ),
+         0, 3000, 600
+       );
+
+    add( "MP_DODGE", "world_default", to_translation( "Realtime combat: dodge" ),
+         to_translation( "Realtime (fluid) play: double-tap a direction (or press the dodge key) for a short dash in which monster blows miss (15% stamina, 1.2 s between dodges)." ),
+         true
+       );
+
+    add( "MP_STAGGER_DAMAGE", "world_default", to_translation( "Realtime combat: stagger damage" ),
+         to_translation( "Realtime (fluid) play: a hit of at least this much damage on a monster that is winding up a blow staggers it and cancels the blow.  0 = off." ),
+         0, 100, 10
+       );
+
+    add( "MP_SHOVE_TILES", "world_default", to_translation( "Realtime combat: shove distance" ),
+         to_translation( "Realtime (fluid) play: how many tiles a shove pushes a monster back; a shoved monster is also staggered for half a second." ),
+         1, 3, 2
+       );
+
     add( "REALTIME_DAY_MINUTES", "world_default", to_translation( "Realtime day length" ),
          to_translation( "Multiplayer and fluid (realtime) play: how many real minutes a whole game day lasts.  Hunger, thirst, healing, rot, plant growth and weather follow this clock; combat and movement keep their speed.  Seasons keep their number of days.  0 = a game day lasts 24 real hours.  Has no effect in turn-based single player." ),
          0, 1440, 60

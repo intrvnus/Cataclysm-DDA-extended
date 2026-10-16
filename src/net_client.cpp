@@ -2226,6 +2226,7 @@ int client_send_input( const fluid::input_frame &in, int dt_ms )
         mf.move_x = in.move_x;
         mf.move_y = in.move_y;
         mf.sprint = in.sprint;
+        mf.dodge = in.dodge;
         cs.unconfirmed_moves.push_back( mf );
         // (a host that stopped answering: no endless list)
         while( cs.unconfirmed_moves.size() > 120 ) {
@@ -2283,7 +2284,8 @@ int client_send_input( const fluid::input_frame &in, int dt_ms )
             jo.write( mf.dt );
             jo.write( mf.move_x );
             jo.write( mf.move_y );
-            jo.write( mf.sprint ? 1 : 0 );
+            // flags: 1 sprint, 2 dodge
+            jo.write( ( mf.sprint ? 1 : 0 ) | ( mf.dodge ? 2 : 0 ) );
             jo.end_array();
         }
         jo.end_array();

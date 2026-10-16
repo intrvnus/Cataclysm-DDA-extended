@@ -77,7 +77,8 @@ enum bit : unsigned {
     bit_cancel = 1u << 10,
     bit_primary_alt = 1u << 11,
     bit_secondary_alt = 1u << 12,
-    bit_shove = 1u << 13
+    bit_shove = 1u << 13,
+    bit_dodge = 1u << 14
 };
 
 struct device_state {
@@ -89,6 +90,9 @@ struct device_state {
     int secondary_presses = 0;
     int throw_presses = 0;
     int shove_presses = 0;
+    int dodge_presses = 0;
+    // when each movement key was last pressed (a second press soon after is a dodge)
+    std::array<ms_t, 8> move_pressed_at = {};
     // raw bits (8 movement keys + buttons) of the last poll
     unsigned last_raw = 0;
     // bits that were pressed while a classic action ran: ignored until released
@@ -99,6 +103,7 @@ struct device_state {
     std::vector<int> primary_keys;
     std::vector<int> secondary_keys;
     std::vector<int> shove_keys;
+    std::vector<int> dodge_keys;
     ms_t refreshed = -100000;
 };
 
@@ -350,6 +355,7 @@ void refresh_bindings( device_state &d, ms_t now )
     collect( "FLUID_PRIMARY", "FLUID", d.primary_keys );
     collect( "FLUID_SECONDARY", "FLUID", d.secondary_keys );
     collect( "FLUID_SHOVE", "FLUID", d.shove_keys );
+    collect( "FLUID_DODGE", "FLUID", d.dodge_keys );
 }
 
 bool any_down( const Uint8 *keys, const std::vector<int> &list )
@@ -382,6 +388,10 @@ unsigned read_raw( device_state &d )
     }
     if( any_down( keys, d.cancel_keys ) ) {
         raw |= bit_cancel;
+    }
+    if( ( buttons & ( SDL_BUTTON( SDL_BUTTON_X1 ) | SDL_BUTTON( SDL_BUTTON_X2 ) ) ) ||
+        any_down( keys, d.dodge_keys ) ) {
+        raw |= bit_dodge;
     }
     if( any_down( keys, d.primary_keys ) ) {
         raw |= bit_primary_alt;
@@ -530,6 +540,22 @@ bool poll_device( input_frame &out )
     if( ( raw & bit_shove ) && !( d.last_raw & bit_shove ) ) {
         ++d.shove_presses;
     }
+    if( ( raw & bit_dodge ) && !( d.last_raw & bit_dodge ) ) {
+        ++d.dodge_presses;
+    }
+    // a movement key pressed twice within 250 ms: a dodge in that direction
+    for( size_t i = 0; i < d.move_pressed_at.size(); ++i ) {
+        const unsigned b = 1u << i;
+        if( ( raw & b ) && !( d.last_raw & b ) ) {
+            const ms_t t = now_ms();
+            if( t - d.move_pressed_at[i] < 250 ) {
+                ++d.dodge_presses;
+                d.move_pressed_at[i] = 0;
+            } else {
+                d.move_pressed_at[i] = t;
+            }
+        }
+    }
     if( ( raw & bit_primary ) && !( d.last_raw & bit_primary ) ) {
         d.primary_down_at = now_ms();
     }
@@ -550,6 +576,7 @@ bool poll_device( input_frame &out )
     out.secondary_presses = d.secondary_presses;
     out.throw_presses = d.throw_presses;
     out.shove_presses = d.shove_presses;
+    out.dodge_presses = d.dodge_presses;
     out.cursor_valid = false;
     read_cursor( out );
     return true;

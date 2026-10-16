@@ -127,6 +127,11 @@ const tuning &tune()
     return t;
 }
 
+// a monster loses its pending blow and may not wind up a new one for @p ms (shove, a strong hit)
+void stagger_monster( monster &z, int ms, ms_t now );
+// the monster is winding up a melee blow right now
+bool monster_winding_up( const monster &z );
+
 namespace
 {
 
@@ -1126,7 +1131,15 @@ int shove( Character &who, actor_state &st, double dx, double dy, ms_t t0, std::
         who.add_msg_if_player( m_info, _( "You shove the %s, but it hardly moves." ), target->disp_name() );
         return shove_ms;
     }
-    const bool pushed = push_creature( *target, dir.first, dir.second, t0, out );
+    // the shove distance is a world option (1-3 tiles); each tile is one push
+    bool pushed = push_creature( *target, dir.first, dir.second, t0, out );
+    for( int extra = 1; pushed && extra < get_option<int>( "MP_SHOVE_TILES" ); ++extra ) {
+        pushed = push_creature( *target, dir.first, dir.second, t0, out );
+    }
+    if( monster *const z = target->as_monster() ) {
+        // a shoved monster loses its blow and needs a moment
+        stagger_monster( *z, 500, t0 );
+    }
     int fall = std::clamp( 20 + 4 * ( who.get_str() - 8 ), 5, 60 );
     if( target->get_size() < creature_size::medium ) {
         fall += 20;
@@ -1222,7 +1235,16 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
             who.reach_attack( get_map().get_bub( target->pos_abs() ) );
             hit = true;
         } else {
+            const int hp_before = target->get_hp();
             hit = who.melee_attack( *target, true );
+            // a strong hit on a monster winding up a blow staggers it and cancels the blow
+            const int stagger_damage = get_option<int>( "MP_STAGGER_DAMAGE" );
+            monster *const z = target->as_monster();
+            if( z != nullptr && stagger_damage > 0 && !z->is_dead() &&
+                hp_before - z->get_hp() >= stagger_damage && monster_winding_up( *z ) ) {
+                stagger_monster( *z, 600, now );
+                who.add_msg_if_player( m_good, _( "You stagger the %s!" ), z->get_name() );
+            }
         }
         scope.finish();
         st.face_dx = dir.first;
@@ -1839,6 +1861,24 @@ bool body_bump_worthy( const Character &who, const actor_state &st, int dx, int 
            static_cast<bool>( here.veh_at( b ) );
 }
 
+// Realtime combat (Noah 2026-10-16): a dodge = a 150 ms dash at three times the speed and
+// 250 ms in which monster blows miss; 15% stamina, at most one per 1.2 s.  @p predict: the
+// client's prediction (the host spends the stamina).  False if it is not possible now.
+bool start_dodge( Character &who, actor_state &st, ms_t now, bool predict )
+{
+    if( !get_option<bool>( "MP_DODGE" ) || now < st.dodge_ready_at ||
+        who.get_stamina() < who.get_stamina_max() * 15 / 100 ) {
+        return false;
+    }
+    if( !predict ) {
+        who.mod_stamina( -who.get_stamina_max() * 15 / 100 );
+    }
+    st.dash_left_ms = 150;
+    st.invuln_until = now + 250;
+    st.dodge_ready_at = now + 1200;
+    return true;
+}
+
 // The tile ahead in the frame's direction can now be entered (a door was just opened there).
 bool body_door_opened( const actor_state &st, const input_frame &in )
 {
@@ -1885,7 +1925,10 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     st.face_dy = in.move_y;
     const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
     const int ms_per_tile = std::max( 1, moves_to_ms( who, body_step_cost( who, st.body_tile, ahead ) ) );
-    double left = static_cast<double>( dt ) / ms_per_tile;
+    // a dodge dashes: three times the distance while its dash time lasts (frame time)
+    const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
+    st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
     const double start_x = st.body_x;
     const double start_y = st.body_y;
     std::vector<int> cells;
@@ -2610,6 +2653,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
                 who.set_movement_mode( move_mode_walk );
             }
             st.prev_sprint = f.sprint;
+            if( f.dodge ) {
+                start_dodge( who, st, now, false );
+            }
             const ms_t ready_before = st.ready_at;
             const tripoint_abs_ms tile_before = who.pos_abs();
             const bool frame_moved = free_move( who, st, step, f.dt, now, out );
@@ -3020,6 +3066,14 @@ struct monster_windup {
     ms_t land_at = 0;
 };
 
+// realtime combat rebalance (Noah 2026-10-16): until when a monster may not wind up its next
+// blow (recovery after a blow, a stagger)
+std::map<const monster *, ms_t> &monster_recover_until()
+{
+    static std::map<const monster *, ms_t> m;
+    return m;
+}
+
 std::vector<monster_windup> &monster_windups()
 {
     static std::vector<monster_windup> v;
@@ -3045,6 +3099,34 @@ Character *find_player( const monster_windup &w )
 }
 } // namespace
 
+bool monster_winding_up( const monster &z )
+{
+    for( const monster_windup &w : monster_windups() ) {
+        if( const shared_ptr_fast<monster> m = w.attacker.lock() ) {
+            if( m.get() == &z ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void stagger_monster( monster &z, int ms, ms_t now )
+{
+    std::vector<monster_windup> &v = monster_windups();
+    for( auto iter = v.begin(); iter != v.end(); ) {
+        const shared_ptr_fast<monster> m = iter->attacker.lock();
+        if( !m || m.get() == &z ) {
+            iter = v.erase( iter );
+        } else {
+            ++iter;
+        }
+    }
+    end_lunge( z.pos_abs() );
+    ms_t &until = monster_recover_until()[&z];
+    until = std::max( until, now + ms );
+}
+
 bool monster_melee_windup( monster &z, Character &target )
 {
     if( !enabled() ) {
@@ -3061,8 +3143,36 @@ bool monster_melee_windup( monster &z, Character &target )
         }
     }
     const ms_t now = now_ms();
+    // recovering from its last blow or staggered: this turn passes without a blow
+    const auto rec = monster_recover_until().find( &z );
+    if( rec != monster_recover_until().end() && now < rec->second ) {
+        z.mod_moves( -z.type->attack_cost );
+        return true;
+    }
+    // attack slots: only so many monsters wind up on the same player at once, the others wait
+    const int slots = get_option<int>( "MP_ATTACK_SLOTS" );
+    if( slots > 0 ) {
+        int busy = 0;
+        for( const monster_windup &w : v ) {
+            if( w.target_id == target.getID().get_value() && !w.attacker.expired() ) {
+                ++busy;
+            }
+        }
+        if( busy >= slots ) {
+            if( trace_enabled() ) {
+                DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace combat slot wait t=" << now;
+            }
+            z.mod_moves( -z.type->attack_cost );
+            return true;
+        }
+    }
     const int attack_ms = z.type->attack_cost * turn_ms() / std::max( 1, z.get_speed() );
-    const int windup = std::clamp( attack_ms / 2, 200, 600 );
+    // a readable warning: at least the option's time, slow attacks up to 350 ms longer
+    const int windup_min = get_option<int>( "MP_MONSTER_WINDUP_MS" );
+    const int windup = std::clamp( attack_ms * 7 / 6, windup_min, windup_min + 350 );
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace combat windup t=" << now << " ms=" << windup;
+    }
     monster_windup w;
     w.attacker = g->shared_from( z );
     w.target_is_avatar = target.is_avatar();
@@ -3090,6 +3200,10 @@ bool monster_melee_windup( monster &z, Character &target )
 void process_monster_windups( ms_t now )
 {
     std::vector<monster_windup> &v = monster_windups();
+    // recovery times that are over are forgotten (a dead monster's address may be reused)
+    for( auto iter = monster_recover_until().begin(); iter != monster_recover_until().end(); ) {
+        iter = now >= iter->second ? monster_recover_until().erase( iter ) : std::next( iter );
+    }
     for( auto iter = v.begin(); iter != v.end(); ) {
         if( now < iter->land_at ) {
             ++iter;
@@ -3098,9 +3212,20 @@ void process_monster_windups( ms_t now )
         const monster_windup w = *iter;
         iter = v.erase( iter );
         const shared_ptr_fast<monster> z = w.attacker.lock();
+        if( z ) {
+            // blow or not, the monster recovers before the next one
+            ms_t &until = monster_recover_until()[z.get()];
+            until = std::max( until, now + get_option<int>( "MP_MONSTER_RECOVERY_MS" ) );
+        }
         Character *target = find_player( w );
         if( !z || z->is_dead() || target == nullptr || target->is_dead_state() ||
             z->has_effect( effect_stunned_fluid ) ) {
+            continue;
+        }
+        // dodging: the blow misses
+        const actor_state &tst = w.target_is_avatar ? avatar_state() : state_of( w.target_id );
+        if( now < tst.invuln_until ) {
+            target->add_msg_if_player( m_good, _( "You dodge the %s's blow!" ), z->get_name() );
             continue;
         }
         // in reach when the blow lands: body to body, one tile plus the bodies' width
@@ -3116,6 +3241,10 @@ void process_monster_windups( ms_t now )
         z->mod_moves( z->type->attack_cost );
         const int hp_before = target->get_hp();
         z->melee_attack( *target );
+        if( trace_enabled() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace combat blow t=" << now << " damage=" <<
+                                       hp_before - target->get_hp();
+        }
         if( target->get_hp() < hp_before ) {
             event ev;
             ev.type = fx_type::strike;
@@ -3401,7 +3530,10 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
         cost *= 2;
     }
     const int ms_per_tile = std::max( 1, moves_to_ms( who, cost ) );
-    double left = static_cast<double>( dt ) / ms_per_tile;
+    // a dodge dashes: three times the distance while its dash time lasts (frame time)
+    const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
+    st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
     std::vector<int> cells;
     while( left > 1e-9 ) {
         const double step = std::min( left, tn.max_substep );
@@ -3544,6 +3676,10 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
         // (a downed or sleeping body does not move on the host: predicting it would only be
         // corrected back again and again)
+        if( in.dodge && seq >= 0 ) {
+            // the same dodge the host starts with this frame
+            start_dodge( u, st, now, true );
+        }
         if( st.frame_wait_ms > 0 && ( in.move_x != 0 || in.move_y != 0 ) && seq >= 0 ) {
             // opening a door: this movement frame passes standing, as on the host
             st.frame_wait_ms -= dt;
@@ -3864,6 +4000,15 @@ void client_frame()
         return;
     }
     client_auto_travel( u, in );
+    // a dodge asked for since the last frame goes with this movement frame (standing: none)
+    static int seen_dodges = -1;
+    if( seen_dodges < 0 ) {
+        seen_dodges = in.dodge_presses;
+    }
+    if( in.dodge_presses != seen_dodges ) {
+        seen_dodges = in.dodge_presses;
+        in.dodge = in.move_x != 0 || in.move_y != 0;
+    }
     // the frame's duration: the host moves the body by exactly this (with the same direction),
     // so its positions match the prediction below
     free_client &fc = fclient();
