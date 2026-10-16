@@ -125,9 +125,9 @@ decided; see "Work on the findings" and the STATUS table. Kept for the record.
   Such sprites are now drawn after that row (`cata_tiles.cpp` `fluid_deferred`). Also fixed: the
   two extra rows built for the moving camera were never drawn (blank strip at the screen edge).
 - **4 Grid-free movement:** approved by Noah; decisions recorded at the top of `MULTIPLAYER_SMOOTH_MOVEMENT_PLAN.md`. Default turn 300 ms (walk 3.3 tiles/s at speed 100).
-- Found on the way, not fixed: the "You struggle to continue. Keep trying?" menu when stamina runs
-  low during an activity (`player_activity.cpp`) is a blocking menu; in multiplayer it would
-  freeze the host. Pulping a corpse that takes over 10 minutes asks "do it again to confirm".
+- Found on the way, since fixed: the "You struggle to continue. Keep trying?" menu when stamina
+  runs low during an activity (`player_activity.cpp`) no longer blocks in real time (a break, then
+  the action goes on; checked 2026-10-16). Pulping a corpse that takes over 10 minutes asks "do it again to confirm".
 
 Other open items found on the way (not from Noah's test):
 - **Crash when starting a world with no character** (Noah, build #1, `--mp-host`, SIGSEGV in
