@@ -1513,6 +1513,10 @@ struct body_draw {
     offset off;
     bool moving = false;
     ms_t stamp = 0;
+    // the client's own body: its predicted speed in tiles per ms in the last frame (the sprite is
+    // drawn where the body is at the moment of drawing, which comes a varying few ms later)
+    double vx = 0.0;
+    double vy = 0.0;
 };
 
 std::map<int, body_draw> &body_draws()
@@ -2348,15 +2352,32 @@ std::vector<std::pair<tripoint_abs_ms, double>> hit_flashes()
 
 namespace
 {
-// The draw offset of a player's body standing on @p p, if there is a fresh one.
-const body_draw *body_draw_at( const tripoint_abs_ms &p, ms_t now )
+// The draw offset of a player's body standing on @p p, if there is a fresh one.  The client's
+// own body is matched by the avatar's current tile and its offset taken from the body's world
+// position: the host's update can move the avatar to the next tile between two movement frames,
+// and an offset kept for the old tile would put the sprite (and the camera) a tile off for that
+// frame - a shake at every tile edge (Noah's test, 2026-10-16).
+std::optional<offset> body_draw_at( const tripoint_abs_ms &p, ms_t now )
 {
+    const bool client = client_active();
+    const int own = client ? cinfo().my_id : -1;
+    const bool own_here = client && get_avatar().pos_abs() == p;
     for( const std::pair<const int, body_draw> &e : body_draws() ) {
-        if( e.second.tile == p && now - e.second.stamp < 250 ) {
-            return &e.second;
+        if( now - e.second.stamp >= 250 ) {
+            continue;
+        }
+        if( e.first == own && own_here && e.second.tile.z() == p.z() ) {
+            const double ahead_ms = static_cast<double>( std::clamp<ms_t>( now - e.second.stamp, 0, 40 ) );
+            offset o;
+            o.x = std::clamp( e.second.tile.x() + e.second.off.x + e.second.vx * ahead_ms - p.x(), -1.5, 1.5 );
+            o.y = std::clamp( e.second.tile.y() + e.second.off.y + e.second.vy * ahead_ms - p.y(), -1.5, 1.5 );
+            return o;
+        }
+        if( e.second.tile == p && e.first != own ) {
+            return e.second.off;
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 } // namespace
 
@@ -2368,8 +2389,8 @@ offset sprite_offset( const tripoint_abs_ms &p )
     }
     const ms_t now = now_ms();
     offset a;
-    if( const body_draw *b = body_draw_at( p, now ) ) {
-        a = b->off;
+    if( const std::optional<offset> b = body_draw_at( p, now ) ) {
+        a = *b;
     } else {
         a = travel_offset_at( p, now );
     }
@@ -2397,8 +2418,8 @@ offset camera_offset()
     if( tune().camera_follows_slide ) {
         const tripoint_abs_ms at = get_avatar().pos_abs();
         offset target;
-        if( const body_draw *b = body_draw_at( at, now ) ) {
-            target = b->off;
+        if( const std::optional<offset> b = body_draw_at( at, now ) ) {
+            target = *b;
         } else {
             target = travel_offset_at( at, now );
         }
@@ -2567,6 +2588,14 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             step.move_x = f.move_x;
             step.move_y = f.move_y;
             step.sprint = f.sprint;
+            // walk or run as this frame says (the client predicted it so); not the newest
+            // input's sprint key, which may belong to a later frame
+            if( f.sprint && !who.is_running() && who.can_run() ) {
+                who.set_movement_mode( move_mode_run );
+            } else if( who.is_running() && ( !f.sprint || !who.can_run() ) ) {
+                who.set_movement_mode( move_mode_walk );
+            }
+            st.prev_sprint = f.sprint;
             const ms_t ready_before = st.ready_at;
             const tripoint_abs_ms tile_before = who.pos_abs();
             const bool frame_moved = free_move( who, st, step, f.dt, now, out );
@@ -3327,10 +3356,14 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     const double uy = in.move_y / len;
     const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
     int cost = body_step_cost( who, st.body_tile, ahead );
-    if( in.sprint && !who.is_running() && who.can_run() ) {
-        // the local copy does not know the move mode yet: running halves the step cost (like
-        // the host, only with stamina to run)
+    // this frame runs if its sprint key is held and there is stamina, as on the host (which
+    // sets the mode per movement frame); the local copy's mode follows the host's state later:
+    // running doubles the speed (move_modes.json)
+    const bool want_run = in.sprint && who.can_run();
+    if( want_run && !who.is_running() ) {
         cost = std::max( 1, cost / 2 );
+    } else if( !want_run && who.is_running() ) {
+        cost *= 2;
     }
     const int ms_per_tile = std::max( 1, moves_to_ms( who, cost ) );
     double left = static_cast<double>( dt ) / ms_per_tile;
@@ -3500,6 +3533,8 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     }
     {
         body_draw &d = body_draws()[ci.my_id];
+        d.vx = dt > 0 ? ( st.body_x - before_x ) / dt : 0.0;
+        d.vy = dt > 0 ? ( st.body_y - before_y ) / dt : 0.0;
         d.tile = tile;
         const offset c = body_correction_at( st, now );
         d.off.x = std::clamp( st.body_x - ( tile.x() + 0.5 ) + c.x, -1.5, 1.5 );

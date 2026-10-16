@@ -1369,10 +1369,21 @@ void cata_tiles::draw( const point &dest, const tripoint_bub_ms &center, int wid
     // experimental fluid mode: the camera follows the sliding avatar, a fraction of a tile
     const bool fluid_camera = !is_isometric() && fluid::smooth_camera() &&
                               center.xy() == get_avatar().pos_bub( here ).xy();
+    fluid::offset cam;
     if( fluid_camera ) {
-        const fluid::offset cam = fluid::camera_offset();
+        cam = fluid::camera_offset();
         op = dest - point( static_cast<int>( std::lround( cam.x * tile_width ) ),
                            static_cast<int>( std::lround( cam.y * tile_height ) ) );
+    }
+    static const bool draw_trace = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
+    if( draw_trace && fluid::smooth_camera() ) {
+        // per drawn frame: whether the smooth camera was used, where the camera and the own
+        // sprite are in the world (a shake is a jump in these)
+        const tripoint_abs_ms at = get_avatar().pos_abs();
+        const fluid::offset spr = fluid::sprite_offset( at );
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace draw fc=" << fluid_camera << " cam=" <<
+                                   at.x() + 0.5 + cam.x << "," << at.y() + 0.5 + cam.y << " spr=" << at.x() + 0.5 + spr.x << "," <<
+                                   at.y() + 0.5 + spr.y;
     }
     screentile_width = s.x;
     screentile_height = s.y;
