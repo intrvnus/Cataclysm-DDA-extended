@@ -73,7 +73,9 @@ class mapbuffer
         /** Multiplayer (client): replaces submaps with ones received from the host (array of
          * objects written by @ref net_store_submap). Pointers to the replaced submaps become
          * invalid, so the map has to be reloaded afterwards. */
-        void net_replace_submaps( const JsonArray &ja );
+        /** Multiplayer client: the host's copies of these submaps replace ours.  Returns where
+         * they are. */
+        std::vector<tripoint_abs_sm> net_replace_submaps( const JsonArray &ja );
 
     private:
         using submap_map_t = std::map<tripoint_abs_sm, std::unique_ptr<submap>>;

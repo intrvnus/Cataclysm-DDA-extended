@@ -593,6 +593,35 @@ void map::net_forget_vehicles()
     clear_vehicle_level_caches();
 }
 
+void map::net_reload_columns( const std::vector<point_abs_sm> &columns )
+{
+    for( const point_abs_sm &col : columns ) {
+        const point_rel_sm rel = col - abs_sub.xy();
+        if( rel.x() < 0 || rel.y() < 0 || rel.x() >= my_MAPSIZE || rel.y() >= my_MAPSIZE ) {
+            continue;
+        }
+        // what actualize registers for this column: dropped first (it registers it again)
+        const point_bub_ms lo( rel.x() * SEEX, rel.y() * SEEY );
+        const auto in_column = [&lo]( const tripoint_bub_ms & p ) {
+            return p.x() >= lo.x() && p.x() < lo.x() + SEEX && p.y() >= lo.y() && p.y() < lo.y() + SEEY;
+        };
+        for( std::vector<tripoint_bub_ms> &locs : traplocs ) {
+            locs.erase( std::remove_if( locs.begin(), locs.end(), in_column ), locs.end() );
+        }
+        field_furn_locs.erase( std::remove_if( field_furn_locs.begin(), field_furn_locs.end(), in_column ),
+                               field_furn_locs.end() );
+        field_ter_locs.erase( std::remove_if( field_ter_locs.begin(), field_ter_locs.end(), in_column ),
+                              field_ter_locs.end() );
+        const point_bub_sm grid( rel.x(), rel.y() );
+        loadn( grid, true );
+        const int zmin = zlevels ? -OVERMAP_DEPTH : abs_sub.z();
+        const int zmax = zlevels ? OVERMAP_HEIGHT : abs_sub.z();
+        for( int z = zmin; z <= zmax; ++z ) {
+            actualize( { grid.x(), grid.y(), z } );
+        }
+    }
+}
+
 void map::update_vehicle_list( const submap *const to, const int zlev )
 {
     // Update vehicle data

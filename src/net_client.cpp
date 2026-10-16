@@ -94,6 +94,7 @@
 #include "sounds.h"
 #include "scenario.h"
 #include "string_formatter.h"
+#include "submap.h"
 #include "translations.h"
 #include "type_id.h"
 #include "ui_manager.h"
@@ -296,17 +297,51 @@ void reload_map()
 
 void apply_submaps( const JsonArray &list )
 {
-    // The replaced submaps own their vehicles: the map must not keep pointers to them.
-    get_map().net_forget_vehicles();
+    // Vehicles span submaps and have lists of their own: with a vehicle in a replaced submap
+    // (before or now) the whole map is loaded again; else only the replaced columns (loading the
+    // whole map takes long enough to stutter, and this comes after every action)
+    bool vehicles = false;
+    for( JsonObject sm : list ) {
+        sm.allow_omitted_members();
+        if( sm.has_array( "vehicles" ) && !sm.get_array( "vehicles" ).empty() ) {
+            vehicles = true;
+        }
+        if( sm.has_array( "coordinates" ) ) {
+            JsonArray c = sm.get_array( "coordinates" );
+            if( c.size() >= 3 ) {
+                const submap *old = MAPBUFFER.lookup_submap( tripoint_abs_sm( c.get_int( 0 ), c.get_int( 1 ),
+                                    c.get_int( 2 ) ) );
+                if( old != nullptr && !old->vehicles.empty() ) {
+                    vehicles = true;
+                }
+            }
+        }
+    }
+    if( vehicles ) {
+        // The replaced submaps own their vehicles: the map must not keep pointers to them.
+        get_map().net_forget_vehicles();
+    }
+    std::vector<tripoint_abs_sm> replaced;
     try {
-        MAPBUFFER.net_replace_submaps( list );
+        replaced = MAPBUFFER.net_replace_submaps( list );
     } catch( ... ) {
         // Some submaps may already be replaced: never keep pointers to the old ones.
         reload_map();
         throw;
     }
-    // The map still points at the replaced submaps: load it again.
-    reload_map();
+    if( vehicles ) {
+        // The map still points at the replaced submaps: load it again.
+        reload_map();
+        return;
+    }
+    std::vector<point_abs_sm> columns;
+    for( const tripoint_abs_sm &p : replaced ) {
+        if( std::find( columns.begin(), columns.end(), p.xy() ) == columns.end() ) {
+            columns.push_back( p.xy() );
+        }
+    }
+    get_map().net_reload_columns( columns );
+    g->invalidate_main_ui_adaptor();
 }
 
 npc *shadow_for( int host_id, const std::string &name, const tripoint_abs_ms &p )

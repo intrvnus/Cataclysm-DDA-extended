@@ -3266,8 +3266,9 @@ struct free_client {
     bool on = false;
     actor_state st;
     ms_t last = 0;
-    // input frame sequence number and the predicted body position right after sending it
-    std::deque<std::tuple<int, double, double>> history;
+    // movement frame number, the predicted body position right after the frame, and right
+    // before it
+    std::deque<std::tuple<int, double, double, double, double>> history;
     std::map<int, remote_body> others;
 };
 
@@ -3342,6 +3343,11 @@ void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now 
     if( !fc.history.empty() && std::get<0>( fc.history.front() ) == seq ) {
         px = std::get<1>( fc.history.front() );
         py = std::get<2>( fc.history.front() );
+    } else if( !fc.history.empty() ) {
+        // the host has not applied any of the unconfirmed frames yet: it is where the body was
+        // before the first of them
+        px = std::get<3>( fc.history.front() );
+        py = std::get<4>( fc.history.front() );
     }
     const double ex = b.x - px;
     const double ey = b.y - py;
@@ -3372,9 +3378,11 @@ void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now 
     st.body_x += ex;
     st.body_y += ey;
     st.body_tile = tripoint_abs_ms( floor_int( st.body_x ), floor_int( st.body_y ), b.z );
-    for( std::tuple<int, double, double> &h : fc.history ) {
+    for( std::tuple<int, double, double, double, double> &h : fc.history ) {
         std::get<1>( h ) += ex;
         std::get<2>( h ) += ey;
+        std::get<3>( h ) += ex;
+        std::get<4>( h ) += ey;
     }
     body_set_correction( st, old_x, old_y, now, 100 );
 }
@@ -3393,6 +3401,9 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
         fc.history.clear();
     }
+    // where the body was before this frame (the host's answer may come before it applied it)
+    const double before_x = st.body_x;
+    const double before_y = st.body_y;
     if( u.controlling_vehicle || u.in_vehicle ) {
         // riding: the vehicle moves the character, the body stays on its tile
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
@@ -3409,7 +3420,7 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace cliframe seq=" << seq << " dt=" << dt <<
                                        " x=" << st.body_x << " y=" << st.body_y;
         }
-        fc.history.emplace_back( seq, st.body_x, st.body_y );
+        fc.history.emplace_back( seq, st.body_x, st.body_y, before_x, before_y );
         while( fc.history.size() > 120 ) {
             fc.history.pop_front();
         }

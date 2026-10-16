@@ -477,8 +477,9 @@ std::unique_ptr<submap> read_submap( const JsonObject &submap_json, tripoint_abs
 }
 } // namespace
 
-void mapbuffer::net_replace_submaps( const JsonArray &ja )
+std::vector<tripoint_abs_sm> mapbuffer::net_replace_submaps( const JsonArray &ja )
 {
+    std::vector<tripoint_abs_sm> replaced;
     // one by one: a submap that comes twice in one batch (overlapping bubbles) replaces the
     // earlier copy instead of failing as "already loaded"
     for( JsonObject submap_json : ja ) {
@@ -490,7 +491,9 @@ void mapbuffer::net_replace_submaps( const JsonArray &ja )
         if( !add_submap( loc, sm ) ) {
             debugmsg( "submap %s was already loaded", loc.to_string() );
         }
+        replaced.push_back( loc );
     }
+    return replaced;
 }
 
 void mapbuffer::deserialize( const JsonArray &ja )
