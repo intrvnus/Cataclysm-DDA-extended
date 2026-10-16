@@ -46,6 +46,7 @@
 #include "fluid.h"
 #include "focus_minigame.h"
 #include "game.h"
+#include "get_version.h"
 #include "game_constants.h"
 #include "gates.h"
 #include "item.h"
@@ -2417,6 +2418,45 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
             send_json( peer, message( [&]( JsonOut & jo ) {
                 jo.member( "t", "reject" );
                 jo.member( "reason", _( "different game version" ) );
+            } ) );
+            enet_peer_disconnect_later( peer, 0 );
+            return;
+        }
+        // the same build and the same mods, else the shared world breaks (unknown ids)
+        std::string refused;
+        if( msg.has_string( "build" ) && msg.get_string( "build" ) != getVersionString() ) {
+            refused = string_format( _( "a different game build (the host has %s, you have %s)" ),
+                                     getVersionString(), msg.get_string( "build" ) );
+        } else if( msg.has_array( "mods" ) && world_generator->active_world != nullptr ) {
+            std::set<std::string> theirs;
+            for( const std::string m : msg.get_array( "mods" ) ) {
+                theirs.insert( m );
+            }
+            std::set<std::string> ours;
+            for( const mod_id &m : world_generator->active_world->active_mod_order ) {
+                ours.insert( m.str() );
+            }
+            std::vector<std::string> missing;
+            std::vector<std::string> extra;
+            std::set_difference( ours.begin(), ours.end(), theirs.begin(), theirs.end(),
+                                 std::back_inserter( missing ) );
+            std::set_difference( theirs.begin(), theirs.end(), ours.begin(), ours.end(),
+                                 std::back_inserter( extra ) );
+            if( !missing.empty() || !extra.empty() ) {
+                refused = _( "different mods" );
+                if( !missing.empty() ) {
+                    refused += string_format( _( "; your world lacks: %s" ), string_join( missing, ", " ) );
+                }
+                if( !extra.empty() ) {
+                    refused += string_format( _( "; the host does not use: %s" ), string_join( extra, ", " ) );
+                }
+            }
+        }
+        if( !refused.empty() ) {
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: a player was refused: " << refused;
+            send_json( peer, message( [&]( JsonOut & jo ) {
+                jo.member( "t", "reject" );
+                jo.member( "reason", refused );
             } ) );
             enet_peer_disconnect_later( peer, 0 );
             return;

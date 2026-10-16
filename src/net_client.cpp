@@ -61,6 +61,7 @@
 #include "flexbuffer_json.h"
 #include "fluid.h"
 #include "game.h"
+#include "get_version.h"
 #include "game_inventory.h"
 #include "input_context.h"
 #include "item.h"
@@ -1754,6 +1755,16 @@ void client_on_connect()
     send_json( state().server_peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "hello" );
         jo.member( "v", protocol_version );
+        // the host refuses another build or other mods (different data breaks the shared world)
+        jo.member( "build", getVersionString() );
+        jo.member( "mods" );
+        jo.start_array();
+        if( world_generator->active_world != nullptr ) {
+            for( const mod_id &m : world_generator->active_world->active_mod_order ) {
+                jo.write( m.str() );
+            }
+        }
+        jo.end_array();
         jo.member( "name", get_avatar().get_name() );
         // A4: who we are (kept between sessions) and the character made for this game
         jo.member( "key", client_key() );
@@ -1812,6 +1823,10 @@ void client_on_message( const JsonObject &msg )
     } else if( type == "reject" ) {
         add_msg( m_bad, _( "Multiplayer: the host refused the connection (%s)." ),
                  msg.get_string( "reason", "" ) );
+        // nothing to play: back to the main menu, with the reason
+        session_end_notice() = string_format( _( "The host refused the connection: %s." ),
+                                              msg.get_string( "reason", "" ) );
+        cstate().session_over = true;
     } else if( type == "submaps" ) {
         apply_submaps( msg.get_array( "list" ) );
     } else if( type == "fx" ) {
@@ -2159,8 +2174,10 @@ bool client_do_turn()
     poll();
     if( cstate().session_over ) {
         // shown when the main menu is back (popups do not wait while a game runs)
-        session_end_notice() = _( "The game has ended: the host left, the server stopped or the connection "
-                                  "was lost.\n\nYour character is saved on the server." );
+        if( session_end_notice().empty() ) {
+            session_end_notice() = _( "The game has ended: the host left, the server stopped or the connection "
+                                      "was lost.\n\nYour character is saved on the server." );
+        }
         // what this player has seen stays with them for the next visit
         get_avatar().save_map_memory();
         shutdown();
