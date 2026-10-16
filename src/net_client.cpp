@@ -1787,7 +1787,8 @@ void client_on_disconnect()
     // the host's own client: its server may still be loading the world
     if( !cs.connected ) {
         listen_connect_failed();
-    } else if( cs.welcomed ) {
+    } else {
+        // after connecting (joined or refused): nothing more comes, back to the main menu
         cs.session_over = true;
     }
     cs.connected = false;

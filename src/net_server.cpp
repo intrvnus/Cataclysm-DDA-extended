@@ -2363,6 +2363,12 @@ void server_on_start()
 void server_on_connect( ENetPeer *peer )
 {
     if( clients().size() >= static_cast<size_t>( max_players() ) ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer server: a player was refused: the game is full";
+        send_json( peer, message( [&]( JsonOut & jo ) {
+            jo.member( "t", "reject" );
+            jo.member( "reason", string_format( n_gettext( "the game is full (%d player)",
+                                                "the game is full (%d players)", max_players() ), max_players() ) );
+        } ) );
         enet_peer_disconnect_later( peer, 0 );
         return;
     }
