@@ -973,6 +973,10 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
         return nullptr;
     }
     ret = UILIST_WAIT_INPUT;
+    if( loop ) {
+        // a key still held (walking into an NPC opens its menu) must not pick an entry
+        input_ignore_held_keys();
+    }
 
     input_context ctxt = create_main_input_context();
 

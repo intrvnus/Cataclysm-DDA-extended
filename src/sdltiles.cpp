@@ -2741,6 +2741,29 @@ void StopTextInput()
 }
 
 //Check for any window messages (keypress, paint, mousemove, etc)
+// keys held down when a menu opened (input_ignore_held_keys): their repeats are dropped until
+// they are released; and the text event of such a repeat
+static std::set<SDL_Scancode> &held_at_menu_open()
+{
+    static std::set<SDL_Scancode> s;
+    return s;
+}
+static bool skip_next_text = false;
+
+void input_ignore_held_keys()
+{
+    SDL_PumpEvents();
+    int count = 0;
+    const Uint8 *keys = SDL_GetKeyboardState( &count );
+    std::set<SDL_Scancode> &held = held_at_menu_open();
+    held.clear();
+    for( int i = 0; i < count; ++i ) {
+        if( keys[i] ) {
+            held.insert( static_cast<SDL_Scancode>( i ) );
+        }
+    }
+}
+
 static void CheckMessages()
 {
     SDL_Event ev;
@@ -3142,6 +3165,11 @@ static void CheckMessages()
                 render_target_reset = true;
                 break;
             case SDL_KEYDOWN: {
+                if( ev.key.repeat && held_at_menu_open().count( ev.key.keysym.scancode ) != 0 ) {
+                    // still held from before the menu opened: no repeats into it
+                    skip_next_text = true;
+                    break;
+                }
 #if defined(__ANDROID__)
                 // Toggle virtual keyboard with Android back button. For some reason I get double inputs, so ignore everything once it's already down.
                 if( ev.key.keysym.sym == SDLK_AC_BACK && ac_back_down_time == 0 ) {
@@ -3198,6 +3226,7 @@ static void CheckMessages()
             }
             break;
             case SDL_KEYUP: {
+                held_at_menu_open().erase( ev.key.keysym.scancode );
 #if defined(__ANDROID__)
                 // Toggle virtual keyboard with Android back button
                 if( ev.key.keysym.sym == SDLK_AC_BACK ) {
@@ -3233,6 +3262,11 @@ static void CheckMessages()
             }
             break;
             case SDL_TEXTINPUT:
+                if( skip_next_text ) {
+                    // the text of a key repeat skipped above
+                    skip_next_text = false;
+                    break;
+                }
                 if( !add_alt_code( *ev.text.text ) ) {
                     if( strlen( ev.text.text ) > 0 ) {
                         const unsigned lc = UTF8_getch( ev.text.text );

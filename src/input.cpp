@@ -1043,3 +1043,9 @@ keyboard_mode input_manager::actual_keyboard_mode( const keyboard_mode preferred
     }
     return keyboard_mode::keychar;
 }
+
+#if !defined(TILES)
+void input_ignore_held_keys()
+{
+}
+#endif

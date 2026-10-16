@@ -9,6 +9,7 @@
 #include "catacharset.h"
 #include "color.h"
 #include "imgui/imgui.h"
+#include "input.h"
 #include "input_context.h"
 #include "output.h"
 #include "alerts.h"
@@ -423,6 +424,8 @@ query_popup::result query_popup::query()
         return res;
     }
     std::shared_ptr<query_popup_impl> ui = create_or_get_impl();
+    // a key still held from before the question must not answer it
+    input_ignore_held_keys();
 
     result res;
     do {

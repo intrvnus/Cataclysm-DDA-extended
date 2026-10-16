@@ -391,6 +391,10 @@ class input_manager
 // Singleton for our input manager.
 extern input_manager inp_mngr;
 
+/** A menu or question opens: the keys held down right now (e.g. a movement key that walked into
+ * an NPC) do not repeat into it; they count again once released and pressed anew. */
+void input_ignore_held_keys();
+
 /**
  * Check whether a gamepad is plugged in/available.
  *
