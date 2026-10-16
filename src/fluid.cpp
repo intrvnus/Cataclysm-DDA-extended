@@ -1822,6 +1822,14 @@ bool body_bump_worthy( const Character &who, const actor_state &st, int dx, int 
            static_cast<bool>( here.veh_at( b ) );
 }
 
+// The tile ahead in the frame's direction can now be entered (a door was just opened there).
+bool body_door_opened( const actor_state &st, const input_frame &in )
+{
+    map &here = get_map();
+    const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
+    return here.inbounds( ahead ) && here.passable( here.get_bub( ahead ) ) && !here.veh_at( here.get_bub( ahead ) );
+}
+
 // One frame of free movement in the held direction for @p dt ms.  Returns true if the body
 // moved; if it could not move at all, pushing into the tile ahead does what a tile step into it
 // does (attack, open a door, talk, squeeze through a diagonal gap, enter a harmful tile).
@@ -2550,11 +2558,25 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             if( f.move_x == 0 && f.move_y == 0 ) {
                 continue;
             }
+            if( st.frame_wait_ms > 0 ) {
+                // opening a door: these frames pass standing (as on the client)
+                st.frame_wait_ms -= f.dt;
+                continue;
+            }
             input_frame step = in;
             step.move_x = f.move_x;
             step.move_y = f.move_y;
             step.sprint = f.sprint;
-            moved = free_move( who, st, step, f.dt, now, out ) || moved;
+            const ms_t ready_before = st.ready_at;
+            const tripoint_abs_ms tile_before = who.pos_abs();
+            const bool frame_moved = free_move( who, st, step, f.dt, now, out );
+            moved = frame_moved || moved;
+            if( !frame_moved && who.pos_abs() == tile_before && st.ready_at > now &&
+                st.ready_at != ready_before && body_door_opened( st, step ) ) {
+                // the wait of the opened door, in frame time instead of the host's clock
+                st.frame_wait_ms = static_cast<double>( st.ready_at - now );
+                st.ready_at = now;
+            }
             if( trace_enabled() ) {
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace srvframe seq=" << f.seq << " dt=" << f.dt <<
                                            " x=" << st.body_x << " y=" << st.body_y << " tile=" << who.pos_abs().y();
@@ -3331,6 +3353,43 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     }
 }
 
+// The predicted body is blocked by a closed door the host opens when the body pushes into it
+// (free_move -> start_step, as a vanilla step: the door opens, the step costs a turn's moves,
+// nobody moves): the same here, so that the prediction does not stop at the door until the
+// host's map arrives and then rush ahead of the body.  The host's map update confirms the door.
+void predict_door_open( avatar &u, actor_state &st, const input_frame &in )
+{
+    if( in.move_x == 0 && in.move_y == 0 ) {
+        return;
+    }
+    map &here = get_map();
+    const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
+    if( !here.inbounds( ahead ) ) {
+        return;
+    }
+    const tripoint_bub_ms b = here.get_bub( ahead );
+    if( here.passable( b ) || here.veh_at( b ) ||
+        get_creature_tracker().creature_at( b ) != nullptr ) {
+        return;
+    }
+    const bool inside = !here.is_outside( u.pos_bub( here ) );
+    // (check only: a locked door or one that opens from the other side stays shut)
+    if( !here.open_door( u, b, inside, true ) ) {
+        return;
+    }
+    // only the map: the sound and the message come from the host
+    if( !here.ter( b ).obj().open.is_null() ) {
+        here.ter_set( b, here.ter( b ).obj().open );
+    } else if( !here.furn( b ).obj().open.is_null() ) {
+        here.furn_set( b, here.furn( b ).obj().open );
+    }
+    // vanilla charges a turn's moves for opening (avatar_action::move); the host's step the same
+    st.frame_wait_ms = std::max( 40, moves_to_ms( u, u.get_speed() ) );
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace predicted door wait=" << st.frame_wait_ms;
+    }
+}
+
 void client_reconcile( free_client &fc, const body_sample &b, int seq, ms_t now )
 {
     actor_state &st = fc.st;
@@ -3417,7 +3476,17 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
         // (a downed or sleeping body does not move on the host: predicting it would only be
         // corrected back again and again)
-        predict_free_move( u, st, in, dt );
+        if( st.frame_wait_ms > 0 && ( in.move_x != 0 || in.move_y != 0 ) && seq >= 0 ) {
+            // opening a door: this movement frame passes standing, as on the host
+            st.frame_wait_ms -= dt;
+        } else {
+            const double px = st.body_x;
+            const double py = st.body_y;
+            predict_free_move( u, st, in, dt );
+            if( std::abs( st.body_x - px ) + std::abs( st.body_y - py ) < 1e-9 && seq >= 0 ) {
+                predict_door_open( u, st, in );
+            }
+        }
     }
     if( seq >= 0 ) {
         if( trace_enabled() ) {

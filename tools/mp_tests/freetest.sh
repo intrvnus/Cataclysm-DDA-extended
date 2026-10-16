@@ -11,12 +11,12 @@ source $S/xt.sh
 export LANG=C.UTF-8 LC_ALL=C.UTF-8
 CASE=${CASE:-door}
 R=$S/FREE_RESULT_$CASE.txt; : > $R
-HOSTLOG=$S/ud_host/config/debug.log
+HOSTLOG=$S/ud_host/config/debug_server.log
 HOLD=${HOLD:-4}
 
 pkill -9 cataclysm-tiles; sleep 3
 rm -rf $S/ud_host/save/Leeds && cp -a $S/ud_client/save/Leeds $S/ud_host/save/Leeds
-: > $HOSTLOG; : > $S/ud_client/config/debug.log
+rm -f $HOSTLOG; : > $S/ud_client/config/debug.log
 CATA_MP_TEST_TRACE=1 CATA_MP_TEST_BUBBLE=quiet CATA_MP_TEST_FREE=$CASE NO_STAIRS=1 bash $S/pair.sh > $S/pair.out 2>&1
 source $S/win.env
 if [ -z "$CW" ] || ! pgrep -x cataclysm-tiles > /dev/null; then

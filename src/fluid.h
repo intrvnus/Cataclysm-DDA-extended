@@ -190,6 +190,9 @@ enum class phase : int {
 struct actor_state {
     // the actor may start something new at this time
     ms_t ready_at = 0;
+    // movement frames of a player (fluid::move_frame): time the body still stands after a push
+    // that opened a door, counted in the frames' durations (the client predicts the same frames)
+    double frame_wait_ms = 0;
     // sprint key state of the last frame (hold to sprint)
     bool prev_sprint = false;
     bool prev_cancel = false;

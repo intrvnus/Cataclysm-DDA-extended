@@ -4,7 +4,37 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
-## 0. Newest: night 2026-10-15/16 (Opus, Noah asleep): hosting hardened, tested end to end
+## 0. Newest: 2026-10-16 day (Opus): Noah's ten test findings of the night build
+Noah tested the night build and listed ten problems (movement jank, input lag, jank after actions,
+wall glitching, auto-travel, menu keys, direction prompts, preset characters, "Not available in
+multiplayer yet" on clicks and NPC actions). What was done, each run in game under Xvfb:
+- **Deterministic movement frames** (`fluid::move_frame`): the client sends every movement frame
+  with its duration (`"f"`, up to 12 unconfirmed ones per packet); the server applies them in order
+  with a real-time bank (`remote_player::moves`, `move_bank_ms`) and confirms `applied_seq` in
+  `"bp"`; the prediction uses the same durations.  The old tile-step fallback ran on frames without
+  movement (the main cause of the shaking).  Walk test: 60 corrections (mean 0.13 tiles) -> 0;
+  pushing into walls: 0.
+- **Hitches after actions**: submaps were resent for rot/temperature changes (hash now ignores
+  those fields, `submap_visible_json`), and every resend reloaded the whole map (now only the
+  replaced columns, `map::net_reload_columns`, full reload only with vehicles).  155 ms -> 45 ms.
+- Mouse click-and-drag no longer says "Not available in multiplayer yet" and no double swing; a
+  menu's own letter keys win over WASD navigation (Shift+W wears in the item menu); keys held when a
+  menu or question opens do not repeat into it (`input_ignore_held_keys`).
+- **Direction prompts**: open, close, grab, smash ask only with more than one target (vanilla
+  `AUTOSELECT_SINGLE_VALID_TARGET`, `choose_adjacent_highlight`; `can_interact_at` knows grab and
+  smash; the host tells the client whether its body holds something, `"g"` in `"bp"`).
+- **Auto-travel**: the plan confirmed on the overmap lived only in the avatar's `omt_path`, which the
+  host's state replaces; the client keeps it itself now (`fluid::client_start_travel`).
+- **Preset characters**: hosting a new world and the next character after the last life ask first:
+  custom, preset (play now), random or a saved template (`avatar::create_chosen`).  Also fixed: the
+  host's character for a new world joined without its starting items.
+- **Doors in free movement**: the client predicts the door its body opens (map only) and both sides
+  count the opening time in movement-frame durations (`actor_state::frame_wait_ms`), so the same
+  frames pass standing on both.
+- Open: eating/drinking itself not re-run (the test character had no food; a timed action that
+  ends was run: no corrections).
+
+## 0x. Night 2026-10-15/16 (Opus, Noah asleep): hosting hardened, tested end to end
 Noah's instruction: polish and fix bugs all night, quality over quantity (rule now in CLAUDE.md),
 morning report in Claude Docs ("CDDA Multiplayer – Morning Report 2026-10-16").
 - **The freeze after character creation (new world) was a crash**: `start_listen_view` called

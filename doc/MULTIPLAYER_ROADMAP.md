@@ -1,11 +1,12 @@
 # Multiplayer roadmap (to-do list for discussion)
 
-## STATUS (read this first; updated 2026-10-15 evening)
+## STATUS (read this first; updated 2026-10-16)
 Handoff for the next session: `MULTIPLAYER_HANDOFF.md` (section 0 is the newest); Gemini delegation: `CLAUDE.md`.
 Branches: `claude/fluid-proto` (the line; contains everything below since 2026-10-14 evening, `claude/fluid-bubbles` is the same history). Windows build run on `claude/fluid-proto` for Noah's testing: see `MULTIPLAYER_TESTING.md`.
 
 | Topic | State |
 |---|---|
+| **Noah's ten findings of the night build** (2026-10-16) | **Fixed and run in game** (handoff section 0): deterministic movement frames (walk corrections 60 -> 0), no submap resends for rot/temperature and partial map reloads (hitch 155 -> 45 ms), clicks/NPC actions no longer "not available", menu letters win over WASD, held keys do not leak into menus, direction prompts only with several targets, client overmap travel walks, preset/random/template characters, starting items for a new world's host character, doors predicted in frame time. Open: eating/drinking not re-run with real food. |
 | Hosting: one game window (no restart, server without window) + server terminal window (log, `config/debug_server.log`; closing saves and stops); new-world freeze (a crash) fixed | Done 2026-10-16 night; run end to end under Xvfb (host new/existing world, leave, host again, cancel, dedicated + join, two players); Windows-only parts by the Windows build |
 | Client menus (record/replay), missions/zones/map/chat/F4 list, driving, passengers, grab (furniture and vehicles), construction, downed/respawn, dedicated server, reconnect, compression | **Done, run in game** (see `MULTIPLAYER_OVERNIGHT_REPORT.md`) |
 | Dialogue side commands (look at/size up/assess/opinion/yell) | Done, run in game |
