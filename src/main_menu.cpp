@@ -1376,6 +1376,10 @@ bool main_menu::start_listen_view( const std::string &worldname )
         try {
             JsonValue jv = json_loader::from_string( created );
             you.deserialize( jv.get_object() );
+            // like a new game (game::start_game): the starting items, now that the world's
+            // calendar runs, from the raw inventory into worn containers
+            you.add_profession_items();
+            you.migrate_items_to_storage( true );
         } catch( const std::exception &err ) {
             debugmsg( "Error: %s", err.what() );
         }
