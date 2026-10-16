@@ -3477,11 +3477,12 @@ static void damage_self()
         i++;
     }
     smenu.query();
-    bodypart_id part;
-    int dbg_damage;
-    if( smenu.ret >= 0 && static_cast<std::size_t>( smenu.ret ) <= parts.size() ) {
-        part = parts[smenu.ret];
+    if( smenu.ret < 0 || static_cast<std::size_t>( smenu.ret ) >= parts.size() ) {
+        return;
     }
+    const bodypart_id part = parts[smenu.ret];
+    // (it was uninitialized: the input box started with a garbage number)
+    int dbg_damage = 0;
     if( query_int( dbg_damage, _( "Damage self for how much?  HP: %s" ), part.id().c_str() ) ) {
         player_character.apply_damage( nullptr, part, dbg_damage );
         if( player_character.is_dead_state() ) {
@@ -4123,6 +4124,11 @@ debug_where where_in_multiplayer( debug_menu_index a )
 std::optional<debug_menu_index> choose()
 {
     return debug_menu_uilist( hotkey_for_action( ACTION_DEBUG, -1, false ).has_value() );
+}
+
+std::optional<debug_menu_index> choose_all()
+{
+    return debug_menu_uilist( true );
 }
 
 void run( debug_menu_index action_index )

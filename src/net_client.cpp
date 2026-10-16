@@ -932,7 +932,8 @@ void run_npc_view()
 // the debug menu for testing: chosen here, run by the host for this body
 void client_debug_menu()
 {
-    const std::optional<debug_menu::debug_menu_index> dbg = debug_menu::choose();
+    // the player opened it on purpose (game menu): every entry, like with the debug key bound
+    const std::optional<debug_menu::debug_menu_index> dbg = debug_menu::choose_all();
     if( !dbg ) {
         return;
     }

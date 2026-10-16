@@ -145,6 +145,8 @@ void debug();
 void run( debug_menu_index action );
 /** The menu of debug entries without running one (multiplayer clients choose here). */
 std::optional<debug_menu_index> choose();
+/** The whole menu, also without a key bound to it (opened from the multiplayer game menu). */
+std::optional<debug_menu_index> choose_all();
 /** Where a multiplayer client's choice runs: on the server for its body, on its own screen, or not at all. */
 enum class debug_where : int { server, local, not_in_multiplayer };
 debug_where where_in_multiplayer( debug_menu_index action );
