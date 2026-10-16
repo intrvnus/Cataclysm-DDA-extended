@@ -86,6 +86,8 @@ bool console_stop_requested();
 void console_stop_done();
 /** This process is the host's own client (started with --mp-host). */
 bool listen_local();
+/** Why the last session ended by itself (the host left, the connection failed), once; else empty. */
+std::string take_session_end_notice();
 /** Forgets the client side of the last session (leaving, before hosting or joining again). */
 void client_reset();
 /** The server process this game started is still running (saving after the host left). */

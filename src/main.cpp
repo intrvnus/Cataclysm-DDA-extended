@@ -995,6 +995,11 @@ int main( int argc, const char *argv[] )
         net::listen_end();
         alerts::set_in_game( false );
         stations::reset();
+        // a session that ended by itself says why, now that a popup can wait for the player
+        const std::string notice = net::take_session_end_notice();
+        if( !notice.empty() ) {
+            popup( notice );
+        }
     }
 
     exit_handler( -999 );

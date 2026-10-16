@@ -124,6 +124,9 @@ struct client_state {
     bool in_main_input = false;
     bool menu_danger = false;
     int menu_hp_base = -1;
+    // the connection ended after joining (the host left, the server stopped or the network
+    // failed): the game goes back to the main menu
+    bool session_over = false;
     // the overmap tile the terrain around was last asked for
     tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
 };
@@ -132,6 +135,13 @@ client_state &cstate()
 {
     static client_state s;
     return s;
+}
+
+// why the last session ended by itself (shown in the main menu)
+std::string &session_end_notice()
+{
+    static std::string n;
+    return n;
 }
 
 tripoint_abs_ms read_pos( JsonArray ja )
@@ -1766,6 +1776,8 @@ void client_on_disconnect()
     // the host's own client: its server may still be loading the world
     if( !cs.connected ) {
         listen_connect_failed();
+    } else if( cs.welcomed ) {
+        cs.session_over = true;
     }
     cs.connected = false;
     cs.lost = true;
@@ -2145,6 +2157,17 @@ void client_place_shadow( int actor, const tripoint_abs_ms &tile )
 bool client_do_turn()
 {
     poll();
+    if( cstate().session_over ) {
+        // shown when the main menu is back (popups do not wait while a game runs)
+        session_end_notice() = _( "The game has ended: the host left, the server stopped or the connection "
+                                  "was lost.\n\nYour character is saved on the server." );
+        // what this player has seen stays with them for the next visit
+        get_avatar().save_map_memory();
+        shutdown();
+        // the next do_turn() ends the game without saving (like leaving)
+        g->uquit = QUIT_NOSAVED;
+        return false;
+    }
     mod_engine::tick();
     for( auto iter = music_heard().begin(); iter != music_heard().end(); ) {
         // the host stopped saying so: the music stops
@@ -2157,7 +2180,7 @@ bool client_do_turn()
     }
     {
         client_state &cs = cstate();
-        if( cs.fluid_on && cs.welcomed && cs.last_host_msg > 0 && !cs.host_wait_shown &&
+        if( cs.fluid_on && cs.welcomed && cs.connected && cs.last_host_msg > 0 && !cs.host_wait_shown &&
             fluid::now_ms() - cs.last_host_msg > 2000 ) {
             cs.host_wait_shown = true;
             add_msg( m_warning, _( "The world waits: the host is busy (probably in a menu)." ) );
@@ -2194,6 +2217,13 @@ bool client_do_turn()
     }
     poll();
     return false;
+}
+
+std::string take_session_end_notice()
+{
+    std::string n = std::move( session_end_notice() );
+    session_end_notice().clear();
+    return n;
 }
 
 void client_reset()
