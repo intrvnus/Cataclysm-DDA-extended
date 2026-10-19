@@ -1016,6 +1016,13 @@ Character::smash_result Character::smash( tripoint_bub_ms &smashp )
                           get_wielded_item()->attack_time( *this ) * 0.8;
     bool mech_smash = false;
     int smashskill = smash_ability();
+    if( fluid::enabled() ) {
+        // Multiplayer/realtime smash balance: furniture is meant to give way after one or two
+        // solid blows, not turn every bench into a wall.  Keep the native ability as a floor so
+        // a broken limb/enchantment value on the host body cannot zero it.
+        const int body_strength = std::max( str_cur, str_max );
+        smashskill = std::max( { smashskill, body_strength, 1 } ) * 5 / 2;
+    }
     ret.skill = smashskill;
     if( is_mounted() ) {
         mech_smash = true;

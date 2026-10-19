@@ -254,12 +254,16 @@ shows menus. Handled:
 * A remote player's host body can have a missing arm-limb modifier; if that makes its smash
   ability less than half of its body strength, smashing falls back to full body strength.  The
   fallback is applied again after the final enchantment step, which can zero a remote NPC body's
-  melee-damage value.  A strength-20 character can break an ordinary curtained window again.
+  melee-damage value.  In fluid/multiplayer, smash strength is then multiplied by 2.5 (with body
+  strength as a floor), so ordinary furniture takes a few solid hits rather than becoming
+  effectively indestructible.
 * Examine actions (e.g. "Pick a fern") use the same absolute target path.  Remote UI actions
   run with the player's own reality bubble swapped in, and harvest prompts use
   `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player
   rather than an NPC.
-* In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted entry.
+* In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted
+  entry.  `a` in the inventory/pickup UI switches to the previous submenu/column (contents,
+  wielded, worn, map), matching the WASD layout.
 * Vehicle phase 0: the host sends authoritative `in_vehicle` / `controlling_vehicle` / seat and
   vehicle pose state at 20 Hz, and immediately when either flag changes or the vehicle starts,
   stops or reverses.  The client clears stale drive input on ejection/unboarding and no longer

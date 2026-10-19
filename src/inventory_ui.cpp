@@ -3087,10 +3087,12 @@ inventory_input inventory_selector::get_input()
 {
     std::string action = ctxt.handle_input();
     int const ch = ctxt.get_raw_input().get_first_input();
-    // Regional inventory shortcut: Tab confirms the current selection (pick up, wield, ...)
-    // without adding a global binding, so Tab keeps its normal meaning outside menus.
+    // Regional inventory shortcuts.  Tab confirms; in the WASD layout `a` switches to the
+    // previous inventory submenu/column (contents, wielded, worn, map).
     if( ch == '\t' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
         action = "CONFIRM";
+    } else if( ch == 'a' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
+        action = "PREV_COLUMN";
     }
     return process_input( action, ch );
 }
