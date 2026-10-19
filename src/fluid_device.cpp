@@ -98,6 +98,8 @@ struct device_state {
     // bits that were pressed while a classic action ran: ignored until released
     unsigned suppressed = 0;
     unsigned before_action = 0;
+    // after a prompt/menu a key event from the UI must not leak into the first movement frame
+    ms_t movement_locked_until = 0;
     std::array<std::vector<int>, 8> move_keys;
     std::vector<int> cancel_keys;
     std::vector<int> primary_keys;
@@ -538,10 +540,11 @@ void classic_action_end()
     if( --classic_action_depth() == 0 ) {
         device_state &d = dev();
         const unsigned after = read_raw( d );
-        // A key held when the menu/action ends (including the direction that answered a prompt)
-        // must be released before it counts as movement again.  This also stops the character
-        // from jerking into the direction that confirmed an action.
-        d.suppressed |= after;
+        // A key pressed during the menu/action (including the direction that answered a prompt)
+        // must be released before it counts as movement again.  Keys already held before the
+        // action keep their meaning (e.g. holding W while toggling run).
+        d.suppressed |= after & ~d.before_action;
+        d.movement_locked_until = now_ms() + 120;
         resolver().reset();
     }
 }
@@ -584,6 +587,9 @@ bool poll_device( input_frame &out )
         // inventory.
         d.last_raw = raw;
         return false;
+    }
+    if( now_ms() < d.movement_locked_until ) {
+        raw &= ~0xFFu;
     }
     if( ( raw & bit_shove ) && !( d.last_raw & bit_shove ) ) {
         ++d.shove_presses;

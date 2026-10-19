@@ -1,6 +1,7 @@
 #include "action.h"
 
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <istream>
 #include <iterator>
@@ -43,6 +44,9 @@
 #include "output.h"
 #include "path_info.h"
 #include "point.h"
+#if defined( TILES )
+#include "sdl_wrappers.h"
+#endif
 #include "popup.h"
 #include "remote_ui.h"
 #include "ret_val.h"
@@ -1143,6 +1147,54 @@ std::optional<tripoint_rel_ms> choose_direction( const std::string &message,
     return choose_direction_impl( message, allow_vertical, allow_mouse, timeout, action_cb );
 }
 
+#if defined( TILES )
+// A direction prompt normally sees one key at a time.  A WASD diagonal is two keys held at
+// once, so look at the held cardinal keys when a direction comes in and combine them.
+static bool direction_key_is_down( const input_event &ev )
+{
+    if( ev.sequence.size() != 1 ) {
+        return false;
+    }
+    if( ev.type != input_event_t::keyboard_char && ev.type != input_event_t::keyboard_code ) {
+        return false;
+    }
+    const SDL_Scancode sc = SDL_GetScancodeFromKey( ev.sequence.front() );
+    if( sc == SDL_SCANCODE_UNKNOWN ) {
+        return false;
+    }
+    const Uint8 *keys = SDL_GetKeyboardState( nullptr );
+    return keys[sc] != 0;
+}
+
+static bool direction_action_is_down( const std::string &action )
+{
+    const std::vector<input_event> &events =
+        inp_mngr.get_input_for_action( action, "DEFAULTMODE" );
+    return std::any_of( events.begin(), events.end(), direction_key_is_down );
+}
+
+static std::optional<tripoint_rel_ms> held_direction_chord( const input_context &ctxt )
+{
+    static const std::array<action_id, 4> cardinals = {
+        ACTION_MOVE_FORTH, ACTION_MOVE_BACK, ACTION_MOVE_LEFT, ACTION_MOVE_RIGHT
+    };
+    tripoint_rel_ms held = tripoint_rel_ms::zero;
+    for( const action_id act : cardinals ) {
+        const std::string name = action_ident( act );
+        if( !direction_action_is_down( name ) ) {
+            continue;
+        }
+        if( const std::optional<tripoint_rel_ms> v = ctxt.get_direction_rel_ms( name ) ) {
+            held += *v;
+        }
+    }
+    if( held.x() == 0 || held.y() == 0 ) {
+        return std::nullopt;
+    }
+    return tripoint_rel_ms( held.x() > 0 ? 1 : -1, held.y() > 0 ? 1 : -1, 0 );
+}
+#endif
+
 static std::optional<tripoint_rel_ms> choose_direction_impl( const std::string &message,
         const bool allow_vertical, const bool allow_mouse, const int timeout,
         const std::function<std::pair<bool, std::optional<tripoint_rel_ms>>(
@@ -1183,6 +1235,13 @@ static std::optional<tripoint_rel_ms> choose_direction_impl( const std::string &
         ui_manager::redraw();
         action = ctxt.handle_input();
         if( std::optional<tripoint_rel_ms> vec = ctxt.get_direction_rel_ms( action ) ) {
+#if defined( TILES )
+            if( vec->x() == 0 || vec->y() == 0 ) {
+                if( const std::optional<tripoint_rel_ms> chord = held_direction_chord( ctxt ) ) {
+                    vec = chord;
+                }
+            }
+#endif
             FacingDirection &facing = get_player_character().facing;
             // Make player's sprite face left/right if interacting with something to the left or right
             if( vec->x() > 0 ) {
@@ -1331,9 +1390,10 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripo
         bool allow_vertical, bool allow_autoselect )
 {
     // Multiplayer: the tile is one answer, also when it was chosen without asking (a single
-    // valid tile): the host may see a different set of valid tiles.
+    // valid tile).  It travels in absolute coordinates: the host's body can be a little behind
+    // the client's prediction, so a body-relative direction can point at the wrong tile.
     if( remote_ui::replaying() ) {
-        const std::optional<std::string> given = remote_ui::answer( "p" );
+        const std::optional<std::string> given = remote_ui::answer( "A" );
         if( !given || *given == "-" ) {
             return std::nullopt;
         }
@@ -1342,7 +1402,11 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripo
         int y = 0;
         int z = 0;
         is >> x >> y >> z;
-        const tripoint_bub_ms result = pos + tripoint_rel_ms( x, y, z );
+        const tripoint_abs_ms absolute( x, y, z );
+        if( !here.inbounds( absolute ) ) {
+            return std::nullopt;
+        }
+        const tripoint_bub_ms result = here.get_bub( absolute );
         if( allowed && !allowed( result ) ) {
             return std::nullopt;
         }
@@ -1355,8 +1419,12 @@ std::optional<tripoint_bub_ms> choose_adjacent_highlight( map &here, const tripo
             result = choose_adjacent_highlight_impl( here, pos, message, failure_message, allowed,
                      allow_vertical, allow_autoselect );
         }
-        const tripoint_rel_ms rel = result ? *result - pos : tripoint_rel_ms();
-        remote_ui::record( "p", result ? string_format( "%d %d %d", rel.x(), rel.y(), rel.z() ) : "-" );
+        if( result ) {
+            const tripoint_abs_ms absolute = here.get_abs( *result );
+            remote_ui::record( "A", string_format( "%d %d %d", absolute.x(), absolute.y(), absolute.z() ) );
+        } else {
+            remote_ui::record( "A", "-" );
+        }
         return result;
     }
     return choose_adjacent_highlight_impl( here, pos, message, failure_message, allowed,

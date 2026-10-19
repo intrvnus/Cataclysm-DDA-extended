@@ -93,6 +93,7 @@
 #include "move_mode.h"
 #include "mtype.h"
 #include "mutation.h"
+#include "fluid.h"
 #include "net_session.h"
 #include "npc.h"
 #include "omdata.h"
@@ -6839,6 +6840,10 @@ int Character::get_stamina_max() const
     int max_stamina = get_option<int>( player_max_stamina ) +
                       get_option<int>( player_cardiofit_stamina_scale ) * get_cardiofit();
     max_stamina = enchantment_cache->modify_value( enchant_vals::mod::MAX_STAMINA, max_stamina );
+    // Realtime/fluid play: 50% larger pool.  Classic games keep the stock balance.
+    if( fluid::enabled() ) {
+        max_stamina = static_cast<int>( std::lround( max_stamina * 1.5 ) );
+    }
 
     return max_stamina;
 }
@@ -7058,7 +7063,8 @@ void Character::update_stamina( int turns )
     // do_turn.cpp, so its effort and the rest that balances it both count per world turn, as in
     // the classic game.  The real time regeneration would never catch up with it.)
     static const std::string player_base_stamina_regen_rate( "PLAYER_BASE_STAMINA_REGEN_RATE" );
-    const float base_regen_rate = get_option<float>( player_base_stamina_regen_rate );
+    const float base_regen_rate = get_option<float>( player_base_stamina_regen_rate ) *
+                                  ( fluid::enabled() ? 1.25f : 1.0f );
     // Your stamina regen rate works as a function of how fit you are compared to your body size.
     // This allows it to scale more quickly than your stamina, so that at higher fitness levels you
     // recover stamina faster.
@@ -7127,7 +7133,8 @@ void Character::update_stamina_realtime()
     // short pause, then a full bar takes about 20 s standing (faster crouched or lying down).
     // Cardio, mutations, stims and breathing still scale it like in the classic formula.
     constexpr int64_t regen_delay_ms = 1500;
-    constexpr double full_regen_seconds = 20.0;
+    // 16 s instead of 20 s: 25% faster refill for the realtime stamina bar.
+    constexpr double full_regen_seconds = 16.0;
     const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now().time_since_epoch() ).count();
     const int64_t since_last = stamina_regen_ms == 0 ? 0 : std::min<int64_t>( now - stamina_regen_ms,

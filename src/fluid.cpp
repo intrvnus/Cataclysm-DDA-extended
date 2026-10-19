@@ -1781,6 +1781,10 @@ int body_step_cost( const Character &who, const tripoint_abs_ms &from, const tri
     if( who.is_mounted() && who.mounted_creature ) {
         cost = cost * 100 / std::max( 1, who.mounted_creature->get_speed() );
     }
+    // Fluid locomotion: walking is 10% faster (running keeps its own speed).
+    if( !who.is_running() ) {
+        cost = cost * 100 / 110;
+    }
     return std::max( 1, cost );
 }
 
@@ -3675,6 +3679,11 @@ bool swallows( const std::string &action )
         case ACTION_THROW_WIELDED:
         case ACTION_FIRE:
             note_classic_action( act );
+            return true;
+        case ACTION_PAUSE:
+            // SPACE is FLUID_CANCEL (cancel a wind-up, drop aim, focus minigame).  If the
+            // classic loop handled it as wait, fluid input would be parked and the wind-up
+            // could not see the cancel.
             return true;
         case ACTION_CLICK_AND_DRAG:
             // a held mouse button: the device state already has it (aim / attack)

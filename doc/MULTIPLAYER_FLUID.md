@@ -229,8 +229,21 @@ shows menus. Handled:
 * Movement is at full speed immediately.  The first frame after standing still or closing a menu
   uses a normal frame length instead of a large catch-up step, and a one-frame gap between
   movement frames does not look like standing still.
+* Fluid walking is 10% faster than the native cost; running is unchanged.
+* Fluid/multiplayer stamina has a 1.5x maximum pool and 25% stronger regeneration (the realtime
+  bar refills in 16 s instead of 20 s).  Classic turn-based balance is untouched.
 * Closing a direction prompt or menu resets the movement resolver, so the direction key that
-  answered it cannot become a phantom tap.
+  answered it cannot become a phantom tap.  A short 120 ms movement lock also covers the first
+  UI frame; the client wraps its own prompts in the same classic-action scope as the host.
+* Direction prompts accept WASD diagonals by reading the held cardinal keys when the direction
+  arrives.
+* Walking/running mode switches no longer write "You start walking/running." to the log.
+* Melee wind-up is canceled by SPACE (FLUID_CANCEL) or the right mouse button.  SPACE is swallowed
+  from the classic loop so it cannot turn into a wait action first.
+* Adjacent target answers (smash, examine, open/close) travel in absolute coordinates, so a client
+  body that is one frame ahead of the host still targets the same tile.
+* Examine actions (e.g. "Pick a fern") use the same absolute target path.
+* In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted entry.
 * The camera follows the visual body only.  It never follows the mouse: moving the cursor does not
   pan or jitter the view.  `FLUID_CAMERA_LEAD` defaults off.
 

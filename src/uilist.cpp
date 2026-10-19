@@ -998,6 +998,9 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
         const input_event event = ctxt.get_raw_input();
         ret_evt = event;
         const auto iter = keymap.find( ret_evt );
+        // Tab confirms the highlighted entry in NPC/interaction lists.  A real entry hotkey
+        // still wins (the keymap is checked first); Tab is only a local menu shortcut here.
+        const bool tab_confirm = allow_confirm && event.get_first_input() == '\t';
         recalc_start = false;
 
         if( scrollby( scroll_amount_from_action( ret_act ) ) ) {
@@ -1037,7 +1040,8 @@ shared_ptr_fast<uilist_impl> uilist::query( bool loop, int timeout,
                     }
                 }
             }
-        } else if( allow_confirm && !fentries.empty() && ( clicked || ret_act == "CONFIRM" ) ) {
+        } else if( allow_confirm && !fentries.empty() && ( clicked || ret_act == "CONFIRM" ||
+                   tab_confirm ) ) {
             clicked = false;
             if( entries[ selected ].enabled || allow_disabled ) {
                 ret = entries[selected].retval;

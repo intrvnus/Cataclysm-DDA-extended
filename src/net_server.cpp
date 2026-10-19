@@ -110,6 +110,10 @@ namespace
 struct command {
     std::string action;
     point_rel_ms delta;
+    // open/close can name the tile in absolute coordinates: the client's body may be a tile
+    // ahead of the host's when the prompt answers.
+    tripoint_abs_ms where_abs;
+    bool has_where_abs = false;
 };
 
 struct remote_player {
@@ -1529,7 +1533,8 @@ void execute( npc &guy, const command &cmd )
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
     } else if( cmd.action == "open" ) {
-        const tripoint_bub_ms where = guy.pos_bub( here ) + cmd.delta;
+        const tripoint_bub_ms where = cmd.has_where_abs && here.inbounds( cmd.where_abs ) ?
+                                      here.get_bub( cmd.where_abs ) : guy.pos_bub( here ) + cmd.delta;
         if( here.open_door( guy, where, !here.is_outside( guy.pos_bub( here ) ) ) ) {
             guy.mod_moves( -100 );
         } else if( remote_player *rp = find_client( guy.getID() ) ) {
@@ -1538,7 +1543,9 @@ void execute( npc &guy, const command &cmd )
     } else if( cmd.action == "close" ) {
         // closing costs moves and says why it fails (to the body: see send_text below)
         const int moves_before = guy.get_moves();
-        doors::close_door( here, guy, guy.pos_bub( here ) + cmd.delta );
+        const tripoint_bub_ms where = cmd.has_where_abs && here.inbounds( cmd.where_abs ) ?
+                                      here.get_bub( cmd.where_abs ) : guy.pos_bub( here ) + cmd.delta;
+        doors::close_door( here, guy, where );
         if( guy.get_moves() == moves_before ) {
             if( remote_player *rp = find_client( guy.getID() ) ) {
                 send_text( *rp, _( "You can't close that." ) );
@@ -1781,12 +1788,27 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 other->reorder_worn( order );
             }
         } else if( what == "grab" ) {
-            std::istringstream is( remote_ui::answer( "p" ).value_or( "-" ) );
-            int x = 0;
-            int y = 0;
-            int z = 0;
-            if( is >> x >> y >> z ) {
-                fluid::body_grab( guy, tripoint_rel_ms( x, y, 0 ) );
+            if( remote_ui::next_is( "A" ) ) {
+                std::istringstream is( remote_ui::answer( "A" ).value_or( "-" ) );
+                int x = 0;
+                int y = 0;
+                int z = 0;
+                if( is >> x >> y >> z ) {
+                    map &here = get_map();
+                    const tripoint_abs_ms absolute( x, y, z );
+                    if( here.inbounds( absolute ) ) {
+                        const tripoint_rel_ms rel = here.get_bub( absolute ) - guy.pos_bub( here );
+                        fluid::body_grab( guy, rel );
+                    }
+                }
+            } else {
+                std::istringstream is( remote_ui::answer( "p" ).value_or( "-" ) );
+                int x = 0;
+                int y = 0;
+                int z = 0;
+                if( is >> x >> y >> z ) {
+                    fluid::body_grab( guy, tripoint_rel_ms( x, y, 0 ) );
+                }
             }
         } else if( what == "control_vehicle" ) {
             g->mp_control_vehicle();
@@ -2865,6 +2887,11 @@ void server_on_message( ENetPeer *peer, const JsonObject &msg )
         }
         cmd.delta = point_rel_ms( std::clamp( msg.get_int( "dx", 0 ), -1, 1 ),
                                   std::clamp( msg.get_int( "dy", 0 ), -1, 1 ) );
+        if( msg.has_member( "ax" ) && msg.has_member( "ay" ) && msg.has_member( "az" ) ) {
+            cmd.where_abs = tripoint_abs_ms( msg.get_int( "ax" ), msg.get_int( "ay" ),
+                                            msg.get_int( "az" ) );
+            cmd.has_where_abs = true;
+        }
         // Holding a key down must not build up a long queue of old commands.
         if( rp->commands.size() < 2 ) {
             rp->commands.push_back( cmd );

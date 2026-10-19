@@ -1289,7 +1289,12 @@ void avatar::set_movement_mode( const move_mode_id &new_mode )
         if( is_hauling() && new_mode->stop_hauling() ) {
             stop_hauling();
         }
-        add_msg( new_mode->change_message( true, get_steed_type() ) );
+        // Do not spam the log with "You start walking/running." on every mode switch.  Other
+        // modes (crouch/prone) and mounted/mech messages keep their feedback.
+        if( get_steed_type() != steed_type::NONE ||
+            ( new_mode != move_mode_walk && new_mode != move_mode_run ) ) {
+            add_msg( new_mode->change_message( true, get_steed_type() ) );
+        }
         move_mode = new_mode;
         // Enchantments based on move modes can stack inappropriately without a recalc here
         recalculate_enchantment_cache();

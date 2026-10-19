@@ -201,6 +201,17 @@ void send_action( const std::string &action, const point_rel_ms &delta = point_r
     } ) );
 }
 
+void send_action_at( const std::string &action, const tripoint_abs_ms &where )
+{
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "act" );
+        jo.member( "a", action );
+        jo.member( "ax", where.x() );
+        jo.member( "ay", where.y() );
+        jo.member( "az", where.z() );
+    } ) );
+}
+
 // Moves the avatar of this client to where its NPC is on the host.
 void place_avatar( const tripoint_abs_ms &p )
 {
@@ -607,8 +618,7 @@ void send_door( const std::string &what )
     if( !where ) {
         return;
     }
-    const tripoint_rel_ms d = *where - get_avatar().pos_bub();
-    send_action( what, d.xy() );
+    send_action_at( what, get_map().get_abs( *where ) );
 }
 
 void send_drop( const drop_locations &what )
@@ -1096,6 +1106,22 @@ bool handle_input()
         // an unbound key (e.g. Shift + a movement key while sprinting): nothing to say
         return false;
     }
+    // The client runs many prompts and menus itself (open/close, examine, smash, inventory)
+    // before sending the answer to the host.  Park fluid movement for that whole time, exactly
+    // like game::handle_action does on the host/solo side.
+    struct fluid_client_scope {
+        bool on;
+        explicit fluid_client_scope( bool on ) : on( on ) {
+            if( on ) {
+                fluid::classic_action_begin();
+            }
+        }
+        ~fluid_client_scope() {
+            if( on ) {
+                fluid::classic_action_end();
+            }
+        }
+    } fluid_scope( fluid::enabled() );
     // the action menu picks another action: that one is then done here
     for( ;; ) {
     switch( act ) {
