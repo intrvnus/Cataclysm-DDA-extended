@@ -3811,6 +3811,10 @@ int Character::smash_ability() const
         ret = std::min( best_part.second + min_ret, max_ret );
     }
     ret = calculate_by_enchantment( ret, enchant_vals::mod::MELEE_DAMAGE, true );
+    if( body_str > 0 && ret < std::max( 1, body_str / 2 ) ) {
+        // An uninitialized enchantment cache on a remote NPC body can zero this at the last step.
+        ret = body_str;
+    }
 
     return ret;
 }
