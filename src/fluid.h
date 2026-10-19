@@ -502,6 +502,24 @@ struct melee_view {
 };
 const melee_view &local_melee_view();
 
+/** A short curved bar next to the local player showing the current combat timing. */
+enum class combat_bar_kind : int {
+    none = 0,
+    windup,
+    recovery,
+    shot,
+    other
+};
+
+struct combat_bar_view {
+    bool active = false;
+    combat_bar_kind kind = combat_bar_kind::none;
+    // start of this phase, and its length in ms
+    ms_t started = 0;
+    int total_ms = 0;
+};
+const combat_bar_view &local_combat_bar();
+
 // ---------------------------------------------------------------------------------------
 // the network (see fluid_net notes in doc/MULTIPLAYER_FLUID.md)
 

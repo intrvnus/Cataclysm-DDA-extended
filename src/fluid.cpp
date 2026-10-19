@@ -376,6 +376,26 @@ melee_view &melee_view_rw()
     return v;
 }
 
+combat_bar_view &combat_bar_rw()
+{
+    static combat_bar_view v;
+    return v;
+}
+
+void start_combat_bar( combat_bar_kind kind, ms_t started, int total_ms )
+{
+    combat_bar_view &v = combat_bar_rw();
+    v.active = true;
+    v.kind = kind;
+    v.started = started;
+    v.total_ms = std::max( 1, total_ms );
+}
+
+void stop_combat_bar()
+{
+    combat_bar_rw().active = false;
+}
+
 // Client side prediction of the own step, drawn before the host confirmed it.
 struct prediction {
     bool active = false;
@@ -398,6 +418,9 @@ struct client_info {
     ms_t confirmed_end = 0;
     // the own body is in a melee swing until then: movement continues, sprint does not
     ms_t melee_until = 0;
+    // the last swing's timing, for the recovery part of the combat bar
+    int swing_windup_ms = 0;
+    int swing_total_ms = 0;
     int last_step_ms = 0;
     ms_t last_send = 0;
     bool aiming = false;
@@ -1013,6 +1036,9 @@ int fire_at_cursor( Character &who, actor_state &st, ms_t now, std::vector<event
     }
     const tuning &tn = tune();
     const int duration = std::max( tn.fire_min_ms, moves_to_ms( who, charged ) );
+    if( who.is_avatar() ) {
+        start_combat_bar( combat_bar_kind::shot, now, duration );
+    }
     if( trace_enabled() ) {
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace shot id=" << who.getID().get_value() <<
                                    " t=" << now << " at=" << pos.x() << "," << pos.y() <<
@@ -1102,6 +1128,9 @@ void cancel_swing( Character &who, actor_state &st, ms_t now, std::vector<event>
     const ms_t remaining = std::max<ms_t>( 0, st.phase_end - now );
     st.melee = phase::idle;
     st.ready_at = now + static_cast<ms_t>( remaining * tn.cancel_cost );
+    if( who.is_avatar() ) {
+        stop_combat_bar();
+    }
     clear_actor_lunge( who.getID().get_value() );
     event ev;
     ev.type = fx_type::cancel;
@@ -1134,6 +1163,9 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     st.melee_windup_ms = windup;
     st.phase_end = t0 + windup;
     st.ready_at = t0 + total;
+    if( who.is_avatar() ) {
+        start_combat_bar( combat_bar_kind::windup, t0, windup );
+    }
     st.strike_dx = dx;
     st.strike_dy = dy;
     st.face_dx = dx;
@@ -1405,6 +1437,9 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
     st.melee = phase::recovery;
     st.phase_end = now + recovery;
     st.ready_at = st.phase_end;
+    if( who.is_avatar() ) {
+        start_combat_bar( combat_bar_kind::recovery, now, recovery );
+    }
 
     event ev;
     ev.type = fx_type::strike;
@@ -2774,6 +2809,11 @@ const melee_view &local_melee_view()
     return melee_view_rw();
 }
 
+const combat_bar_view &local_combat_bar()
+{
+    return combat_bar_rw();
+}
+
 // ---------------------------------------------------------------------------------------
 // states
 
@@ -2978,6 +3018,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             const int dur = shove( who, st, sd.first, sd.second, t0, out );
             if( dur > 0 ) {
                 st.ready_at = t0 + dur;
+                if( who.is_avatar() ) {
+                    start_combat_bar( combat_bar_kind::other, t0, dur );
+                }
                 // a shove commits the body: no walking away from it
                 st.root_until = st.ready_at;
                 started = true;
@@ -2988,6 +3031,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             const int dur = throw_at_cursor( who, in, now, out );
             if( dur > 0 ) {
                 st.ready_at = t0 + dur;
+                if( who.is_avatar() ) {
+                    start_combat_bar( combat_bar_kind::other, t0, dur );
+                }
                 // a throw commits the body until the item has left the hand
                 st.root_until = st.ready_at;
                 started = true;
@@ -3114,6 +3160,7 @@ void reset_session()
     tracer_list().clear();
     aim_view_rw() = aim_view();
     melee_view_rw() = melee_view();
+    combat_bar_rw() = combat_bar_view();
     pred() = prediction();
     cinfo() = client_info();
     lead_state() = camera_lead_state();
@@ -4122,15 +4169,28 @@ void client_event( const event &ev, ms_t arrival, bool mine )
         case fx_type::swing:
             // a swing does not stop the body: the step prediction stays valid
             ci.melee_until = arrival + ev.dur_ms;
+            ci.swing_windup_ms = ev.windup_ms;
+            ci.swing_total_ms = ev.dur_ms;
+            start_combat_bar( combat_bar_kind::windup, arrival, ev.windup_ms );
             apply_visual_event( ev, arrival );
             break;
         case fx_type::cancel:
             ci.melee_until = arrival;
+            stop_combat_bar();
             apply_visual_event( ev, arrival );
             break;
         case fx_type::shot:
+            start_combat_bar( combat_bar_kind::shot, arrival, ev.dur_ms );
             break;
-        case fx_type::strike:
+        case fx_type::strike: {
+            int recovery = std::max( 40, ci.swing_total_ms - ci.swing_windup_ms );
+            if( !ev.hit ) {
+                recovery = std::max( 40, recovery * 3 / 5 );
+            }
+            start_combat_bar( combat_bar_kind::recovery, arrival, recovery );
+            apply_visual_event( ev, arrival );
+            break;
+        }
         case fx_type::tracer:
         case fx_type::aimline:
         case fx_type::boom:

@@ -227,6 +227,9 @@ shows menus. Handled:
 * Reloading is not cancelled by walking in free movement (not while running).
 * Attacks do not root the body: a melee wind-up/recovery or a shot cooldown still lets the player
   walk (a melee swing walks only, see Melee); shove and throw still commit the body.
+* Combat timing bar: a small tapered curved bar above the local player follows the body and shows
+  wind-up (gold), recovery (blue), shot cooldown (cyan) or a shove/throw (orange).  The filled part
+  and the bright dot at its end show exact progress.
 * Ranged monsters: acid/sap spitters, boomers, shockstorm, metal pull and gun monsters without a targeting delay aim for 0.8 s at a player before their attack (`fluid::ranged_windup_ready()`); a red aim line is drawn (event type `"aimline"`). Turrets' existing ~2 s targeting delay draws the same line.
 * Explosions: in fluid mode a 350 ms growing, fading flash replaces the blocking explosion animation (`fluid::note_explosion()`, event type `"boom"`).
 * New event types are appended to `fx_type` in `fluid.h`: `tracer`, `aimline`, `boom`.

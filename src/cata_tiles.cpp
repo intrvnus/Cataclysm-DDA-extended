@@ -2294,6 +2294,98 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderFillRect( r, &fill );
     }
 
+    // a small curved combat bar next to the local player: wind-up, recovery, shot cooldown
+    const fluid::combat_bar_view &cb = fluid::local_combat_bar();
+    const fluid::ms_t bar_now = fluid::now_ms();
+    if( cb.active && cb.total_ms > 0 && bar_now < cb.started + cb.total_ms ) {
+        const avatar &u = get_avatar();
+        const tripoint_abs_ms at_abs = u.pos_abs();
+        const fluid::offset so = fluid::sprite_offset( at_abs );
+        const point at = to_screen( at_abs.x() + so.x, at_abs.y() + so.y, at_abs.z() );
+        const double cx = at.x + tile_width * 0.5;
+        const double cy = at.y + tile_height * 0.40;
+        const double radius = tile_width * 0.56;
+        const double t = std::clamp( static_cast<double>( bar_now - cb.started ) /
+                       std::max( 1, cb.total_ms ), 0.0, 1.0 );
+        const double a0 = M_PI * 1.08;
+        const double a1 = M_PI * 1.92;
+        const auto bar_vertex = []( double x, double y, SDL_Color c ) {
+            SDL_Vertex v;
+            v.position = { static_cast<float>( x ), static_cast<float>( y ) };
+            v.color = c;
+            v.tex_coord = { 0.0f, 0.0f };
+            return v;
+        };
+        const auto swoosh = [&]( double from, double to, double w0, double w1, SDL_Color c ) {
+            constexpr int segs = 24;
+            std::vector<SDL_Vertex> verts;
+            verts.reserve( segs * 6 );
+            for( int i = 0; i < segs; ++i ) {
+                const double f0 = static_cast<double>( i ) / segs;
+                const double f1 = static_cast<double>( i + 1 ) / segs;
+                const double aa = from + ( to - from ) * f0;
+                const double ab = from + ( to - from ) * f1;
+                const double wa = w0 + ( w1 - w0 ) * f0;
+                const double wb = w0 + ( w1 - w0 ) * f1;
+                const double ia_x = cx + std::cos( aa ) * ( radius - wa * 0.5 );
+                const double ia_y = cy + std::sin( aa ) * ( radius - wa * 0.5 );
+                const double oa_x = cx + std::cos( aa ) * ( radius + wa * 0.5 );
+                const double oa_y = cy + std::sin( aa ) * ( radius + wa * 0.5 );
+                const double ib_x = cx + std::cos( ab ) * ( radius - wb * 0.5 );
+                const double ib_y = cy + std::sin( ab ) * ( radius - wb * 0.5 );
+                const double ob_x = cx + std::cos( ab ) * ( radius + wb * 0.5 );
+                const double ob_y = cy + std::sin( ab ) * ( radius + wb * 0.5 );
+                verts.push_back( bar_vertex( ia_x, ia_y, c ) );
+                verts.push_back( bar_vertex( oa_x, oa_y, c ) );
+                verts.push_back( bar_vertex( ob_x, ob_y, c ) );
+                verts.push_back( bar_vertex( ia_x, ia_y, c ) );
+                verts.push_back( bar_vertex( ob_x, ob_y, c ) );
+                verts.push_back( bar_vertex( ib_x, ib_y, c ) );
+            }
+            SDL_RenderGeometry( r, nullptr, verts.data(), static_cast<int>( verts.size() ),
+                                nullptr, 0 );
+        };
+
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+        // the dark track, then the bright part that has already passed
+        swoosh( a0, a1, tile_width * 0.15, tile_width * 0.15, { 8, 8, 10, 150 } );
+        SDL_Color bar_color = { 255, 210, 105, 235 };
+        switch( cb.kind ) {
+            case fluid::combat_bar_kind::recovery:
+                bar_color = { 135, 195, 255, 225 };
+                break;
+            case fluid::combat_bar_kind::shot:
+                bar_color = { 120, 235, 255, 230 };
+                break;
+            case fluid::combat_bar_kind::other:
+                bar_color = { 255, 160, 80, 230 };
+                break;
+            case fluid::combat_bar_kind::windup:
+            case fluid::combat_bar_kind::none:
+                break;
+        }
+        swoosh( a0, a0 + ( a1 - a0 ) * t, tile_width * 0.11, tile_width * 0.035, bar_color );
+
+        // a bright dot marks the exact progress point
+        const double tip_a = a0 + ( a1 - a0 ) * t;
+        const double tip_x = cx + std::cos( tip_a ) * radius;
+        const double tip_y = cy + std::sin( tip_a ) * radius;
+        const double tip_r = tile_width * 0.055;
+        std::vector<SDL_Vertex> dot;
+        constexpr int dot_segs = 12;
+        for( int i = 0; i < dot_segs; ++i ) {
+            const double d0 = 2.0 * M_PI * i / dot_segs;
+            const double d1 = 2.0 * M_PI * ( i + 1 ) / dot_segs;
+            dot.push_back( bar_vertex( tip_x, tip_y, { 255, 255, 255, 240 } ) );
+            dot.push_back( bar_vertex( tip_x + std::cos( d0 ) * tip_r,
+                                       tip_y + std::sin( d0 ) * tip_r, { 255, 255, 255, 200 } ) );
+            dot.push_back( bar_vertex( tip_x + std::cos( d1 ) * tip_r,
+                                       tip_y + std::sin( d1 ) * tip_r, { 255, 255, 255, 200 } ) );
+        }
+        SDL_RenderGeometry( r, nullptr, dot.data(), static_cast<int>( dot.size() ), nullptr, 0 );
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
+    }
+
     // creatures that were just hit flash white
     for( const std::pair<tripoint_abs_ms, double> &flash : fluid::hit_flashes() ) {
         const fluid::offset so = fluid::sprite_offset( flash.first );
