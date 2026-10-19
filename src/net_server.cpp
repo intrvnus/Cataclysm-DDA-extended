@@ -1541,7 +1541,14 @@ void execute( npc &guy, const command &cmd )
     } else if( cmd.action == "smash_at" ) {
         if( cmd.has_where_abs && here.inbounds( cmd.where_abs ) ) {
             tripoint_bub_ms where = here.get_bub( cmd.where_abs );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: smash_at " << guy.get_name() <<
+                                       " tile " << where.to_string() << " terrain " <<
+                                       here.ter( where ).id().str() << " arm_str " << guy.get_arm_str() <<
+                                       " smash_ability " << guy.smash_ability();
             const Character::smash_result res = guy.smash( where );
+            DebugLog( D_INFO, D_MAIN ) << "Multiplayer: smash_at result did=" << res.did_smash <<
+                                       " success=" << res.success << " skill=" << res.skill <<
+                                       " resistance=" << res.resistance;
             if( res.did_smash && !res.success && res.resistance > 0 && res.skill >= res.resistance ) {
                 // Same follow-up as the local "Keep smashing?" prompt, without a host popup.
                 guy.assign_activity( bash_activity_actor( where ) );

@@ -1118,8 +1118,11 @@ Character::smash_result Character::smash( tripoint_bub_ms &smashp )
     // Boarded/reinforced windows (bash strength above 12) still need their full strength.
     if( here.has_flag( ter_furn_flag::TFLAG_WINDOW, smashp ) ) {
         const int glass_strength = here.bash_strength( smashp );
-        if( glass_strength > 0 && glass_strength <= 12 &&
-            smashskill >= here.bash_resistance( smashp ) ) {
+        const int body_strength = std::max( str_cur, str_max );
+        // Ordinary glass is not gated by the host body's arm modifier/enchantment value; any
+        // character with at least the glass's minimum strength can shatter it.
+        if( glass_strength > 0 && glass_strength <= 12 && body_strength > 0 &&
+            body_strength >= here.bash_resistance( smashp ) ) {
             smashskill = std::max( smashskill, glass_strength );
             ret.skill = smashskill;
         }
