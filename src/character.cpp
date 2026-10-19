@@ -3786,6 +3786,15 @@ std::pair<bodypart_id, int> Character::best_part_to_smash() const
 int Character::smash_ability() const
 {
     int ret = get_arm_str();
+    // Remote player bodies can be NPCs whose limb scores are not the same as the player's local
+    // copy.  Do not turn a strength-20 character into a zero-strength smasher just because the
+    // arm-limb modifier is missing on the host body.
+    const int body_str = std::max( str_cur, str_max );
+    if( body_str > 0 && ret < std::max( 1, body_str / 2 ) ) {
+        // A missing/zero limb modifier (common on a remote player's host body) must not reduce a
+        // strength-20 character to a zero-strength smasher.
+        ret = body_str;
+    }
     ///\EFFECT_STR increases smashing capability
     if( is_mounted() ) {
         auto *mon = mounted_creature.get();
