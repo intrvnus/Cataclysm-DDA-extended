@@ -2113,6 +2113,31 @@ bool body_door_opened( const actor_state &st, const input_frame &in )
     return here.inbounds( ahead ) && here.passable( here.get_bub( ahead ) ) && !here.veh_at( here.get_bub( ahead ) );
 }
 
+// A short acceleration when the body starts moving: the sprite/camera do not jerk into the
+// direction on the first frame, while the native move cost still decides the final speed.
+constexpr double move_ramp_ms = 90.0;
+
+double move_ramp( const actor_state &st, ms_t now )
+{
+    if( st.move_started == 0 ) {
+        return 1.0;
+    }
+    return std::clamp( static_cast<double>( now - st.move_started ) / move_ramp_ms, 0.25, 1.0 );
+}
+
+void note_move_input( actor_state &st, bool moving, ms_t now )
+{
+    if( !moving ) {
+        st.move_started = 0;
+        st.was_moving = false;
+        return;
+    }
+    if( !st.was_moving ) {
+        st.move_started = now;
+        st.was_moving = true;
+    }
+}
+
 // One frame of free movement in the held direction for @p dt ms.  Returns true if the body
 // moved; if it could not move at all, pushing into the tile ahead does what a tile step into it
 // does (attack, open a door, talk, squeeze through a diagonal gap, enter a harmful tile).
@@ -2162,7 +2187,8 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     // a dodge dashes: three times the distance while its dash time lasts (frame time)
     const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
     st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
-    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
+    const double ramp = dash > 0.0 ? 1.0 : move_ramp( st, now );
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile * ramp;
     const double start_x = st.body_x;
     const double start_y = st.body_y;
     std::vector<int> cells;
@@ -2768,9 +2794,8 @@ offset camera_offset()
         o.y = f.y - ( at.y() + 0.5 );
         camera_follow_gap = std::abs( wx - f.x ) + std::abs( wy - f.y );
     }
-    const offset lead = camera_lead_at( now );
-    o.x += lead.x;
-    o.y += lead.y;
+    // The camera is deliberately independent of the mouse: moving the cursor must not pan the
+    // screen (Noah 2026-10-16).  Aiming uses the cursor, the view stays on the body.
     return o;
 }
 
@@ -2789,12 +2814,6 @@ bool animating()
     }
     if( camera_follow_gap > 0.003 ) {
         return true;
-    }
-    // the camera is still catching up with the cursor
-    if( smooth_camera() ) {
-        const camera_lead_state &cs = lead_state();
-        const offset target = camera_lead_target( now_ms() );
-        return std::abs( target.x - cs.x ) > 0.003 || std::abs( target.y - cs.y ) > 0.003;
     }
     return false;
 }
@@ -2881,14 +2900,19 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     }
     const tuning &tn = tune();
     const bool free = free_movement();
-    const int body_dt = free ? body_sync( who, st, now ) : 0;
-    st.body_moving = false;
     // the body's free movement this frame: a remote player's frames one by one (each with its
     // own direction and duration, like the client predicted them), else the frame time
     const bool wants_move = moves != nullptr ? std::any_of( moves->begin(), moves->end(),
     []( const move_frame & f ) {
         return f.move_x != 0 || f.move_y != 0;
     } ) : ( in.move_x != 0 || in.move_y != 0 );
+    // starting after standing/menus: a normal frame's worth of time, then the short ramp below
+    if( free && wants_move && !st.was_moving ) {
+        st.body_last = now - tn.frame_ms;
+    }
+    note_move_input( st, wants_move, now );
+    const int body_dt = free ? body_sync( who, st, now ) : 0;
+    st.body_moving = false;
     const auto move_body = [&]() {
         if( moves == nullptr ) {
             return free_move( who, st, in, body_dt, now, out );
@@ -3847,7 +3871,8 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     // a dodge dashes: three times the distance while its dash time lasts (frame time)
     const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
     st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
-    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
+    const double ramp = dash > 0.0 ? 1.0 : move_ramp( st, now_ms() );
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile * ramp;
     std::vector<int> cells;
     while( left > 1e-9 ) {
         const double step = std::min( left, tn.max_substep );
@@ -3973,6 +3998,7 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     avatar &u = get_avatar();
     const tripoint_abs_ms tile = u.pos_abs();
     actor_state &st = fc.st;
+    note_move_input( st, in.move_x != 0 || in.move_y != 0, now );
     if( !st.body_valid || st.body_tile.z() != tile.z() ||
         std::abs( st.body_x - ( tile.x() + 0.5 ) ) > 2.5 || std::abs( st.body_y - ( tile.y() + 0.5 ) ) > 2.5 ) {
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );

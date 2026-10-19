@@ -201,7 +201,9 @@ shows menus. Handled:
   from the active bindings. Classic key *events* for movement/mouse actions are swallowed in
   `handle_mouseview` (`fluid::swallows`), so they cannot double-move.
 * A key that confirmed a menu would otherwise count as movement afterwards. `classic_action_begin/end`
-  records bits pressed during a classic action and suppresses them until released.
+  parks fluid input completely while a classic action, menu or direction prompt is open, and
+  suppresses every key held when it closes until it is released.  WASD therefore cannot move the
+  body behind an inventory screen or a "Close where?" prompt.
 * Vehicle driving falls back to classic input (`controlling_vehicle`), also dead/watch states.
 * The tiles build only (`fluid_device.cpp` has curses stubs; `enabled()` is false there).
 
@@ -216,6 +218,13 @@ shows menus. Handled:
    "inventory is free" rule only if you want the host to be safe.
 2. Click-to-travel (`ACTION_SELECT` on a far tile) is disabled in fluid mode (swallowed).
 3. Iso tilesets: cursor and camera are disabled.
+
+### Movement feel (2026-10-20)
+
+* A move starts with a short 90 ms speed ramp, and the first frame after standing still or closing
+  a menu uses a normal frame length instead of a large catch-up step.
+* The camera follows the visual body only.  It never follows the mouse: moving the cursor does not
+  pan or jitter the view.  `FLUID_CAMERA_LEAD` defaults off.
 
 ### Combat feel and telegraphs (2026-10-15)
 

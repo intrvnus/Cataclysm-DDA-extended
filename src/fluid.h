@@ -226,6 +226,9 @@ struct actor_state {
     tripoint_abs_ms body_tile;
     ms_t body_last = 0;
     bool body_moving = false;
+    // the first movement frame since standing still: a short ramp avoids a jerk at the start
+    ms_t move_started = 0;
+    bool was_moving = false;
     // when movement was last asked for (aim gets worse while moving)
     ms_t moved_at = -100000;
     // a visual correction that fades out over corr_ms (moves the game made itself: a bump into

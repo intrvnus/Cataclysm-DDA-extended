@@ -113,6 +113,19 @@ device_state &dev()
     return d;
 }
 
+// A classic action may open a menu or a direction prompt: fluid input is completely parked until it
+// returns.  Nested classic actions (a direction prompt inside an action) keep the outermost start.
+int &classic_action_depth()
+{
+    static int depth = 0;
+    return depth;
+}
+
+bool classic_action_active()
+{
+    return classic_action_depth() > 0;
+}
+
 const action_id move_actions[8] = {
     ACTION_MOVE_FORTH, ACTION_MOVE_FORTH_RIGHT, ACTION_MOVE_RIGHT, ACTION_MOVE_BACK_RIGHT,
     ACTION_MOVE_BACK, ACTION_MOVE_BACK_LEFT, ACTION_MOVE_LEFT, ACTION_MOVE_FORTH_LEFT
@@ -491,18 +504,26 @@ void note_classic_action( int action )
 
 void classic_action_begin()
 {
-    device_state &d = dev();
-    refresh_bindings( d, now_ms() );
-    d.before_action = read_raw( d );
+    if( classic_action_depth()++ == 0 ) {
+        device_state &d = dev();
+        refresh_bindings( d, now_ms() );
+        d.before_action = read_raw( d );
+    }
 }
 
 void classic_action_end()
 {
-    device_state &d = dev();
-    const unsigned after = read_raw( d );
-    // whatever was pressed during the action (e.g. the key that confirmed a menu) must be
-    // released before it counts as movement again
-    d.suppressed |= after & ~d.before_action;
+    if( classic_action_depth() == 0 ) {
+        return;
+    }
+    if( --classic_action_depth() == 0 ) {
+        device_state &d = dev();
+        const unsigned after = read_raw( d );
+        // A key held when the menu/action ends (including the direction that answered a prompt)
+        // must be released before it counts as movement again.  This also stops the character
+        // from jerking into the direction that confirmed an action.
+        d.suppressed |= after;
+    }
 }
 
 bool device_key( int key )
@@ -537,6 +558,13 @@ bool poll_device( input_frame &out )
     // a suppressed bit stays suppressed until it was seen released
     d.suppressed &= raw;
     raw &= ~d.suppressed;
+    if( classic_action_active() ) {
+        // A menu or direction prompt owns the keyboard and mouse now.  Parking the whole fluid
+        // frame also stops a held WASD key from moving the character behind the prompt or
+        // inventory.
+        d.last_raw = raw;
+        return false;
+    }
     if( ( raw & bit_shove ) && !( d.last_raw & bit_shove ) ) {
         ++d.shove_presses;
     }

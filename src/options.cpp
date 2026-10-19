@@ -1704,8 +1704,10 @@ void options_manager::add_options_general()
         get_option( "FLUID_SMOOTH_CAMERA" ).setPrerequisite( "FLUID_MODE" );
 
         add( "FLUID_CAMERA_LEAD", page_id, to_translation( "Fluid mode: camera leads toward the cursor" ),
-             to_translation( "If true, the view shifts a little toward the mouse cursor, smoothly, so that you see more of where you are aiming.  Needs the smooth camera." ),
-             true
+             to_translation( "If true, the view shifts a little toward the mouse cursor, smoothly, so "
+                             "that you see more of where you are aiming.  Needs the smooth camera.  "
+                             "Off by default: moving the mouse should not move the screen." ),
+             false
            );
         get_option( "FLUID_CAMERA_LEAD" ).setPrerequisite( "FLUID_SMOOTH_CAMERA" );
 
