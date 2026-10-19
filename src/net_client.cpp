@@ -616,6 +616,20 @@ void send_craft( bool is_long )
     } ) );
 }
 
+// Smash: choose the tile here, then let the host perform the bash on that exact tile.  This does
+// not run `smash_menu` locally, so the client never shows a broken window that the host did not
+// actually damage (and the answer cannot get out of step with a host-side menu).
+void send_smash()
+{
+    map &here = get_map();
+    const std::optional<tripoint_bub_ms> where = choose_adjacent_highlight( here,
+            _( "Smash where?" ), _( "There is nothing to smash nearby." ), ACTION_SMASH, false );
+    if( !where ) {
+        return;
+    }
+    send_action_at( "smash_at", here.get_abs( *where ) );
+}
+
 // Open / close: the direction is chosen here.
 void send_door( const std::string &what )
 {
@@ -1545,9 +1559,7 @@ bool handle_input()
             add_msg( m_info, _( "Throwing and shooting are aimed with the mouse in fluid mode." ) );
             break;
         case ACTION_SMASH:
-            send_ui( "smash", [] {
-                smash_menu();
-            } );
+            send_smash();
             break;
         // actions that only start an activity: the menus run here, the host starts it
         case ACTION_BUTCHER:

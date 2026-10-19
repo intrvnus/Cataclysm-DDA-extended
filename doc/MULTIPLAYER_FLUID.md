@@ -248,7 +248,9 @@ shows menus. Handled:
 * Monster grab attacks are disabled.  Grab-only specials do nothing; attacks that also bite or
   claw still apply their normal damage.
 * Adjacent target answers (smash, examine, open/close) travel in absolute coordinates, so a client
-  body that is one frame ahead of the host still targets the same tile.
+  body that is one frame ahead of the host still targets the same tile.  Client smash now sends a
+  direct `smash_at` tile command instead of replaying `smash_menu`; the host bashes that exact
+  tile and the client no longer shows an optimistic broken window that can be reverted.
 * Examine actions (e.g. "Pick a fern") use the same absolute target path.  Remote UI actions
   run with the player's own reality bubble swapped in, and harvest prompts use
   `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player

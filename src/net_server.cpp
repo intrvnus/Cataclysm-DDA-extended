@@ -1538,6 +1538,22 @@ void execute( npc &guy, const command &cmd )
         }
     } else if( cmd.action == "pickup" ) {
         pick_up_all( guy );
+    } else if( cmd.action == "smash_at" ) {
+        if( cmd.has_where_abs && here.inbounds( cmd.where_abs ) ) {
+            tripoint_bub_ms where = here.get_bub( cmd.where_abs );
+            const Character::smash_result res = guy.smash( where );
+            if( res.did_smash && !res.success && res.resistance > 0 && res.skill >= res.resistance ) {
+                // Same follow-up as the local "Keep smashing?" prompt, without a host popup.
+                guy.assign_activity( bash_activity_actor( where ) );
+            }
+            if( remote_player *rp = find_client( guy.getID() ) ) {
+                if( !res.did_smash ) {
+                    send_text( *rp, _( "There's nothing there to smash!" ) );
+                } else if( res.success ) {
+                    send_text( *rp, _( "You smash it!" ) );
+                }
+            }
+        }
     } else if( cmd.action == "open" ) {
         const tripoint_bub_ms where = cmd.has_where_abs && here.inbounds( cmd.where_abs ) ?
                                       here.get_bub( cmd.where_abs ) : guy.pos_bub( here ) + cmd.delta;
