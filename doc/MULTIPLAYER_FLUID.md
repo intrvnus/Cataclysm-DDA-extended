@@ -252,8 +252,9 @@ shows menus. Handled:
   direct `smash_at` tile command instead of replaying `smash_menu`; the host bashes that exact
   tile and the client no longer shows an optimistic broken window that can be reverted.
 * A remote player's host body can have a missing arm-limb modifier; if that makes its smash
-  ability less than half of its body strength, smashing falls back to full body strength.  A
-  strength-20 character can break an ordinary curtained window again.
+  ability less than half of its body strength, smashing falls back to full body strength.  The
+  fallback is applied again after the final enchantment step, which can zero a remote NPC body's
+  melee-damage value.  A strength-20 character can break an ordinary curtained window again.
 * Examine actions (e.g. "Pick a fern") use the same absolute target path.  Remote UI actions
   run with the player's own reality bubble swapped in, and harvest prompts use
   `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player
