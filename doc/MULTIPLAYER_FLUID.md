@@ -203,7 +203,12 @@ shows menus. Handled:
 * A key that confirmed a menu would otherwise count as movement afterwards. `classic_action_begin/end`
   parks fluid input completely while a classic action, menu or direction prompt is open, and
   suppresses every key held when it closes until it is released.  WASD therefore cannot move the
-  body behind an inventory screen or a "Close where?" prompt.
+  body behind an inventory screen or a "Close where?" prompt.  The movement resolver is reset at
+  both ends of that scope, so the direction key cannot replay as a tap.
+* In the inventory/pickup UI, Tab is a local confirm shortcut (`inventory_selector::get_input`);
+  it is not a global keybinding and does not change Tab outside those menus.
+* Ordinary glass windows (window flag, bash strength <= 12) shatter on the first solid hit at
+  average strength; boarded and reinforced windows keep their full bash strength.
 * Vehicle driving falls back to classic input (`controlling_vehicle`), also dead/watch states.
 * The tiles build only (`fluid_device.cpp` has curses stubs; `enabled()` is false there).
 
@@ -221,8 +226,11 @@ shows menus. Handled:
 
 ### Movement feel (2026-10-20)
 
-* A move starts with a short 90 ms speed ramp, and the first frame after standing still or closing
-  a menu uses a normal frame length instead of a large catch-up step.
+* Movement is at full speed immediately.  The first frame after standing still or closing a menu
+  uses a normal frame length instead of a large catch-up step, and a one-frame gap between
+  movement frames does not look like standing still.
+* Closing a direction prompt or menu resets the movement resolver, so the direction key that
+  answered it cannot become a phantom tap.
 * The camera follows the visual body only.  It never follows the mouse: moving the cursor does not
   pan or jitter the view.  `FLUID_CAMERA_LEAD` defaults off.
 

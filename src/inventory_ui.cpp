@@ -3085,8 +3085,13 @@ drop_location inventory_selector::get_only_choice() const
 
 inventory_input inventory_selector::get_input()
 {
-    std::string const &action = ctxt.handle_input();
+    std::string action = ctxt.handle_input();
     int const ch = ctxt.get_raw_input().get_first_input();
+    // Regional inventory shortcut: Tab confirms the current selection (pick up, wield, ...)
+    // without adding a global binding, so Tab keeps its normal meaning outside menus.
+    if( ch == '\t' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
+        action = "CONFIRM";
+    }
     return process_input( action, ch );
 }
 

@@ -167,6 +167,24 @@ struct move_resolver {
         tap_pending_until = now + 400;
     }
 
+    // A menu or direction prompt has owned the keyboard: forget the direction that was held
+    // before it, so that releasing that key afterwards is not replayed as a phantom tap.
+    void reset() {
+        prev_bits = 0;
+        out_x = 0;
+        out_y = 0;
+        out_since = 0;
+        grace_until = 0;
+        chord_until = 0;
+        chord_x = 0;
+        chord_y = 0;
+        tap_until = 0;
+        tap_pending = false;
+        tap_pending_until = 0;
+        tap_x = 0;
+        tap_y = 0;
+    }
+
     std::pair<int, int> resolve( unsigned bits, ms_t now ) {
         const tuning &tn = tune();
         bits &= 0xFFu;
@@ -508,6 +526,7 @@ void classic_action_begin()
         device_state &d = dev();
         refresh_bindings( d, now_ms() );
         d.before_action = read_raw( d );
+        resolver().reset();
     }
 }
 
@@ -523,6 +542,7 @@ void classic_action_end()
         // must be released before it counts as movement again.  This also stops the character
         // from jerking into the direction that confirmed an action.
         d.suppressed |= after;
+        resolver().reset();
     }
 }
 

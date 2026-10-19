@@ -2113,28 +2113,14 @@ bool body_door_opened( const actor_state &st, const input_frame &in )
     return here.inbounds( ahead ) && here.passable( here.get_bub( ahead ) ) && !here.veh_at( here.get_bub( ahead ) );
 }
 
-// A short acceleration when the body starts moving: the sprite/camera do not jerk into the
-// direction on the first frame, while the native move cost still decides the final speed.
-constexpr double move_ramp_ms = 90.0;
-
-double move_ramp( const actor_state &st, ms_t now )
-{
-    if( st.move_started == 0 ) {
-        return 1.0;
-    }
-    return std::clamp( static_cast<double>( now - st.move_started ) / move_ramp_ms, 0.25, 1.0 );
-}
+// A single empty movement frame (a queued network frame, a tap between two frames) must not look
+// like standing still: it would make the next frame take the "first frame after idle" path.
+constexpr ms_t move_gap_ms = 120;
 
 void note_move_input( actor_state &st, bool moving, ms_t now )
 {
-    if( !moving ) {
-        st.move_started = 0;
-        st.was_moving = false;
-        return;
-    }
-    if( !st.was_moving ) {
-        st.move_started = now;
-        st.was_moving = true;
+    if( moving ) {
+        st.move_last_move_at = now;
     }
 }
 
@@ -2187,8 +2173,7 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     // a dodge dashes: three times the distance while its dash time lasts (frame time)
     const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
     st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
-    const double ramp = dash > 0.0 ? 1.0 : move_ramp( st, now );
-    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile * ramp;
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
     const double start_x = st.body_x;
     const double start_y = st.body_y;
     std::vector<int> cells;
@@ -2902,12 +2887,13 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     const bool free = free_movement();
     // the body's free movement this frame: a remote player's frames one by one (each with its
     // own direction and duration, like the client predicted them), else the frame time
-    const bool wants_move = moves != nullptr ? std::any_of( moves->begin(), moves->end(),
+    const bool wants_move = moves != nullptr ? ( std::any_of( moves->begin(), moves->end(),
     []( const move_frame & f ) {
         return f.move_x != 0 || f.move_y != 0;
-    } ) : ( in.move_x != 0 || in.move_y != 0 );
+    } ) || in.move_x != 0 || in.move_y != 0 ) : ( in.move_x != 0 || in.move_y != 0 );
     // starting after standing/menus: a normal frame's worth of time, then the short ramp below
-    if( free && wants_move && !st.was_moving ) {
+    const bool move_starting = wants_move && now - st.move_last_move_at > move_gap_ms;
+    if( free && move_starting ) {
         st.body_last = now - tn.frame_ms;
     }
     note_move_input( st, wants_move, now );
@@ -3871,8 +3857,7 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     // a dodge dashes: three times the distance while its dash time lasts (frame time)
     const double dash = std::min<double>( dt, std::max( 0.0, st.dash_left_ms ) );
     st.dash_left_ms = std::max( 0.0, st.dash_left_ms - dt );
-    const double ramp = dash > 0.0 ? 1.0 : move_ramp( st, now_ms() );
-    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile * ramp;
+    double left = ( static_cast<double>( dt ) + 2.0 * dash ) / ms_per_tile;
     std::vector<int> cells;
     while( left > 1e-9 ) {
         const double step = std::min( left, tn.max_substep );

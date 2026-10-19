@@ -112,6 +112,34 @@ TEST_CASE( "map_bash_chances", "[map][bash]" )
     }
 }
 
+TEST_CASE( "average_strength_character_smashes_a_window", "[map][bash][window_smash]" )
+{
+    clear_map();
+    Character &guy = get_player_character();
+    clear_character( guy );
+    guy.str_max = 8;
+    guy.reset_stats();
+    REQUIRE( guy.smash_ability() >= 3 );
+
+    map &here = get_map();
+    tripoint_bub_ms window( 40, 40, 0 );
+    REQUIRE( here.inbounds( window ) );
+    REQUIRE( here.ter_set( window, ter_id( "t_window" ) ) );
+    here.furn_set( window, furn_str_id::NULL_ID() );
+    CAPTURE( guy.smash_ability(), here.is_bashable( window ), here.bash_resistance( window ),
+             here.bash_strength( window ) );
+
+    int hits = 0;
+    while( here.ter( window ) == ter_id( "t_window" ) && hits < 20 ) {
+        const Character::smash_result result = guy.smash( window );
+        CHECK( result.did_smash );
+        ++hits;
+    }
+    CAPTURE( hits );
+    CHECK( hits < 20 );
+    CHECK( here.ter( window ) != ter_id( "t_window" ) );
+}
+
 TEST_CASE( "map_bash_ephemeral_persistence", "[map][bash]" )
 {
     clear_map();

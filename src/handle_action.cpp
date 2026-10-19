@@ -1114,6 +1114,17 @@ Character::smash_result Character::smash( tripoint_bub_ms &smashp )
         }
     }
 
+    // Ordinary glass is brittle: a character who can hurt it at all shatters it with one blow.
+    // Boarded/reinforced windows (bash strength above 12) still need their full strength.
+    if( here.has_flag( ter_furn_flag::TFLAG_WINDOW, smashp ) ) {
+        const int glass_strength = here.bash_strength( smashp );
+        if( glass_strength > 0 && glass_strength <= 12 &&
+            smashskill >= here.bash_resistance( smashp ) ) {
+            smashskill = std::max( smashskill, glass_strength );
+            ret.skill = smashskill;
+        }
+    }
+
     const bash_params bash_result = here.bash( smashp, smashskill, false, false, smash_floor );
     // Weariness scaling
     float weary_mult = 1.0f;
