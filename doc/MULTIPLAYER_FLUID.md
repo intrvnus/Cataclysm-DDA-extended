@@ -242,7 +242,10 @@ shows menus. Handled:
   from the classic loop so it cannot turn into a wait action first.
 * Adjacent target answers (smash, examine, open/close) travel in absolute coordinates, so a client
   body that is one frame ahead of the host still targets the same tile.
-* Examine actions (e.g. "Pick a fern") use the same absolute target path.
+* Examine actions (e.g. "Pick a fern") use the same absolute target path.  Remote UI actions
+  run with the player's own reality bubble swapped in, and harvest prompts use
+  `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player
+  rather than an NPC.
 * In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted entry.
 * Vehicle phase 0: the host sends authoritative `in_vehicle` / `controlling_vehicle` / seat and
   vehicle pose state at 20 Hz, and immediately when either flag changes or the vehicle starts,

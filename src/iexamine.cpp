@@ -82,6 +82,7 @@
 #include "point.h"
 #include "recipe.h"
 #include "remote_ui.h"
+#include "remote_ui.h"
 #include "requirements.h"
 #include "rng.h"
 #include "sounds.h"
@@ -2321,7 +2322,7 @@ void iexamine::bulletin_board( Character &you, const tripoint_bub_ms &examp )
     if( bcp ) {
         basecamp *temp_camp = *bcp;
         if( !temp_camp->allowed_access_by( you ) ) {
-            if( !you.is_avatar() ) {
+            if( !remote_ui::acts_as_player( you ) ) {
                 return; // One day, NPCs may be able to use bulletin boards
             }
             // Checks the reality bubble for NPCs
@@ -2721,7 +2722,7 @@ void iexamine::flower_dahlia( Character &you, const tripoint_bub_ms &examp )
 
 static bool query_pick( Character &who, const tripoint_bub_ms &target )
 {
-    if( !who.is_avatar() ) {
+    if( !remote_ui::acts_as_player( who ) ) {
         return false;
     }
 
@@ -2741,7 +2742,7 @@ static bool query_pick( Character &who, const tripoint_bub_ms &target )
         query_string = string_format( _( "Pick %1$s?" ), here.tername( target ) );
     }
 
-    if( who.is_avatar() && !query_yn( query_string ) ) {
+    if( remote_ui::acts_as_player( who ) && !query_yn( query_string ) ) {
         iexamine::none( who, target );
         return false;
     }
@@ -4716,7 +4717,7 @@ static void pick_plant( Character &you, const tripoint_bub_ms &examp,
     map &here = get_map();
     bool auto_forage = get_option<bool>( "AUTO_FEATURES" ) &&
                        get_option<std::string>( "AUTO_FORAGING" ) != "off";
-    if( you.is_avatar() && !auto_forage &&
+    if( remote_ui::acts_as_player( you ) && !auto_forage &&
         !query_yn( _( "Harvest the %s?" ), here.tername( examp ) ) ) {
         iexamine::none( you, examp );
         return;
@@ -4750,7 +4751,7 @@ void iexamine::tree_hickory( Character &you, const tripoint_bub_ms &examp )
     bool digging_up = false;
 
     map &here = get_map();
-    if( !auto_forage && you.is_avatar() && you.has_quality( qual_DIG ) &&
+    if( !auto_forage && remote_ui::acts_as_player( you ) && you.has_quality( qual_DIG ) &&
         query_yn( _( "Dig up %s?  This kills the tree!" ), here.tername( examp ) ) ) {
         digging_up = true;
         /** @EFFECT_SURVIVAL increases hickory root number per tree */
@@ -4763,7 +4764,7 @@ void iexamine::tree_hickory( Character &you, const tripoint_bub_ms &examp )
         you.mod_moves( -to_moves<int>( 20_seconds ) / ( you.get_skill_level( skill_survival ) + 1 ) + 100 );
     }
 
-    if( !auto_forage && !digging_up && you.is_avatar() ) {
+    if( !auto_forage && !digging_up && remote_ui::acts_as_player( you ) ) {
         you.add_msg_if_player( _( "You could dig this tree up for roots…" ) );
     }
 
@@ -6104,7 +6105,7 @@ template<typename ...Args>
 inline void popup_player_or_npc( Character &you, const char *player_mes, const char *npc_mes,
                                  Args &&... args )
 {
-    if( you.is_avatar() ) {
+    if( remote_ui::acts_as_player( you ) ) {
         popup( player_mes, std::forward<Args>( args )... );
     } else {
         popup( you.replace_with_npc_name( string_format( npc_mes, std::forward<Args>( args )... ) ) );

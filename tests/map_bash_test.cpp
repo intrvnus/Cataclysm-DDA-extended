@@ -5,8 +5,10 @@
 #include <utility>
 #include <vector>
 
+#include "action.h"
 #include "cata_catch.h"
 #include "character.h"
+#include "remote_ui.h"
 #include "character_attire.h"
 #include "coordinates.h"
 #include "creature_tracker.h"
@@ -137,6 +139,46 @@ TEST_CASE( "average_strength_character_smashes_a_window", "[map][bash][window_sm
     }
     CAPTURE( hits );
     CHECK( hits < 20 );
+    CHECK( here.ter( window ) != ter_id( "t_window" ) );
+}
+
+TEST_CASE( "remote_smash_menu_replays_the_selected_window", "[map][bash][remote_smash]" )
+{
+    clear_map();
+    Character &guy = get_player_character();
+    clear_character( guy );
+    guy.str_max = 8;
+    guy.reset_stats();
+    map &here = get_map();
+    const tripoint_bub_ms own( 40, 40, 0 );
+    const tripoint_bub_ms window = own + tripoint_rel_ms( 1, 0, 0 );
+    guy.setpos( here, own );
+    REQUIRE( here.inbounds( window ) );
+
+    std::vector<remote_ui::entry> answers;
+    {
+        REQUIRE( here.ter_set( window, ter_id( "t_window" ) ) );
+        here.furn_set( window, furn_str_id::NULL_ID() );
+        remote_ui::record_scope rec;
+        smash_menu();
+        answers = rec.answers();
+    }
+    REQUIRE_FALSE( answers.empty() );
+    CHECK( here.ter( window ) != ter_id( "t_window" ) );
+
+    // Put the window back and replay the client answer against an NPC body, as the host does
+    // for a remote player; the target must be the absolute tile, not a direction from a possibly
+    // different body tile.
+    REQUIRE( here.ter_set( window, ter_id( "t_window" ) ) );
+    here.set_map_damage( window, 0 );
+    npc *host_actor = spawn_npc( point_bub_ms( 40, 41 ), "thug" );
+    REQUIRE( host_actor != nullptr );
+    clear_character( *host_actor );
+    host_actor->str_max = 8;
+    host_actor->reset_stats();
+    remote_ui::replay_scope replay( answers, *host_actor, host_actor->getID().get_value() );
+    smash_menu();
+    CHECK_FALSE( replay.failed() );
     CHECK( here.ter( window ) != ter_id( "t_window" ) );
 }
 

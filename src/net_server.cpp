@@ -1694,6 +1694,10 @@ item_location client_item( const npc &guy, int client_id, std::string loc_json )
 // host does it again on the body with the answers the client gave.
 void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
 {
+    // A remote player can have its own reality bubble.  Menus must run on that bubble's map;
+    // otherwise smash/examine target absolute tiles in the host's map, which can be different
+    // terrain (or not loaded at all) and the client sees its local change snap back.
+    bubbles::view in_bubble( guy );
     const std::string what = msg.get_string( "a", "" );
     const int client_id = msg.get_int( "cid", -1 );
     if( what == "aim" || what == "capture" || what == "sort_armor" ) {
