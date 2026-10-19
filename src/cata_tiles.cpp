@@ -2294,6 +2294,46 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderFillRect( r, &fill );
     }
 
+    // Health bars for wounded monsters that have noticed the player.  A monster that has not
+    // spotted the player keeps its condition hidden.
+    {
+        const avatar &u = get_avatar();
+        map &here = get_map();
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+        for( monster &m : g->all_monsters() ) {
+            const int hp = m.get_hp();
+            const int hp_max = m.get_hp_max();
+            if( hp <= 0 || hp >= hp_max || m.is_hallucination() ||
+                m.posz() != u.posz() || m.attitude_to( u ) == Creature::Attitude::FRIENDLY ||
+                !u.sees( here, m ) || !m.sees( here, u ) ) {
+                continue;
+            }
+            const float ratio = std::clamp( static_cast<float>( hp ) / std::max( 1, hp_max ),
+                                            0.0f, 1.0f );
+            const fluid::offset so = fluid::sprite_offset( m.pos_abs() );
+            const point at = to_screen( m.pos_abs().x() + so.x, m.pos_abs().y() + so.y,
+                                        m.pos_abs().z() );
+            const int w = std::max( 8, tile_width * 3 / 4 );
+            const int h = std::max( 3, tile_height / 10 );
+            SDL_Rect back = { at.x + ( tile_width - w ) / 2, at.y - h - 3, w, h };
+            SDL_SetRenderDrawColor( r, 12, 12, 14, 190 );
+            SDL_RenderFillRect( r, &back );
+            SDL_Rect fill = { back.x + 1, back.y + 1, std::max( 0, static_cast<int>( ( w - 2 ) * ratio ) ),
+                              std::max( 1, h - 2 ) };
+            if( ratio > 0.6f ) {
+                SDL_SetRenderDrawColor( r, 80, 220, 90, 235 );
+            } else if( ratio > 0.3f ) {
+                SDL_SetRenderDrawColor( r, 245, 205, 70, 235 );
+            } else {
+                SDL_SetRenderDrawColor( r, 230, 70, 55, 235 );
+            }
+            SDL_RenderFillRect( r, &fill );
+            SDL_SetRenderDrawColor( r, 235, 235, 235, 180 );
+            SDL_RenderDrawRect( r, &back );
+        }
+        SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
+    }
+
     // a small curved combat bar next to the local player: wind-up, recovery, shot cooldown
     const fluid::combat_bar_view &cb = fluid::local_combat_bar();
     const fluid::ms_t bar_now = fluid::now_ms();
@@ -2397,7 +2437,7 @@ void cata_tiles::draw_fluid_overlays()
         SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
     }
 
-    // the tile that is about to be hit
+    // the tile that is about to be hit, plus a clear direction arrow from the player
     const fluid::melee_view &mv = fluid::local_melee_view();
     if( mv.active ) {
         const point tl = to_screen( mv.tile.x(), mv.tile.y(), mv.tile.z() );
@@ -2407,6 +2447,58 @@ void cata_tiles::draw_fluid_overlays()
         SDL_RenderFillRect( r, &rect );
         SDL_SetRenderDrawColor( r, 255, 90, 60, 200 );
         SDL_RenderDrawRect( r, &rect );
+
+        const avatar &u = get_avatar();
+        const fluid::offset uo = fluid::sprite_offset( u.pos_abs() );
+        const point from = to_screen( u.pos_abs().x() + uo.x, u.pos_abs().y() + uo.y,
+                                      u.pos_abs().z() );
+        const point to = to_screen( mv.tile.x() + 0.5, mv.tile.y() + 0.5, mv.tile.z() );
+        const double dx = to.x - from.x;
+        const double dy = to.y - from.y;
+        const double len = std::hypot( dx, dy );
+        if( len > 1.0 ) {
+            const double ux = dx / len;
+            const double uy = dy / len;
+            const double px = -uy;
+            const double py = ux;
+            const double start = std::min( len * 0.35, tile_width * 0.3 );
+            const double end = std::max( start + 2.0, len - tile_width * 0.22 );
+            const double half = std::max( 1.5, tile_width * 0.035 );
+            const Uint8 a = static_cast<Uint8>( 120 + 100 * mv.progress );
+            const auto dv = []( double x, double y, Uint8 av ) {
+                SDL_Vertex v;
+                v.position = { static_cast<float>( x ), static_cast<float>( y ) };
+                v.color = { 255, 190, 80, av };
+                v.tex_coord = { 0.0f, 0.0f };
+                return v;
+            };
+            const double sx = from.x + ux * start;
+            const double sy = from.y + uy * start;
+            const double ex = from.x + ux * end;
+            const double ey = from.y + uy * end;
+            std::vector<SDL_Vertex> shaft = {
+                dv( sx + px * half, sy + py * half, a ),
+                dv( sx - px * half, sy - py * half, a ),
+                dv( ex - px * half, ey - py * half, a ),
+                dv( sx + px * half, sy + py * half, a ),
+                dv( ex - px * half, ey - py * half, a ),
+                dv( ex + px * half, ey + py * half, a ),
+            };
+            const double tip = len + tile_width * 0.04;
+            const double base = end - tile_width * 0.10;
+            const double aw = std::max( 3.0, tile_width * 0.12 );
+            const std::vector<SDL_Vertex> head = {
+                dv( from.x + ux * tip, from.y + uy * tip, a ),
+                dv( from.x + ux * base + px * aw, from.y + uy * base + py * aw, a ),
+                dv( from.x + ux * base - px * aw, from.y + uy * base - py * aw, a ),
+            };
+            SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
+            SDL_RenderGeometry( r, nullptr, shaft.data(), static_cast<int>( shaft.size() ),
+                                nullptr, 0 );
+            SDL_RenderGeometry( r, nullptr, head.data(), static_cast<int>( head.size() ),
+                                nullptr, 0 );
+            SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_NONE );
+        }
     }
 
     // crosshair and the circle the shot lands in

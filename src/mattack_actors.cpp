@@ -69,6 +69,13 @@ static const efftype_id effect_badpoison( "badpoison" );
 static const efftype_id effect_bite( "bite" );
 static const efftype_id effect_grabbed( "grabbed" );
 static const efftype_id effect_grabbing( "grabbing" );
+
+// Live-combat balance: monster grabs are disabled.  The grab-only specials do nothing; attacks
+// that also bite/claw still do their normal damage instead of stopping at the grab step.
+static bool monster_grabs_enabled()
+{
+    return false;
+}
 static const efftype_id effect_infected( "infected" );
 static const efftype_id effect_laserlocked( "laserlocked" );
 static const efftype_id effect_null( "null" );
@@ -778,7 +785,7 @@ bool melee_actor::call( monster &z ) const
     // We need to do some calculations in the main function - we might mutate bp_hit
     // But first we need to handle exclusive grabs etc.
     std::optional<bodypart_id> grabbed_bp_id;
-    if( is_grab ) {
+    if( is_grab && monster_grabs_enabled() ) {
         int eff_grab_strength = grab_data.grab_strength == -1 ? z.get_grab_strength() :
                                 grab_data.grab_strength;
         add_msg_debug( debugmode::DF_MATTACK,

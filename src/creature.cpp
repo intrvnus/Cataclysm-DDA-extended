@@ -2380,7 +2380,12 @@ int Creature::get_spell_resist() const
 
 int Creature::get_speed() const
 {
-    return get_speed_base() + get_speed_bonus();
+    const int speed = get_speed_base() + get_speed_bonus();
+    // Realtime/fluid balance: monsters are 25% slower (movement and actions both use get_speed).
+    if( is_monster() && ( net::active() || get_option<bool>( "FLUID_MODE" ) ) ) {
+        return std::max( 1, speed * 3 / 4 );
+    }
+    return speed;
 }
 
 int Creature::get_eff_per() const

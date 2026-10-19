@@ -240,6 +240,13 @@ shows menus. Handled:
 * Walking/running mode switches no longer write "You start walking/running." to the log.
 * Melee wind-up is canceled by SPACE (FLUID_CANCEL) or the right mouse button.  SPACE is swallowed
   from the classic loop so it cannot turn into a wait action first.
+* During a swing, a gold direction arrow and the red target tile show exactly where the blow is
+  aimed.
+* Wounded monsters that have spotted the local player draw a small health bar above them (green,
+  yellow, or red); full-health and unaware monsters show no bar.
+* In fluid/multiplayer, monsters are 25% slower (movement and action rate both use `get_speed`).
+* Monster grab attacks are disabled.  Grab-only specials do nothing; attacks that also bite or
+  claw still apply their normal damage.
 * Adjacent target answers (smash, examine, open/close) travel in absolute coordinates, so a client
   body that is one frame ahead of the host still targets the same tile.
 * Examine actions (e.g. "Pick a fern") use the same absolute target path.  Remote UI actions
