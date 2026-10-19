@@ -13,8 +13,10 @@ bubbles, client menus). The remaining work is verification and polish, not reimp
 
 ## State at handoff
 
-- Branch `claude/fluid-proto`, HEAD `84c85d4` (2026-10-16), 355 commits ahead of `intrvnus-mod`.
-- Latest Linux check and Windows Tiles build both passed (runs `38960614418` / `38960612361`).
+- Branch `claude/fluid-proto`. The code is at `84c85d4` (2026-10-16), 355 commits ahead of
+  `intrvnus-mod`; this handoff is the docs commit on top of it.
+- Linux check passed for the handoff commit; the last Windows Tiles build of the code passed
+  (runs `38960614418` / `38960612361`).
 - A Windows build of that commit is unpacked at
   `A:\Games\CDDA_test\cdda-windows-build\game` (`cataclysm-tiles.exe`). Play from the main menu's
   Multiplayer entry, or:
