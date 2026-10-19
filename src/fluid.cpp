@@ -4349,6 +4349,13 @@ void client_frame()
         return;
     }
     client_auto_travel( u, in );
+    if( u.in_vehicle ) {
+        // Vehicle commands use the classic drive path; the fluid body must not also walk the
+        // character out of the seat (driver or passenger).
+        in.move_x = 0;
+        in.move_y = 0;
+        in.dodge = false;
+    }
     // a dodge asked for since the last frame goes with this movement frame (standing: none)
     static int seen_dodges = -1;
     if( seen_dodges < 0 ) {

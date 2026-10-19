@@ -140,6 +140,17 @@ struct client_state {
     int move_seq = 0;
     /** The own body holds furniture or a vehicle (from the host). */
     bool body_grabbing = false;
+    // Phase 0 vehicle state from the host: authoritative drive/board state and pose.
+    bool veh_on = false;
+    bool veh_driving = false;
+    tripoint_abs_ms veh_avatar_pos = tripoint_abs_ms::invalid;
+    tripoint_abs_ms veh_pos = tripoint_abs_ms::invalid;
+    int veh_face = 0;
+    int veh_velocity = 0;
+    int veh_cruise = 0;
+    int veh_seat = -1;
+    bool veh_skidding = false;
+    fluid::ms_t veh_at = 0;
     // the overmap tile the terrain around was last asked for
     tripoint_abs_omt last_omt = tripoint_abs_omt::invalid;
 };
@@ -1251,12 +1262,15 @@ bool handle_input()
         case ACTION_MOVE_BACK_LEFT:
         case ACTION_MOVE_LEFT:
         case ACTION_MOVE_FORTH_LEFT:
-            if( get_avatar().controlling_vehicle ) {
-                // at the wheel: x steers, y speeds up or brakes
-                const point_rel_ms d = get_delta_from_movement_action( act, iso_rotate::no );
-                send_ui( "drive", [d] {
-                    remote_ui::record( "d", string_format( "%d %d 0", d.x(), d.y() ) );
-                } );
+            if( get_avatar().in_vehicle ) {
+                if( get_avatar().controlling_vehicle ) {
+                    // at the wheel: x steers, y speeds up or brakes
+                    const point_rel_ms d = get_delta_from_movement_action( act, iso_rotate::no );
+                    send_ui( "drive", [d] {
+                        remote_ui::record( "d", string_format( "%d %d 0", d.x(), d.y() ) );
+                    } );
+                }
+                // a passenger does not walk while seated
                 break;
             }
             send_action( "move", get_delta_from_movement_action( act, iso_rotate::yes ) );
@@ -1914,6 +1928,54 @@ void client_on_disconnect()
     state().server_peer = nullptr;
 }
 
+// Phase 0 vehicle sync: the host is authoritative about being in/driving a vehicle.  Without
+// this the client can keep sending drive commands after a crash ejected it, or fall back to
+// ordinary walking while it still believes it is at the wheel.
+void apply_vehicle_state( const JsonObject &msg )
+{
+    client_state &cs = cstate();
+    avatar &u = get_avatar();
+    map &here = get_map();
+    const bool was_on = u.in_vehicle;
+    const bool was_driving = u.controlling_vehicle;
+    const bool on = msg.get_bool( "on", false );
+    const bool driving = on && msg.get_bool( "drv", false );
+    const tripoint_abs_ms avatar_pos( msg.get_int( "px", 0 ), msg.get_int( "py", 0 ),
+                                      msg.get_int( "pz", 0 ) );
+    const tripoint_abs_ms vehicle_pos( msg.get_int( "vx", 0 ), msg.get_int( "vy", 0 ),
+                                       msg.get_int( "vz", 0 ) );
+    cs.veh_on = on;
+    cs.veh_driving = driving;
+    cs.veh_avatar_pos = avatar_pos;
+    cs.veh_pos = vehicle_pos;
+    cs.veh_face = msg.get_int( "f", 0 );
+    cs.veh_velocity = msg.get_int( "vel", 0 );
+    cs.veh_cruise = msg.get_int( "cru", 0 );
+    cs.veh_seat = msg.get_int( "seat", -1 );
+    cs.veh_skidding = msg.get_bool( "skid", false );
+    cs.veh_at = fluid::now_ms();
+
+    if( !on ) {
+        if( was_driving ) {
+            // Throw away movement frames that were sent while the host still had us driving.
+            cs.unconfirmed_moves.clear();
+        }
+        u.in_vehicle = false;
+        u.controlling_vehicle = false;
+        if( was_on && here.inbounds( avatar_pos ) && avatar_pos != u.pos_abs() ) {
+            place_avatar( avatar_pos );
+        }
+        return;
+    }
+
+    u.in_vehicle = true;
+    u.controlling_vehicle = driving;
+    if( !was_on && here.inbounds( avatar_pos ) && avatar_pos != u.pos_abs() ) {
+        // Boarded (or the host corrected the seat): put the local copy on the host's tile.
+        u.setpos( here, here.get_bub( avatar_pos ), false );
+    }
+}
+
 void client_on_message( const JsonObject &msg )
 {
     const std::string type = msg.get_string( "t", "" );
@@ -1990,6 +2052,8 @@ void client_on_message( const JsonObject &msg )
         if( cstate().fluid_on ) {
             fluid::client_bodies( list, confirmed, fluid::now_ms() );
         }
+    } else if( type == "veh" ) {
+        apply_vehicle_state( msg );
     } else if( type == "aim" ) {
         fluid::client_aim_status( msg.get_int( "s", 0 ) / 1000.0, msg.get_int( "r", 0 ) / 1000.0,
                                   msg.get_bool( "f", false ), msg.get_bool( "a", false ) );

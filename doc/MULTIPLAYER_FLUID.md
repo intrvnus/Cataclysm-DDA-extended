@@ -244,6 +244,11 @@ shows menus. Handled:
   body that is one frame ahead of the host still targets the same tile.
 * Examine actions (e.g. "Pick a fern") use the same absolute target path.
 * In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted entry.
+* Vehicle phase 0: the host sends authoritative `in_vehicle` / `controlling_vehicle` / seat and
+  vehicle pose state at 20 Hz, and immediately when either flag changes or the vehicle starts,
+  stops or reverses.  The client clears stale drive input on ejection/unboarding and no longer
+  sends walking frames while seated.  Vehicle interpolation, held throttle and the handbrake are
+  still later phases.
 * The camera follows the visual body only.  It never follows the mouse: moving the cursor does not
   pan or jitter the view.  `FLUID_CAMERA_LEAD` defaults off.
 

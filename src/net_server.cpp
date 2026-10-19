@@ -136,6 +136,12 @@ struct remote_player {
     // positions were last sent
     int input_seq = -1;
     fluid::ms_t bodies_sent = 0;
+    // Phase 0 vehicle sync: the client must know when the host has ejected it / stopped
+    // driving, even if the collision happened on a different machine.
+    fluid::ms_t vehicle_sent = 0;
+    bool last_vehicle_on = false;
+    bool last_vehicle_control = false;
+    int last_vehicle_velocity = 0;
     // free movement frames not applied yet, the last one applied (what the body positions
     // answer to) and the real time the body may still move (no faster than real time)
     std::deque<fluid::move_frame> moves;
@@ -2998,6 +3004,40 @@ bool host_drive_npc( npc &guy )
     return true;
 }
 
+// Phase 0: the authoritative answer to "is this player still in a vehicle and driving?".
+// The client uses it to stop sending drive commands and to leave the driving state when the
+// host has unboarded/ejected it.  Vehicle pose/velocity are included for the later smooth
+// vehicle work; the client does not simulate them yet.
+void send_vehicle_state( remote_player &rp, npc &guy )
+{
+    map &here = get_map();
+    const optional_vpart_position vp = here.veh_at( guy.pos_bub( here ) );
+    const tripoint_abs_ms avatar_pos = guy.pos_abs();
+    const tripoint_abs_ms vehicle_pos = vp ? vp->vehicle().pos_abs() : tripoint_abs_ms::zero;
+    const int face = vp ? static_cast<int>( std::lround( units::to_degrees(
+                            vp->vehicle().face.dir() ) ) ) : 0;
+    impl::send_json_fast( rp.peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "veh" );
+        jo.member( "on", guy.in_vehicle );
+        jo.member( "drv", guy.controlling_vehicle );
+        jo.member( "px", avatar_pos.x() );
+        jo.member( "py", avatar_pos.y() );
+        jo.member( "pz", avatar_pos.z() );
+        jo.member( "vx", vehicle_pos.x() );
+        jo.member( "vy", vehicle_pos.y() );
+        jo.member( "vz", vehicle_pos.z() );
+        jo.member( "f", face );
+        jo.member( "vel", vp ? vp->vehicle().velocity : 0 );
+        jo.member( "cru", vp ? vp->vehicle().cruise_velocity : 0 );
+        jo.member( "skid", vp ? vp->vehicle().skidding : false );
+        jo.member( "seat", vp ? vp->part_index() : -1 );
+    } ) );
+    rp.vehicle_sent = fluid::now_ms();
+    rp.last_vehicle_on = guy.in_vehicle;
+    rp.last_vehicle_control = guy.controlling_vehicle;
+    rp.last_vehicle_velocity = vp ? vp->vehicle().velocity : 0;
+}
+
 void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *events )
 {
     if( !is_host() ) {
@@ -3008,6 +3048,12 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             continue;
         }
         npc *guy = g->find_npc( rp.npc_id );
+        if( guy != nullptr && ( guy->is_dead() || rp.downed ) &&
+            now - rp.vehicle_sent >= 50 ) {
+            // The host has taken this body out of control (downed/dead); tell the owner so it
+            // does not keep driving a vehicle the host no longer lets it drive.
+            send_vehicle_state( rp, *guy );
+        }
         if( guy == nullptr || guy->is_dead() || rp.downed ) {
             // no movement saved up for later (it would play back all at once)
             if( !rp.moves.empty() ) {
@@ -3026,6 +3072,13 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
             frame.cancel = false;
         }
         bubbles::view in_bubble( *guy );
+        if( guy->in_vehicle ) {
+            // Queued walking frames from just before boarding must not push the body out of the
+            // seat; vehicle commands use drive_vehicle instead.
+            rp.moves.clear();
+            frame.move_x = 0;
+            frame.move_y = 0;
+        }
         // test: stand, sprint east, walk east, stand (CATA_MP_TEST_STAMINA); logs stamina each second
         static const bool stamina_test = std::getenv( "CATA_MP_TEST_STAMINA" ) != nullptr;
         if( stamina_test ) {
@@ -3054,6 +3107,23 @@ void host_drive_remote_players( fluid::ms_t now, std::vector<fluid::event> *even
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: stamina test " << phase << " stamina " <<
                                            guy->get_stamina() << "/" << guy->get_stamina_max() << " run " << guy->is_running() <<
                                            " tiles " << rl_dist( start_pos, guy->pos_abs() ) << " t " << t / 1000;
+            }
+        }
+        // Phase 0 vehicle state: report changes at once (ejection, unboarding, entering,
+        // stopping), then refresh the pose at 20 Hz.
+        {
+            const optional_vpart_position vp = get_map().veh_at( guy->pos_bub( get_map() ) );
+            const int velocity = vp ? vp->vehicle().velocity : 0;
+            const bool stopped = rp.last_vehicle_velocity != 0 && velocity == 0;
+            const bool started = rp.last_vehicle_velocity == 0 && velocity != 0;
+            const bool reversed = ( rp.last_vehicle_velocity > 0 && velocity < 0 ) ||
+                                  ( rp.last_vehicle_velocity < 0 && velocity > 0 );
+            const bool changed = rp.vehicle_sent == 0 ||
+                                 rp.last_vehicle_on != guy->in_vehicle ||
+                                 rp.last_vehicle_control != guy->controlling_vehicle ||
+                                 stopped || started || reversed;
+            if( changed || now - rp.vehicle_sent >= 50 ) {
+                send_vehicle_state( rp, *guy );
             }
         }
         fluid::actor_state &st = fluid::state_of( guy->getID().get_value() );
