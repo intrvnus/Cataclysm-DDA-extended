@@ -1,8 +1,12 @@
 # Working on this repo (Noah's CDDA fork)
 
-Multiplayer / fluid mode work happens on the branch `claude/fluid-proto`. Before anything else read
+This is the main line as of 2026-10-19. The from-scratch Rust/TypeScript prototype
+`intrvnus/aftermath-mp` is frozen; do not resume it without Noah saying the goal has changed.
+The current handoff is `doc/MULTIPLAYER_CONTINUE.md`; read that, then
 `doc/MULTIPLAYER_HANDOFF.md` (section 0 is the newest) and the STATUS table at the top of
-`doc/MULTIPLAYER_ROADMAP.md`. Noah's rules are in the handoff: no gameplay or balance change without
+`doc/MULTIPLAYER_ROADMAP.md`.
+
+Multiplayer / fluid mode work happens on the branch `claude/fluid-proto`. Noah's rules are in the handoff: no gameplay or balance change without
 asking, say how every change was verified, keep the roadmap STATUS current, never push to
 `intrvnus-mod`, no PR, no force push, no Windows build unless Noah asks.
 

@@ -4,6 +4,10 @@ Written by Claude (Sonnet 5.5) for Noah and for Opus, who takes the project over
 then `MULTIPLAYER_ROADMAP.md` (STATUS table at the top is the live to-do list) and
 `MULTIPLAYER_TESTING.md` (how Noah plays a build).
 
+> **2026-10-19:** the next session starts with `MULTIPLAYER_CONTINUE.md`. It records the decision
+> to continue this branch as the main line, freezes `intrvnus/aftermath-mp`, and orders the next
+> work (compiled-only verification first).
+
 ## 0. Newest: 2026-10-16 afternoon (Opus): Noah's second test round
 Fixed and run in game (Xvfb): pickup wield (now `e`) / wear (Shift+W) act on the client's body
 (answer `pw`); item menus built for `remote_ui::acting_player()` instead of the host; in
