@@ -86,6 +86,9 @@ while the sprite is still on the way. The slide is short, so this was judged acc
 
 State machine in `actor_state`: `idle -> windup -> recovery -> idle`.
 
+* The body keeps moving during the wind-up and the recovery.  A swing is walked, not run: the
+  sprint key resumes its effect after the recovery.  The blow still lands from the body's current
+  position, so stepping out of reach during the wind-up makes it whiff.
 * total = `max(attack_min_ms, attack_speed(weapon) -> ms)`
 * wind-up = `clamp(total * 0.40, 80, 700)`
 * At the end of the wind-up `do_strike`: target = creature under cursor direction if adjacent,
@@ -101,6 +104,8 @@ State machine in `actor_state`: `idle -> windup -> recovery -> idle`.
 ### Ranged
 
 * `update_aim` runs every frame, also while busy.
+* Firing does not root the body: the shot cooldown only limits the next shot.  Walking while
+  firing keeps the 35% aim bloom, running keeps 70%; the aim only settles while standing.
 * RMB held and a gun wielded: the cursor tile is the target. If the character is idle,
   elapsed time is converted to native moves (`ms_to_moves`) and for each move
   `recoil -= aim_per_move(gun, recoil)` down to `calculate_aim_cap(target)`. This is exactly the
@@ -220,6 +225,8 @@ shows menus. Handled:
 * Shove: key `FLUID_SHOVE` (`f`) or the middle mouse button. Pushes the creature in front one free tile back, may knock it down (20% + 4% per strength above 8, 5..60%, +20% for small creatures), no damage, 300 stamina, 450 ms. Input frame field `shove_presses`, sent as `"vc"`.
 * Shooting: every projectile draws a 160 ms tracer (`fluid::note_projectile()`, event type `"tracer"`). Aim bloom: while moving the aim stays at 35% of the worst (running 70%) and only settles while standing.
 * Reloading is not cancelled by walking in free movement (not while running).
+* Attacks do not root the body: a melee wind-up/recovery or a shot cooldown still lets the player
+  walk (a melee swing walks only, see Melee); shove and throw still commit the body.
 * Ranged monsters: acid/sap spitters, boomers, shockstorm, metal pull and gun monsters without a targeting delay aim for 0.8 s at a player before their attack (`fluid::ranged_windup_ready()`); a red aim line is drawn (event type `"aimline"`). Turrets' existing ~2 s targeting delay draws the same line.
 * Explosions: in fluid mode a 350 ms growing, fading flash replaces the blocking explosion animation (`fluid::note_explosion()`, event type `"boom"`).
 * New event types are appended to `fx_type` in `fluid.h`: `tracer`, `aimline`, `boom`.

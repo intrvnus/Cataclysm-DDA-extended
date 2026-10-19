@@ -135,6 +135,8 @@ bool monster_winding_up( const monster &z );
 namespace
 {
 
+bool trace_enabled();
+
 struct turn_clock {
     bool valid = false;
     // end of the turn that is running
@@ -192,6 +194,61 @@ std::map<tripoint_abs_ms, lunge> &lunges()
 {
     static std::map<tripoint_abs_ms, lunge> m;
     return m;
+}
+
+// The lunge visual is keyed by tile, but a body may walk while it winds up, swings and recovers.
+// Remember where each actor's lunge was placed so it can follow the body.
+std::map<int, tripoint_abs_ms> &actor_lunges()
+{
+    static std::map<int, tripoint_abs_ms> m;
+    return m;
+}
+
+void move_lunge( const tripoint_abs_ms &from, const tripoint_abs_ms &to )
+{
+    if( from == to ) {
+        return;
+    }
+    const auto iter = lunges().find( from );
+    if( iter == lunges().end() ) {
+        return;
+    }
+    lunge moved = iter->second;
+    lunges().erase( iter );
+    if( lunges().find( to ) == lunges().end() ) {
+        lunges()[to] = moved;
+    }
+}
+
+void place_actor_lunge( int actor, const tripoint_abs_ms &at, int dx, int dy, ms_t t0,
+                        int windup_ms, int total_ms )
+{
+    const auto iter = actor_lunges().find( actor );
+    if( iter != actor_lunges().end() && iter->second != at ) {
+        end_lunge( iter->second );
+    }
+    begin_lunge( at, dx, dy, t0, windup_ms, total_ms );
+    actor_lunges()[actor] = at;
+}
+
+void move_actor_lunge( int actor, const tripoint_abs_ms &to )
+{
+    const auto iter = actor_lunges().find( actor );
+    if( iter == actor_lunges().end() || iter->second == to ) {
+        return;
+    }
+    move_lunge( iter->second, to );
+    iter->second = to;
+}
+
+void clear_actor_lunge( int actor )
+{
+    const auto iter = actor_lunges().find( actor );
+    if( iter == actor_lunges().end() ) {
+        return;
+    }
+    end_lunge( iter->second );
+    actor_lunges().erase( iter );
 }
 
 std::map<tripoint_abs_ms, hit_fx> &hits()
@@ -337,9 +394,10 @@ prediction &pred()
 struct client_info {
     bool on = false;
     int my_id = 0;
-    // end of the last confirmed step / attack of the own character
+    // end of the last confirmed step of the own character
     ms_t confirmed_end = 0;
-    ms_t busy_until = 0;
+    // the own body is in a melee swing until then: movement continues, sprint does not
+    ms_t melee_until = 0;
     int last_step_ms = 0;
     ms_t last_send = 0;
     bool aiming = false;
@@ -955,6 +1013,12 @@ int fire_at_cursor( Character &who, actor_state &st, ms_t now, std::vector<event
     }
     const tuning &tn = tune();
     const int duration = std::max( tn.fire_min_ms, moves_to_ms( who, charged ) );
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace shot id=" << who.getID().get_value() <<
+                                   " t=" << now << " at=" << pos.x() << "," << pos.y() <<
+                                   " target=" << st.aim_tile.x() << "," << st.aim_tile.y() <<
+                                   " dur=" << duration;
+    }
 
     event ev;
     ev.type = fx_type::shot;
@@ -1038,7 +1102,7 @@ void cancel_swing( Character &who, actor_state &st, ms_t now, std::vector<event>
     const ms_t remaining = std::max<ms_t>( 0, st.phase_end - now );
     st.melee = phase::idle;
     st.ready_at = now + static_cast<ms_t>( remaining * tn.cancel_cost );
-    end_lunge( who.pos_abs() );
+    clear_actor_lunge( who.getID().get_value() );
     event ev;
     ev.type = fx_type::cancel;
     ev.actor = who.getID().get_value();
@@ -1060,6 +1124,10 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     const int windup = std::clamp( static_cast<int>( total * tn.windup_share ),
                                    std::min( tn.windup_min_ms, total / 2 ),
                                    std::min( tn.windup_max_ms, total - 40 ) );
+    // a swing is walked, never run: sprint starts again after the recovery
+    if( who.is_running() ) {
+        who.set_movement_mode( move_mode_walk );
+    }
     st.melee = phase::windup;
     st.melee_started = t0;
     st.melee_total_ms = total;
@@ -1074,7 +1142,7 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     st.hit_something = false;
     st.buffered_until = 0;
     st.bump_swing = false;
-    begin_lunge( who.pos_abs(), dx, dy, t0, windup, total );
+    place_actor_lunge( who.getID().get_value(), who.pos_abs(), dx, dy, t0, windup, total );
 
     static const bool swing_log = std::getenv( "CATA_MP_TEST_TRACE" ) != nullptr;
     if( swing_log ) {
@@ -1322,6 +1390,12 @@ void do_strike( Character &who, actor_state &st, const input_frame &in, ms_t now
     }
     st.struck = true;
     st.hit_something = hit;
+    if( trace_enabled() ) {
+        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace strike id=" << who.getID().get_value() <<
+                                   " t=" << now << " at=" << pos.x() << "," << pos.y() <<
+                                   " dx=" << dir.first << " dy=" << dir.second <<
+                                   " target=" << ( target != nullptr ? 1 : 0 ) << " hit=" << hit;
+    }
 
     const tuning &tn = tune();
     int recovery = std::max( 40, st.melee_total_ms - st.melee_windup_ms );
@@ -1489,16 +1563,24 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     const tripoint_abs_ms from = who.pos_abs();
     tripoint_abs_ms dest = from + tripoint_rel_ms( dx, dy, 0 );
 
-    st.face_dx = dx;
-    st.face_dy = dy;
+    // while a swing runs the body keeps facing the blow, also when it walks sideways
+    if( st.melee == phase::idle ) {
+        st.face_dx = dx;
+        st.face_dy = dy;
+    }
 
     // walking into a downed player helps them up
     if( net::host_try_revive( who, dest ) ) {
-        st.ready_at = t0 + moves_to_ms( who, 100 );
+        st.move_ready_at = t0 + moves_to_ms( who, 100 );
         return true;
     }
-    // walking into an enemy attacks it
+    // walking into an enemy attacks it (but never restarts a swing that is already running)
     if( target_at( who, dest ) != nullptr ) {
+        if( st.melee != phase::idle || now < st.ready_at ) {
+            // do not ask again every frame while the swing runs
+            st.move_ready_at = now + 150;
+            return false;
+        }
         start_swing( who, st, t0, dx, dy, out );
         st.bump_swing = true;
         return true;
@@ -1510,8 +1592,10 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     std::tie( dx, dy ) = corner_slide_dir( who, dx, dy );
     if( dx != wanted_dx || dy != wanted_dy ) {
         dest = from + tripoint_rel_ms( dx, dy, 0 );
-        st.face_dx = dx;
-        st.face_dy = dy;
+        if( st.melee == phase::idle ) {
+            st.face_dx = dx;
+            st.face_dy = dy;
+        }
         if( trace_enabled() ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace slide id=" << who.getID().get_value() <<
                                        " t=" << now << " wanted=" << wanted_dx << "," << wanted_dy <<
@@ -1525,7 +1609,7 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         Creature *there = get_creature_tracker().creature_at( here.get_bub( dest ) );
         if( walker != nullptr && there != nullptr && there->is_npc() &&
             net::bump_npc( *walker, *there->as_npc() ) ) {
-            st.ready_at = t0 + 150;
+            st.move_ready_at = t0 + 150;
             return true;
         }
     }
@@ -1566,7 +1650,7 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         const double loss = who.is_running() ? tn.aim_run_loss : tn.aim_step_loss;
         who.recoil = std::min( MAX_RECOIL, recoil_before + ( MAX_RECOIL - recoil_before ) * loss );
         const int dur = std::clamp( std::max( 40, moves_to_ms( who, charged ) ), 40, tn.slide_max_ms );
-        st.ready_at = t0 + dur;
+        st.move_ready_at = t0 + dur;
         st.aim_move_carry = 0.0;
         if( trace_enabled() ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace step id=" << who.getID().get_value() <<
@@ -1593,7 +1677,7 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
     who.recoil = recoil_before;
     if( charged > 0 ) {
         // e.g. opening a door: it takes time but nobody moved
-        st.ready_at = t0 + std::max( 40, moves_to_ms( who, charged ) );
+        st.move_ready_at = t0 + std::max( 40, moves_to_ms( who, charged ) );
         return true;
     }
     // blocked: do not retry (and spam the message log) every frame
@@ -1601,7 +1685,7 @@ bool start_step( Character &who, actor_state &st, int dx, int dy, ms_t now, ms_t
         DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace blocked id=" << who.getID().get_value() <<
                                    " t=" << now << " dx=" << wanted_dx << " dy=" << wanted_dy;
     }
-    st.ready_at = now + 150;
+    st.move_ready_at = now + 150;
     ( void )moved;
     return false;
 }
@@ -1860,7 +1944,8 @@ bool body_cross( Character &who, actor_state &st, const tripoint_abs_ms &dest, m
         st.body_x = std::clamp( st.body_x, from.x() + margin, from.x() + 1.0 - margin );
         st.body_y = std::clamp( st.body_y, from.y() + margin, from.y() + 1.0 - margin );
         // do not ask the game again every frame
-        st.ready_at = now + ( charged > 0 ? std::max( 40, moves_to_ms( who, charged ) ) : 150 );
+        st.move_ready_at = now +
+                            ( charged > 0 ? std::max( 40, moves_to_ms( who, charged ) ) : 150 );
         if( trace_enabled() ) {
             DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace free refused id=" << who.getID().get_value() <<
                                        " t=" << now << " dx=" << dx << " dy=" << dy;
@@ -1875,8 +1960,10 @@ bool body_cross( Character &who, actor_state &st, const tripoint_abs_ms &dest, m
     const double loss = who.is_running() ? tn.aim_run_loss : tn.aim_step_loss;
     who.recoil = std::min( MAX_RECOIL, recoil_before + ( MAX_RECOIL - recoil_before ) * loss );
     st.aim_move_carry = 0.0;
-    st.face_dx = dx;
-    st.face_dy = dy;
+    if( st.melee == phase::idle ) {
+        st.face_dx = dx;
+        st.face_dy = dy;
+    }
     st.body_tile = now_pos;
     if( now_pos != dest ) {
         // the game put the character elsewhere (a ramp, a fall ...): the body follows
@@ -2002,10 +2089,14 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
     if( len < 0.5 ) {
         return false;
     }
+    // a refused step, a door opening, a soft-wall push or a grab step blocks the body for a moment
+    if( now < st.move_ready_at ) {
+        return false;
+    }
     // holding furniture or a vehicle: tile steps along the grab line (free movement would cross
     // the tile edges one axis at a time, which counts as a step sideways and lets go)
     if( who.grab_point != tripoint_rel_ms::zero ) {
-        if( now < st.ready_at ) {
+        if( now < st.move_ready_at ) {
             return false;
         }
         const tripoint_abs_ms before = who.pos_abs();
@@ -2018,15 +2109,19 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
             st.body_x = after.x() + 0.5;
             st.body_y = after.y() + 0.5;
             st.body_tile = after;
-            body_set_correction( st, old_x, old_y, now, std::max( 40, static_cast<int>( st.ready_at - now ) ) );
+            body_set_correction( st, old_x, old_y, now,
+                                 std::max( 40, static_cast<int>( st.move_ready_at - now ) ) );
             return true;
         }
         return false;
     }
     const double ux = in.move_x / len;
     const double uy = in.move_y / len;
-    st.face_dx = in.move_x;
-    st.face_dy = in.move_y;
+    // while a swing runs the body keeps facing the blow, also when it walks sideways
+    if( st.melee == phase::idle ) {
+        st.face_dx = in.move_x;
+        st.face_dy = in.move_y;
+    }
     const tripoint_abs_ms ahead = st.body_tile + tripoint_rel_ms( in.move_x, in.move_y, 0 );
     const int ms_per_tile = std::max( 1, moves_to_ms( who, body_step_cost( who, st.body_tile, ahead ) ) );
     // a dodge dashes: three times the distance while its dash time lasts (frame time)
@@ -2056,7 +2151,7 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
         }
     }
     const bool moved = std::abs( st.body_x - start_x ) + std::abs( st.body_y - start_y ) > 1e-9;
-    if( moved || dt <= 0 || now < st.ready_at ) {
+    if( moved || dt <= 0 || now < st.move_ready_at ) {
         return moved;
     }
     if( !body_bump_worthy( who, st, in.move_x, in.move_y ) ) {
@@ -2103,7 +2198,7 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
             // the host's avatar gets the native climb-down menu; a player's body gets the same
             // menu on the player's own screen (the client examines the ledge)
             net::request_climb( who, in.move_x, in.move_y );
-            st.ready_at = now + 1500;
+            st.move_ready_at = now + 1500;
             return false;
         }
     } else {
@@ -2122,7 +2217,7 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
         body->burn_move_stamina( cost );
         here.creature_in_field( *body );
         here.creature_on_trap( *body );
-        st.ready_at = now + std::max( 40, moves_to_ms( who, cost ) );
+        st.move_ready_at = now + std::max( 40, moves_to_ms( who, cost ) );
     } else {
         soft_wall_push = soft;
         start_step( who, st, in.move_x, in.move_y, now, now, out );
@@ -2136,7 +2231,8 @@ bool free_move( Character &who, actor_state &st, const input_frame &in, int dt, 
         st.body_x = after.x() + 0.5;
         st.body_y = after.y() + 0.5;
         st.body_tile = after;
-        body_set_correction( st, old_x, old_y, now, std::max( 40, static_cast<int>( st.ready_at - now ) ) );
+        body_set_correction( st, old_x, old_y, now,
+                             std::max( 40, static_cast<int>( st.move_ready_at - now ) ) );
         return true;
     }
     return false;
@@ -2772,8 +2868,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             step.move_y = f.move_y;
             step.sprint = f.sprint;
             // walk or run as this frame says (the client predicted it so); not the newest
-            // input's sprint key, which may belong to a later frame
-            if( f.sprint && !who.is_running() && who.can_run() ) {
+            // input's sprint key, which may belong to a later frame.  A melee swing is walked.
+            if( f.sprint && !who.is_running() && who.can_run() && st.melee == phase::idle ) {
                 who.set_movement_mode( move_mode_run );
             } else if( who.is_running() && ( !f.sprint || !who.can_run() ) ) {
                 who.set_movement_mode( move_mode_walk );
@@ -2782,15 +2878,15 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             if( f.dodge || now <= st.dodge_buffered_until ) {
                 start_dodge( who, st, now, false, f.move_x, f.move_y, out );
             }
-            const ms_t ready_before = st.ready_at;
+            const ms_t ready_before = st.move_ready_at;
             const tripoint_abs_ms tile_before = who.pos_abs();
             const bool frame_moved = free_move( who, st, step, f.dt, now, out );
             moved = frame_moved || moved;
-            if( !frame_moved && who.pos_abs() == tile_before && st.ready_at > now &&
-                st.ready_at != ready_before && body_door_opened( st, step ) ) {
+            if( !frame_moved && who.pos_abs() == tile_before && st.move_ready_at > now &&
+                st.move_ready_at != ready_before && body_door_opened( st, step ) ) {
                 // the wait of the opened door, in frame time instead of the host's clock
-                st.frame_wait_ms = static_cast<double>( st.ready_at - now );
-                st.ready_at = now;
+                st.frame_wait_ms = static_cast<double>( st.move_ready_at - now );
+                st.move_ready_at = now;
             }
             if( trace_enabled() ) {
                 DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace srvframe seq=" << f.seq << " dt=" << f.dt <<
@@ -2824,7 +2920,7 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
 
     // ---- hold to sprint (B4); back to walking on release or when out of stamina
     // level based: holding the key while winded starts the sprint once stamina allows it
-    if( in.sprint && !who.is_running() && who.can_run() ) {
+    if( in.sprint && !who.is_running() && who.can_run() && st.melee == phase::idle ) {
         who.set_movement_mode( move_mode_run );
     } else if( who.is_running() && ( ( !in.sprint && st.prev_sprint ) || !who.can_run() ) ) {
         who.set_movement_mode( move_mode_walk );
@@ -2857,11 +2953,6 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         st.melee = phase::idle;
     }
     const bool idle = acting && st.melee == phase::idle && now >= st.ready_at;
-    if( trace_enabled() && moves != nullptr && !moves->empty() && !idle ) {
-        DebugLog( D_INFO, D_MAIN ) << "Multiplayer: trace frames skipped n=" << moves->size() << " moves=" <<
-                                   who.get_moves() << " activity=" << static_cast<bool>( who.activity ) << " melee=" <<
-                                   static_cast<int>( st.melee ) << " ready_in=" << st.ready_at - now;
-    }
     if( !idle && primary_pressed ) {
         // too early (walking, recovering from a blow ...): the click is remembered and used
         // the moment the actor is ready
@@ -2887,6 +2978,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             const int dur = shove( who, st, sd.first, sd.second, t0, out );
             if( dur > 0 ) {
                 st.ready_at = t0 + dur;
+                // a shove commits the body: no walking away from it
+                st.root_until = st.ready_at;
                 started = true;
             }
         }
@@ -2895,6 +2988,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             const int dur = throw_at_cursor( who, in, now, out );
             if( dur > 0 ) {
                 st.ready_at = t0 + dur;
+                // a throw commits the body until the item has left the hand
+                st.root_until = st.ready_at;
                 started = true;
             }
         }
@@ -2956,35 +3051,41 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
             }
         }
 
-        if( !started && free && wants_move ) {
+    }
+
+    // ---- movement (independent of attacks: a swing or a shot never roots the body)
+    const bool can_move = ( acting || ( reloading && free ) ) && now >= st.root_until;
+    if( free && wants_move && can_move ) {
+        if( moves == nullptr && ( st.frame_wait_ms > 0 || now < st.move_ready_at ) ) {
+            // opening a door or waiting for a refused/soft-wall step: this frame passes standing
+            if( st.frame_wait_ms > 0 ) {
+                st.frame_wait_ms = std::max( 0.0, st.frame_wait_ms - body_dt );
+            }
+        } else {
             st.body_moving = move_body();
             if( st.body_moving && who.is_avatar() ) {
                 // a tap has been used: the input resolver lets go of it
                 note_own_step_started();
             }
-        } else if( !started && !free && ( in.move_x != 0 || in.move_y != 0 ) ) {
-            // (tile steps only without free movement: a frame without movement frames of a
-            // remote player is a frame without movement)
-            // While walking continuously the next step starts exactly when the last one ended,
-            // even if the world turn in between took longer than a frame: no lost time (and
-            // no pause on the tile) after a hitch.
-            const ms_t step_t0 = ( st.stepping && st.ready_at > 0 && now - st.ready_at < tn.chain_ms ) ?
-                                 st.ready_at : t0;
-            const tripoint_abs_ms before = who.pos_abs();
-            started = start_step( who, st, in.move_x, in.move_y, now, step_t0, out );
-            st.stepping = started && who.pos_abs() != before;
-        } else {
-            st.stepping = false;
         }
-    } else if( reloading && free && wants_move &&
-               !who.is_dead_state() && now >= st.ready_at ) {
-        st.body_moving = move_body();
-        if( st.body_moving && who.is_avatar() ) {
-            note_own_step_started();
-        }
+    } else if( !free && wants_move && acting && now >= st.root_until &&
+               now >= st.move_ready_at ) {
+        // (tile steps only without free movement: a frame without movement frames of a
+        // remote player is a frame without movement)
+        // While walking continuously the next step starts exactly when the last one ended,
+        // even if the world turn in between took longer than a frame: no lost time (and
+        // no pause on the tile) after a hitch.
+        const ms_t step_t0 = ( st.stepping && st.move_ready_at > 0 &&
+                               now - st.move_ready_at < tn.chain_ms ) ? st.move_ready_at : now;
+        const tripoint_abs_ms before = who.pos_abs();
+        const bool stepped = start_step( who, st, in.move_x, in.move_y, now, step_t0, out );
+        st.stepping = stepped && who.pos_abs() != before;
     } else if( in.move_x == 0 && in.move_y == 0 ) {
         st.stepping = false;
     }
+
+    // the lunge follows a body that walks during its swing
+    move_actor_lunge( who.getID().get_value(), who.pos_abs() );
 
     if( free ) {
         body_publish( who, st, now );
@@ -3006,6 +3107,7 @@ void reset_session()
     reset_clock();
     slides().clear();
     lunges().clear();
+    actor_lunges().clear();
     hits().clear();
     boom_list().clear();
     aim_line_list().clear();
@@ -3424,6 +3526,23 @@ void host_frame()
     input_frame in;
     const bool device = poll_device( in );
     if( device ) {
+        // test hook: aim east and pull the trigger every 300 ms without a physical mouse
+        static const bool test_fire = std::getenv( "CATA_MP_TEST_FIRE" ) != nullptr;
+        if( test_fire ) {
+            static ms_t next_test_shot = 0;
+            const tripoint_abs_ms body = u.pos_abs();
+            in.cursor_valid = true;
+            in.cursor_x = body.x() + 3.5;
+            in.cursor_y = body.y() + 0.5;
+            in.cursor_z = body.z();
+            if( now >= next_test_shot ) {
+                in.primary = true;
+                ++in.primary_presses;
+                next_test_shot = now + 300;
+            } else {
+                in.primary = false;
+            }
+        }
         note_cursor( in, now );
         // The classic input of vehicles, menus ... is left alone while they are in use.
         const bool fluid_owns_input = !u.controlling_vehicle && !u.is_dead_state() &&
@@ -3518,10 +3637,10 @@ void apply_visual_event( const event &ev, ms_t arrival )
             begin_slide( ev.from, ev.to, arrival, ev.dur_ms );
             break;
         case fx_type::swing:
-            begin_lunge( ev.from, ev.dx, ev.dy, arrival, ev.windup_ms, ev.dur_ms );
+            place_actor_lunge( ev.actor, ev.from, ev.dx, ev.dy, arrival, ev.windup_ms, ev.dur_ms );
             break;
         case fx_type::cancel:
-            end_lunge( ev.from );
+            clear_actor_lunge( ev.actor );
             break;
         case fx_type::strike:
             if( ev.hit && ev.to != ev.from ) {
@@ -3671,7 +3790,7 @@ void predict_free_move( const Character &who, actor_state &st, const input_frame
     // this frame runs if its sprint key is held and there is stamina, as on the host (which
     // sets the mode per movement frame); the local copy's mode follows the host's state later:
     // running doubles the speed (move_modes.json)
-    const bool want_run = in.sprint && who.can_run();
+    const bool want_run = in.sprint && who.can_run() && now_ms() >= cinfo().melee_until;
     if( want_run && !who.is_running() ) {
         cost = std::max( 1, cost / 2 );
     } else if( !want_run && who.is_running() ) {
@@ -3821,7 +3940,7 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
     } else if( u.grab_point != tripoint_rel_ms::zero ) {
         // dragging moves in tile steps on the host: follow them, do not predict
         body_place( st, tile.x() + 0.5, tile.y() + 0.5, tile.z() );
-    } else if( now >= ci.busy_until && !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
+    } else if( !u.has_effect( effect_downed_free ) && !u.in_sleep_state() ) {
         // (a downed or sleeping body does not move on the host: predicting it would only be
         // corrected back again and again)
         if( ( in.dodge || now <= st.dodge_buffered_until ) && seq >= 0 ) {
@@ -3861,6 +3980,7 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
         d.moving = true;
         d.stamp = now;
     }
+    move_actor_lunge( ci.my_id, tile );
     const ms_t render_t = now - interp_delay_ms();
     for( std::pair<const int, remote_body> &e : fc.others ) {
         std::deque<std::tuple<ms_t, double, double, int>> &q = e.second.samples;
@@ -3892,6 +4012,8 @@ void client_free_frame( const input_frame &in, int seq, int dt, ms_t now )
         d.off.y = y - ( at.y() + 0.5 );
         d.moving = true;
         d.stamp = now;
+        // a remote player can walk while its swing visual runs
+        move_actor_lunge( e.first, at );
     }
 }
 } // namespace
@@ -3998,22 +4120,15 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             break;
         }
         case fx_type::swing:
-            if( pred().active ) {
-                // the host did not let us go: the sprite eases back to where the actor really is
-                const prediction &pr = pred();
-                const offset o = travel_offset_at( pr.from, arrival );
-                ease_back( ev.from, pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, arrival );
-                pred().active = false;
-            }
-            ci.busy_until = arrival + ev.dur_ms;
+            // a swing does not stop the body: the step prediction stays valid
+            ci.melee_until = arrival + ev.dur_ms;
             apply_visual_event( ev, arrival );
             break;
         case fx_type::cancel:
-            ci.busy_until = arrival;
+            ci.melee_until = arrival;
             apply_visual_event( ev, arrival );
             break;
         case fx_type::shot:
-            ci.busy_until = arrival + ev.dur_ms;
             break;
         case fx_type::strike:
         case fx_type::tracer:
@@ -4187,8 +4302,8 @@ void client_frame()
         ease_back( u.pos_abs(), pr.from.x() + 0.5 + o.x, pr.from.y() + 0.5 + o.y, now );
     }
     const bool wants_move = in.move_x != 0 || in.move_y != 0;
-    if( wants_move && !client_free_movement() && !pr.active && now >= ci.confirmed_end && now >= ci.busy_until &&
-        !u.controlling_vehicle && !in.primary && !in.secondary && !easing_back_at( u.pos_abs(), now ) ) {
+    if( wants_move && !client_free_movement() && !pr.active && now >= ci.confirmed_end &&
+        !u.controlling_vehicle && !easing_back_at( u.pos_abs(), now ) ) {
         const tripoint_abs_ms from = u.pos_abs();
         // the host slides a blocked diagonal along a wall: predict the same
         const std::pair<int, int> dir = corner_slide_dir( u, in.move_x, in.move_y );

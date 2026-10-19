@@ -193,8 +193,14 @@ enum class phase : int {
 
 /** Per character state of the driver. */
 struct actor_state {
-    // the actor may start something new at this time
+    // the actor may start a new attack / fire / shove at this time
     ms_t ready_at = 0;
+    // movement may start again at this time (tile steps, doors, pushes).  Melee and shooting do
+    // not set it: the body keeps moving while it winds up, recovers or waits for the next shot.
+    ms_t move_ready_at = 0;
+    // movement is not allowed before this time (shove and throw commit the body).  Melee and
+    // shooting leave it alone.
+    ms_t root_until = 0;
     // movement frames of a player (fluid::move_frame): time the body still stands after a push
     // that opened a door, counted in the frames' durations (the client predicts the same frames)
     double frame_wait_ms = 0;

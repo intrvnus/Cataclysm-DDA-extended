@@ -1864,7 +1864,8 @@ void options_manager::add_options_interface()
     add( "USE_LANG", "interface", to_translation( "Language" ),
          to_translation( "Switch language.  Each percentage is the fraction of strings translated "
                          "for that language." ),
-         options_manager::get_lang_options(), "" );
+         // Default to English for new installs; the system language can still be picked here.
+         options_manager::get_lang_options(), "en" );
 
     add_empty_line();
 
