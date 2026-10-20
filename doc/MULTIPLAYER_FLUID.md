@@ -90,6 +90,9 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   activity, while pills, cigarettes and other medications replay `ACT_CONSUME`.  The old
   direct `Character::consume` command rejected medical tools ("You can't consume ...").
   Menu bookkeeping activities (`ACT_EAT_MENU` and the consume submenu ids) are not replayed.
+  `firstaid_activity_actor` stores its healing item and chosen body part itself, because the
+  client capture runs inside `assign_activity()` before the base activity targets/str_values
+  can be filled; `finish()` also rejects missing values instead of dereferencing empty vectors.
 * Client monster state updates move existing bodies in bulk without per-monster `on_move()`
   and rebuild the creature-position index once, so two monsters swapping tiles do not report
   a collision or corrupt the tracker.  The state entries are parsed once into plain values
