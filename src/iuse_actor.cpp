@@ -3756,13 +3756,13 @@ std::optional<int> heal_actor::use( Character *p, item &it, map *here,
     cost = p->has_proficiency( proficiency_prof_wound_care_expert ) ? cost / 2 : cost;
     cost = p->has_proficiency( proficiency_prof_wound_care ) ? cost / 2 : cost;
 
-    p->assign_activity( firstaid_activity_actor( cost, it.tname(), patient.getID() ) );
+    item_location tool( *p, &it );
+    // The actor carries the tool and body part from construction so the activity capture in
+    // assign_activity() already has everything a remote host needs to finish the action.
+    p->assign_activity( firstaid_activity_actor( cost, it.tname(), patient.getID(), tool, hpp ) );
 
-    // Player: Only time this item_location gets used in firstaid::finish() is when activating the item's
-    // container from the inventory window, so an item_on_person impl is all that is needed.
-    // Otherwise the proper item_location provided by menu selection supercedes it in consume::finish().
-    // NPC: Will only use its inventory for first aid items.
-    p->activity.targets.emplace_back( *p, &it );
+    // Keep the base activity fields too for the normal UI/resume path.
+    p->activity.targets.emplace_back( tool );
     p->activity.str_values.emplace_back( hpp.c_str() );
     p->set_moves( 0 );
     return 0;

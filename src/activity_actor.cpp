@@ -7507,7 +7507,11 @@ void firstaid_activity_actor::finish( player_activity &act, Character &who )
 
     static const std::string iuse_name_string( "heal" );
 
-    item_location it = act.targets.front();
+    item_location it = act.targets.empty() ? target : act.targets.front();
+    if( !it ) {
+        it = target;
+    }
+
     if( !it ) {
         debugmsg( "Lost tool used for healing" );
         act.set_to_null();
@@ -7519,7 +7523,6 @@ void firstaid_activity_actor::finish( player_activity &act, Character &who )
         act.set_to_null();
         return;
     }
-
     const use_function *use_fun = used_tool->get_use( iuse_name_string );
     const heal_actor *actor = dynamic_cast<const heal_actor *>( use_fun->get_actor_ptr() );
     if( actor == nullptr ) {
@@ -7536,9 +7539,19 @@ void firstaid_activity_actor::finish( player_activity &act, Character &who )
         act.values.clear();
         return;
     }
-    const bodypart_id healed = bodypart_id( act.str_values[0] );
+    bodypart_id healed_part;
+    if( !act.str_values.empty() && bodypart_str_id( act.str_values[0] ).is_valid() ) {
+        healed_part = bodypart_id( act.str_values[0] );
+    } else if( healed.is_valid() ) {
+        healed_part = healed.id();
+    }
+    if( healed_part == bodypart_str_id::NULL_ID() ) {
+        debugmsg( "No body part selected for healing" );
+        act.set_to_null();
+        return;
+    }
     int charges_consumed = actor->finish_using( who, *patient,
-                           *used_tool, healed );
+                           *used_tool, healed_part );
     std::list<item>used;
     if( used_tool->has_flag( flag_SINGLE_USE ) ) {
         it.remove_item();
@@ -7582,6 +7595,8 @@ void firstaid_activity_actor::serialize( JsonOut &jsout ) const
     jsout.member( "moves", moves );
     jsout.member( "name", name );
     jsout.member( "patientID", patientID );
+    jsout.member( "target", target );
+    jsout.member( "healed", healed );
 
     jsout.end_object();
 }
@@ -7595,6 +7610,8 @@ std::unique_ptr<activity_actor> firstaid_activity_actor::deserialize( JsonValue 
     data.read( "moves", actor.moves );
     data.read( "name", actor.name );
     data.read( "patientID", actor.patientID );
+    data.read( "target", actor.target );
+    data.read( "healed", actor.healed );
 
     return actor.clone();
 }

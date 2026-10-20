@@ -2289,8 +2289,10 @@ class firstaid_activity_actor : public activity_actor
 {
     public:
         firstaid_activity_actor() = default;
-        firstaid_activity_actor( int moves, std::string name, character_id patientID ) : moves( moves ),
-            name( std::move( name ) ), patientID( patientID ) {}
+        firstaid_activity_actor( int moves, std::string name, character_id patientID,
+                                 item_location target = {}, bodypart_str_id healed = {} ) :
+            moves( moves ), name( std::move( name ) ), patientID( patientID ),
+            target( std::move( target ) ), healed( healed ) {}
 
         const activity_id &get_type() const override {
             static const activity_id ACT_FIRSTAID( "ACT_FIRSTAID" );
@@ -2312,6 +2314,12 @@ class firstaid_activity_actor : public activity_actor
         int moves;
         std::string name;
         character_id patientID;
+        // The healing item and chosen body part travel with the actor itself.  The generic
+        // activity capture happens inside assign_activity(), before callers could fill the
+        // base player_activity targets/str_values, so a remote replay used to get an empty
+        // set and crash in finish().
+        item_location target;
+        bodypart_str_id healed;
 };
 
 class forage_activity_actor : public activity_actor
