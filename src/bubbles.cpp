@@ -154,14 +154,25 @@ void ensure_all()
         return;
     }
     std::vector<std::pair<int, tripoint_abs_ms>> need;
+    std::vector<int> close;
     for( npc &guy : g->all_npcs() ) {
-        if( guy.is_dead() || guy.get_value( "mp_remote_player" ).str() != "1" ||
-            bubble_of( guy ) != nullptr || reality_bubble().inbounds( guy.pos_abs() ) ) {
+        if( guy.is_dead() || guy.get_value( "mp_remote_player" ).str() != "1" ) {
             continue;
         }
-        need.emplace_back( guy.getID().get_value(), guy.pos_abs() );
+        if( bubble_of( guy ) != nullptr ) {
+            if( reality_bubble().inbounds( guy.pos_abs() ) ) {
+                close.push_back( guy.getID().get_value() );
+            }
+            continue;
+        }
+        if( !reality_bubble().inbounds( guy.pos_abs() ) ) {
+            need.emplace_back( guy.getID().get_value(), guy.pos_abs() );
+        }
     }
     // Opening a bubble loads NPCs and can change active_npc, so do it after the scan.
+    for( const int id : close ) {
+        release( id );
+    }
     for( const std::pair<int, tripoint_abs_ms> &entry : need ) {
         // Only a body outside the main bubble needs its own loaded area.  While it is close
         // (the common case in a town) the main bubble already simulates it and the extra
