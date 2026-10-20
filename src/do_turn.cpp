@@ -598,7 +598,7 @@ bool do_turn()
         if( fluid::enabled() ) {
             // World time passes 25% slower in fluid/multiplayer.  Movement and combat use
             // turn_ms/move points directly and are not affected by this calendar scale.
-            world_scale *= 0.8;
+            world_scale *= 0.75;
         }
         calendar::set_world_time_scale( world_scale );
         calendar::advance_turn();
@@ -678,9 +678,9 @@ bool do_turn()
     // time like everything else, so a 30 minute job takes 30 game minutes, not 30 turns.
     int world_step_turns = to_turns<int>( calendar::last_step() );
     if( fluid::enabled() && world_step_turns > 0 ) {
-        // The calendar scale is 0.8 in fluid mode; compensate activity progress so crafting,
+        // The calendar scale is 0.75 in fluid mode; compensate activity progress so crafting,
         // reading and other timed actions keep their real-time speed.
-        world_step_turns = std::max( 1, static_cast<int>( std::lround( world_step_turns / 0.8 ) ) );
+        world_step_turns = std::max( 1, static_cast<int>( std::lround( world_step_turns / 0.75 ) ) );
     }
     // Focus minigame (B3/B5): hitting SPACE on the prompt doubles the work done for a moment.
     focus_minigame::tick( u );
