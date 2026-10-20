@@ -18,6 +18,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
 #include <unordered_set>
 #include <variant>
 
@@ -2300,6 +2301,21 @@ void cata_tiles::draw_fluid_overlays()
         const avatar &u = get_avatar();
         map &here = get_map();
         constexpr int bar_radius = 24;
+        // Visibility is the expensive part (two line-of-sight tests per damaged monster).
+        // Re-check it a few times per second instead of on every drawn frame.
+        struct bar_visibility {
+            fluid::ms_t checked = 0;
+            bool visible = false;
+        };
+        static std::unordered_map<const monster *, bar_visibility> visibility_cache;
+        static fluid::ms_t cache_swept = 0;
+        const fluid::ms_t bar_now = fluid::now_ms();
+        if( bar_now - cache_swept > 2000 ) {
+            cache_swept = bar_now;
+            for( auto it = visibility_cache.begin(); it != visibility_cache.end(); ) {
+                it = bar_now - it->second.checked > 1000 ? visibility_cache.erase( it ) : std::next( it );
+            }
+        }
         SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
         for( monster &m : g->all_monsters() ) {
             // Cull before the expensive visibility checks: a town can have many monsters, and
@@ -2311,8 +2327,15 @@ void cata_tiles::draw_fluid_overlays()
             const int hp = m.get_hp();
             const int hp_max = m.get_hp_max();
             if( hp <= 0 || hp >= hp_max || m.is_hallucination() ||
-                m.posz() != u.posz() || m.attitude_to( u ) == Creature::Attitude::FRIENDLY ||
-                !u.sees( here, m ) || !m.sees( here, u ) ) {
+                m.posz() != u.posz() || m.attitude_to( u ) == Creature::Attitude::FRIENDLY ) {
+                continue;
+            }
+            bar_visibility &vis = visibility_cache[&m];
+            if( vis.checked == 0 || bar_now - vis.checked >= 200 ) {
+                vis.checked = bar_now;
+                vis.visible = u.sees( here, m ) && m.sees( here, u );
+            }
+            if( !vis.visible ) {
                 continue;
             }
             const float ratio = std::clamp( static_cast<float>( hp ) / std::max( 1, hp_max ),
