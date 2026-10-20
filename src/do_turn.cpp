@@ -573,6 +573,7 @@ bool do_turn()
     fluid::begin_turn();
 
     weather_manager &weather = get_weather();
+    bool fluid_clock_slowed = false;
     // Actual stuff
     if( g->new_game ) {
         g->new_game = false;
@@ -595,10 +596,14 @@ bool do_turn()
                                         net::turn_duration( get_option<float>( "TURN_DURATION" ) );
             world_scale = 86400.0 / ( day_minutes * 60.0 ) * std::max( 0.05, turn_seconds );
         }
-        if( fluid::enabled() ) {
+        // calendar::set_world_time_scale() has a floor of one game second per turn, so only
+        // apply the slow clock when it can still advance (a 24-hour realtime day is already at
+        // that floor).
+        if( fluid::enabled() && world_scale > 1.0 / 0.75 ) {
             // World time passes 25% slower in fluid/multiplayer.  Movement and combat use
             // turn_ms/move points directly and are not affected by this calendar scale.
             world_scale *= 0.75;
+            fluid_clock_slowed = true;
         }
         calendar::set_world_time_scale( world_scale );
         calendar::advance_turn();
@@ -677,7 +682,7 @@ bool do_turn()
     // Short days (A1/B7): activities (crafting, reading, butchering ...) progress in world
     // time like everything else, so a 30 minute job takes 30 game minutes, not 30 turns.
     int world_step_turns = to_turns<int>( calendar::last_step() );
-    if( fluid::enabled() && world_step_turns > 0 ) {
+    if( fluid_clock_slowed && world_step_turns > 0 ) {
         // The calendar scale is 0.75 in fluid mode; compensate activity progress so crafting,
         // reading and other timed actions keep their real-time speed.
         world_step_turns = std::max( 1, static_cast<int>( std::lround( world_step_turns / 0.75 ) ) );
