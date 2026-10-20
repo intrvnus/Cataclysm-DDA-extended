@@ -72,6 +72,11 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
 * The world turn is a clock window: `begin_turn()` (start of `do_turn`) opens it,
   `finish_turn_window()` runs input frames until `turn_due()`. Monsters move once per window and
   slide for the window length (`snapshot_before/after_monsters`).
+* Render loops are frame-capped (`frame_ms`, 16 ms).  The old idle loop redrew whenever an
+  animation was active, which in a town full of moving monsters could reach hundreds of
+  software-rendered frames per second.  A dedicated server skips map rendering entirely and
+  only pumps its window events; the client also sleeps to the frame cap when held input makes
+  `handle_input()` return immediately.
 * Long activities and sleep clear the window (`clock.valid = false`): they run as fast as the
   machine allows, as before.
 * After the player was away (menu), the clock resets instead of running a burst of turns.
