@@ -3233,7 +3233,19 @@ namespace
 void idle_frame()
 {
     host_frame();
-    ui_manager::redraw_invalidated();
+    // Fluid animations invalidate the main UI continuously.  Redrawing in this 2 ms loop
+    // meant up to 500 software-rendered map frames per second on a busy server (and on a host
+    // waiting for the next world turn).  Cap it to the normal fluid frame rate; a dedicated
+    // server has no player looking at its map and does not render it at all.
+    static ms_t last_draw = 0;
+    const ms_t now = now_ms();
+    if( !net::dedicated() && now - last_draw >= tune().frame_ms ) {
+        last_draw = now;
+        ui_manager::redraw_invalidated();
+    } else if( net::dedicated() ) {
+        // The server map is not drawn, but its window still has to process the close button.
+        inp_mngr.pump_events();
+    }
     std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
 }
 } // namespace

@@ -2455,6 +2455,7 @@ void client_place_shadow( int actor, const tripoint_abs_ms &tile )
 bool client_do_turn()
 {
     frame_timer whole( "frame" );
+    const fluid::ms_t frame_start = fluid::now_ms();
     {
         frame_timer t( "poll" );
         poll();
@@ -2534,6 +2535,14 @@ bool client_do_turn()
     {
         frame_timer t( "poll2" );
         poll();
+    }
+    // A held key or mouse button makes handle_input() return immediately, so without this cap
+    // the client renders and sends input as fast as the machine allows.  Keep a stable fluid
+    // frame rate instead; the input timeout already waits this long when the player is idle.
+    const int frame_ms = std::max( 1, fluid::tune().frame_ms );
+    const int elapsed = static_cast<int>( fluid::now_ms() - frame_start );
+    if( elapsed < frame_ms ) {
+        std::this_thread::sleep_for( std::chrono::milliseconds( frame_ms - elapsed ) );
     }
     return false;
 }
