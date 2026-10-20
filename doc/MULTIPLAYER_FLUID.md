@@ -94,18 +94,14 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
 * The client no longer imports the host's auto-move route.  A stale route made every manual
   step stop travel and print the message; stopping now clears the route as well, and ordinary
   movement with no active travel is silent.
-* Client consumption uses the same native `avatar_action::eat_or_use` flow as the host:
-  bandages and first aid open their body-part menu locally and replay the `ACT_FIRSTAID`
-  activity, while pills, cigarettes and other medications replay `ACT_CONSUME`.  The old
-  direct `Character::consume` command rejected medical tools ("You can't consume ...").
-  Menu bookkeeping activities (`ACT_EAT_MENU` and the consume submenu ids) are not replayed.
-  `firstaid_activity_actor` stores its healing item and chosen body part itself, because the
-  client capture runs inside `assign_activity()` before the base activity targets/str_values
-  can be filled; `finish()` also rejects missing values instead of dereferencing empty vectors.
-  When a character restored from an older save has an `ACT_FIRSTAID` with no valid body part,
-  the client clears that stale activity before use; `heal_actor::use_healing_item()` also
-  validates the stored body part before reading it, so the consume menu cannot crash on an
-  empty vector.
+* Client consumption is a structured action: the client chooses the item and, for a medical
+  tool, the body part, and sends those two values to the host.  The host starts `ACT_CONSUME`
+  or a self-contained `firstaid_activity_actor` directly; no client `player_activity` is
+  replayed.  Menu bookkeeping activities (`ACT_EAT_MENU` and the consume submenu ids) remain
+  client-only.
+  `firstaid_activity_actor` stores its healing item and chosen body part itself.  `finish()`
+  rejects missing values instead of dereferencing empty vectors, and a stale `ACT_FIRSTAID`
+  restored from an older save is cleared before use.
 * Client monster state updates move existing bodies in bulk without per-monster `on_move()`
   and rebuild the creature-position index once, so two monsters swapping tiles do not report
   a collision or corrupt the tracker.  The state entries are parsed once into plain values
