@@ -507,21 +507,42 @@ void apply_state( const JsonObject &msg )
             previous_monsters[critter.net_id] = &critter;
         }
     }
-    std::vector<JsonObject> incoming;
+    struct incoming_monster {
+        int nid = -1;
+        mtype_id type;
+        tripoint_abs_ms pos;
+        int hp = 0;
+        int friendly = 0;
+        bool pet = false;
+    };
+    std::vector<incoming_monster> incoming;
     std::map<int, mtype_id> incoming_types;
     std::map<int, tripoint_abs_ms> incoming_positions;
+    std::set<tripoint_abs_ms> occupied;
     for( JsonObject mon : msg.get_array( "monsters" ) ) {
+        // Read every field exactly once.  A JsonObject keeps a read cursor; storing copies
+        // and reading them again in a second pass produced misplaced-field JSON errors.
         mon.allow_omitted_members();
-        const int nid = mon.get_int( "nid", -1 );
-        const tripoint_abs_ms p = read_pos( mon.get_array( "pos" ) );
-        const mtype_id type( mon.get_string( "id" ) );
-        if( !type.is_valid() || !now.inbounds( p ) ) {
+        incoming_monster state;
+        state.nid = mon.get_int( "nid", -1 );
+        state.pos = read_pos( mon.get_array( "pos" ) );
+        state.type = mtype_id( mon.get_string( "id" ) );
+        state.hp = mon.get_int( "hp", 0 );
+        state.friendly = mon.get_int( "fr", 0 );
+        state.pet = mon.get_bool( "pet", false );
+        if( !state.type.is_valid() || !now.inbounds( state.pos ) ) {
             continue;
         }
-        incoming.push_back( mon );
-        if( nid > 0 ) {
-            incoming_types[nid] = type;
-            incoming_positions[nid] = p;
+        // Never let two bodies share a tile.  This is the client-side counterpart of
+        // disabling the monster swap/collision path; a malformed or transient duplicate is
+        // dropped rather than moved into the other monster's tracker entry.
+        if( !occupied.insert( state.pos ).second ) {
+            continue;
+        }
+        incoming.push_back( state );
+        if( state.nid > 0 ) {
+            incoming_types[state.nid] = state.type;
+            incoming_positions[state.nid] = state.pos;
         }
     }
     // Remove monsters that are gone or changed type while their tracker entries are still at
@@ -541,24 +562,21 @@ void apply_state( const JsonObject &msg )
     }
     get_creature_tracker().rebuild_locations();
     static const efftype_id effect_pet( "pet" );
-    for( JsonObject mon : incoming ) {
-        const int nid = mon.get_int( "nid", -1 );
-        const tripoint_abs_ms p = read_pos( mon.get_array( "pos" ) );
-        const mtype_id type( mon.get_string( "id" ) );
+    for( const incoming_monster &state : incoming ) {
         monster *critter = nullptr;
-        const auto old = previous_monsters.find( nid );
+        const auto old = previous_monsters.find( state.nid );
         if( old != previous_monsters.end() ) {
             critter = old->second;
         } else {
-            critter = g->place_critter_at( type, now.get_bub( p ) );
+            critter = g->place_critter_at( state.type, now.get_bub( state.pos ) );
             if( critter == nullptr ) {
                 continue;
             }
-            critter->net_id = nid;
+            critter->net_id = state.nid;
         }
-        critter->set_hp( mon.get_int( "hp", critter->get_hp() ) );
-        critter->friendly = mon.get_int( "fr", 0 );
-        if( mon.get_bool( "pet", false ) ) {
+        critter->set_hp( state.hp > 0 ? state.hp : critter->get_hp() );
+        critter->friendly = state.friendly;
+        if( state.pet ) {
             critter->add_effect( effect_pet, 1_turns, true );
         } else {
             critter->remove_effect( effect_pet );
