@@ -92,7 +92,9 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   Menu bookkeeping activities (`ACT_EAT_MENU` and the consume submenu ids) are not replayed.
 * Client monster state updates move existing bodies in bulk without per-monster `on_move()`
   and rebuild the creature-position index once, so two monsters swapping tiles do not report
-  a collision or corrupt the tracker.
+  a collision or corrupt the tracker.  The state entries are parsed once into plain values
+  (reusing a `JsonObject` copy re-read its cursor and produced malformed-field errors), and
+  duplicate monster tiles are dropped before they reach the tracker.
 * Long activities and sleep clear the window (`clock.valid = false`): they run as fast as the
   machine allows, as before.
 * After the player was away (menu), the clock resets instead of running a burst of turns.
