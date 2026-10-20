@@ -2967,8 +2967,6 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     st.seen_shove_presses = in.shove_presses;
     const bool primary_pressed = in.primary_presses != st.seen_primary_presses ||
                                  ( in.primary && !st.prev_primary );
-    const bool secondary_pressed = in.secondary_presses != st.seen_secondary_presses ||
-                                   ( in.secondary && !st.prev_secondary );
     st.seen_primary_presses = in.primary_presses;
     st.seen_secondary_presses = in.secondary_presses;
     st.prev_primary = in.primary;
@@ -2993,11 +2991,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     const bool have_dir = have_cursor && std::abs( cdx ) + std::abs( cdy ) > 0.25;
     const bool acting = can_act_now( who );
     const bool armed_with_gun = wielded_gun( who ) != nullptr;
-    // RMB is the combat-mode switch for melee.  It must not itself start a swing; a left click
-    // (or holding the left button) does that while the mode is on.
-    if( secondary_pressed && !armed_with_gun ) {
-        st.combat_mode = !st.combat_mode;
-    }
+    // Hold RMB to stay in melee combat mode.  It must not itself swing; a left click (or
+    // holding the left button) does that while the mode is held.
+    st.combat_mode = in.secondary && !armed_with_gun;
 
     // ---- melee phases
     if( st.melee == phase::windup ) {
