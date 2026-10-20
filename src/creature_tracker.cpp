@@ -179,6 +179,11 @@ void creature_tracker::remove( const monster &critter )
     monsters_list.erase( iter );
 }
 
+void creature_tracker::rebuild_locations()
+{
+    rebuild_cache();
+}
+
 void creature_tracker::clear()
 {
     monsters_list.clear();

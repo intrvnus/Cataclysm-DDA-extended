@@ -93,6 +93,8 @@ class creature_tracker
                          const tripoint_abs_ms &new_pos );
         /** Removes the given monster from the Creature tracker, adjusting other entries as needed. */
         void remove( const monster &critter );
+        /** Rebuilds the location index after positions were changed in bulk without on_move(). */
+        void rebuild_locations();
         void clear();
         void clear_npcs() {
             active_npc.clear();

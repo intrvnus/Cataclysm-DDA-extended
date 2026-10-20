@@ -78,6 +78,7 @@
 #include "music.h"
 #include "mp_lives.h"
 #include "mod_engine.h"
+#include "creature_tracker.h"
 #include "monster.h"
 #include "mp_test_menus.h"
 #include "net_protocol.h"
@@ -506,8 +507,9 @@ void apply_state( const JsonObject &msg )
             previous_monsters[critter.net_id] = &critter;
         }
     }
-    std::set<int> seen_monsters;
-    static const efftype_id effect_pet( "pet" );
+    std::vector<JsonObject> incoming;
+    std::map<int, mtype_id> incoming_types;
+    std::map<int, tripoint_abs_ms> incoming_positions;
     for( JsonObject mon : msg.get_array( "monsters" ) ) {
         mon.allow_omitted_members();
         const int nid = mon.get_int( "nid", -1 );
@@ -516,24 +518,43 @@ void apply_state( const JsonObject &msg )
         if( !type.is_valid() || !now.inbounds( p ) ) {
             continue;
         }
+        incoming.push_back( mon );
+        if( nid > 0 ) {
+            incoming_types[nid] = type;
+            incoming_positions[nid] = p;
+        }
+    }
+    // Remove monsters that are gone or changed type while their tracker entries are still at
+    // the old positions.  The remaining bodies are then moved in bulk without on_move(): moving
+    // them one by one would make a swap report a collision and can leave the tracker corrupted.
+    for( auto iter = previous_monsters.begin(); iter != previous_monsters.end(); ) {
+        const auto type = incoming_types.find( iter->first );
+        if( type == incoming_types.end() || iter->second->type->id != type->second ) {
+            g->remove_zombie( *iter->second );
+            iter = previous_monsters.erase( iter );
+        } else {
+            ++iter;
+        }
+    }
+    for( const std::pair<const int, monster *> &old : previous_monsters ) {
+        old.second->set_net_position( incoming_positions[old.first] );
+    }
+    get_creature_tracker().rebuild_locations();
+    static const efftype_id effect_pet( "pet" );
+    for( JsonObject mon : incoming ) {
+        const int nid = mon.get_int( "nid", -1 );
+        const tripoint_abs_ms p = read_pos( mon.get_array( "pos" ) );
+        const mtype_id type( mon.get_string( "id" ) );
         monster *critter = nullptr;
         const auto old = previous_monsters.find( nid );
-        if( old != previous_monsters.end() && old->second->type->id == type ) {
+        if( old != previous_monsters.end() ) {
             critter = old->second;
-            critter->setpos( now, now.get_bub( p ), false );
         } else {
-            if( old != previous_monsters.end() ) {
-                g->remove_zombie( *old->second );
-                previous_monsters.erase( old );
-            }
             critter = g->place_critter_at( type, now.get_bub( p ) );
             if( critter == nullptr ) {
                 continue;
             }
             critter->net_id = nid;
-        }
-        if( nid > 0 ) {
-            seen_monsters.insert( nid );
         }
         critter->set_hp( mon.get_int( "hp", critter->get_hp() ) );
         critter->friendly = mon.get_int( "fr", 0 );
@@ -541,11 +562,6 @@ void apply_state( const JsonObject &msg )
             critter->add_effect( effect_pet, 1_turns, true );
         } else {
             critter->remove_effect( effect_pet );
-        }
-    }
-    for( const std::pair<const int, monster *> &old : previous_monsters ) {
-        if( seen_monsters.count( old.first ) == 0 ) {
-            g->remove_zombie( *old.second );
         }
     }
     ( void )here;

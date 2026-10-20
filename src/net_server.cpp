@@ -1752,6 +1752,13 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                                                        "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH", "ACT_CONSUME",
                                                        "ACT_FIRSTAID"
                                                      };
+        // Menu bookkeeping activities are local to the client's inventory screen.  They are
+        // not gameplay actions and must not be replayed (ACT_EAT_MENU was the extra activity
+        // that produced "not available in multiplayer yet" when consuming a bandage).
+        static const std::set<std::string> menu_only = {
+            "ACT_EAT_MENU", "ACT_CONSUME_FOOD_MENU", "ACT_CONSUME_DRINK_MENU",
+            "ACT_CONSUME_MEDS_MENU"
+        };
         for( JsonValue entry : msg.get_array( "acts" ) ) {
             try {
                 const std::string act_json = entry.get_string();
@@ -1761,6 +1768,9 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                 jo.allow_omitted_members();
                 player_activity act;
                 act.deserialize( jo );
+                if( menu_only.count( act.id().str() ) ) {
+                    continue;
+                }
                 if( act.id().is_null() || !allowed.count( act.id().str() ) ) {
                     send_text( rp, _( "That is not available in multiplayer yet." ) );
                     continue;

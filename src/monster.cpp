@@ -343,6 +343,14 @@ monster::~monster() = default;
 monster &monster::operator=( const monster & ) = default;
 monster &monster::operator=( monster && ) noexcept( string_is_noexcept ) = default;
 
+void monster::set_net_position( const tripoint_abs_ms &p )
+{
+    // The client updates many monsters from one state message; on_move()/update_zombie_pos()
+    // would report collisions while two bodies swap tiles.  The tracker is rebuilt once after
+    // the whole batch instead.
+    set_pos_abs_only( p );
+}
+
 void monster::on_move( const tripoint_abs_ms &old_pos )
 {
     Creature::on_move( old_pos );

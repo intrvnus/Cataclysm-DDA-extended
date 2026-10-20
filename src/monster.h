@@ -557,6 +557,8 @@ class monster : public Creature
         // Client-side updates reuse the same monster instead of clearing and recreating all
         // monsters every world turn.  Not saved.
         int net_id = 0;
+        /** Client state update: move the body without the per-move tracker side effects. */
+        void set_net_position( const tripoint_abs_ms &p );
         int morale = 0;
     private:
         int amount_eaten = 0;
