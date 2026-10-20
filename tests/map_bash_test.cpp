@@ -171,12 +171,11 @@ TEST_CASE( "remote_smash_menu_replays_the_selected_window", "[map][bash][remote_
     // different body tile.
     REQUIRE( here.ter_set( window, ter_id( "t_window" ) ) );
     here.set_map_damage( window, 0 );
-    npc *host_actor = spawn_npc( point_bub_ms( 40, 41 ), "thug" );
-    REQUIRE( host_actor != nullptr );
-    clear_character( *host_actor );
-    host_actor->str_max = 8;
-    host_actor->reset_stats();
-    remote_ui::replay_scope replay( answers, *host_actor, host_actor->getID().get_value() );
+    npc &host_actor = spawn_npc( point_bub_ms( 40, 41 ), "thug" );
+    clear_character( host_actor );
+    host_actor.str_max = 8;
+    host_actor.reset_stats();
+    remote_ui::replay_scope replay( answers, host_actor, host_actor.getID().get_value() );
     smash_menu();
     CHECK_FALSE( replay.failed() );
     CHECK( here.ter( window ) != ter_id( "t_window" ) );

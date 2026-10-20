@@ -595,6 +595,11 @@ bool do_turn()
                                         net::turn_duration( get_option<float>( "TURN_DURATION" ) );
             world_scale = 86400.0 / ( day_minutes * 60.0 ) * std::max( 0.05, turn_seconds );
         }
+        if( fluid::enabled() ) {
+            // World time passes 25% slower in fluid/multiplayer.  Movement and combat use
+            // turn_ms/move points directly and are not affected by this calendar scale.
+            world_scale *= 0.8;
+        }
         calendar::set_world_time_scale( world_scale );
         calendar::advance_turn();
     }
@@ -671,7 +676,12 @@ bool do_turn()
     g->perhaps_add_random_npc( /* ignore_spawn_timers_and_rates = */ false );
     // Short days (A1/B7): activities (crafting, reading, butchering ...) progress in world
     // time like everything else, so a 30 minute job takes 30 game minutes, not 30 turns.
-    const int world_step_turns = to_turns<int>( calendar::last_step() );
+    int world_step_turns = to_turns<int>( calendar::last_step() );
+    if( fluid::enabled() && world_step_turns > 0 ) {
+        // The calendar scale is 0.8 in fluid mode; compensate activity progress so crafting,
+        // reading and other timed actions keep their real-time speed.
+        world_step_turns = std::max( 1, static_cast<int>( std::lround( world_step_turns / 0.8 ) ) );
+    }
     // Focus minigame (B3/B5): hitting SPACE on the prompt doubles the work done for a moment.
     focus_minigame::tick( u );
     const double focus = focus_minigame::multiplier( u );

@@ -2965,8 +2965,6 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     st.seen_shove_presses = in.shove_presses;
     const bool primary_pressed = in.primary_presses != st.seen_primary_presses ||
                                  ( in.primary && !st.prev_primary );
-    const bool secondary_pressed = in.secondary_presses != st.seen_secondary_presses ||
-                                   ( in.secondary && !st.prev_secondary );
     st.seen_primary_presses = in.primary_presses;
     st.seen_secondary_presses = in.secondary_presses;
     st.prev_primary = in.primary;
@@ -2994,7 +2992,9 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
 
     // ---- melee phases
     if( st.melee == phase::windup ) {
-        const bool cancel = in.cancel || ( secondary_pressed && !armed_with_gun );
+        // The right button now means "hold to keep swinging" for melee; it no longer cancels
+        // the wind-up.  Space (FLUID_CANCEL) still cancels.
+        const bool cancel = in.cancel;
         if( !acting ) {
             cancel_swing( who, st, now, out );
         } else if( cancel ) {
@@ -3062,7 +3062,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         if( started ) {
             // the throw / the autoattack is the action of this frame
         } else if( !armed_with_gun ) {
-            const bool want_attack = primary_pressed || ( st.buffered_until > now && st.buffered_is_attack );
+            // Holding the right mouse button is swinging mode: keep starting swings in the
+            // cursor direction until the button is released.
+            const bool melee_hold = in.secondary;
+            const bool want_attack = primary_pressed || melee_hold ||
+                                     ( st.buffered_until > now && st.buffered_is_attack );
             const bool hold_attack = in.primary && !primary_pressed;
             if( want_attack || hold_attack ) {
                 std::pair<int, int> dir = have_dir ? snap8( cdx, cdy ) : std::make_pair( st.face_dx, st.face_dy );
@@ -3629,6 +3633,9 @@ void host_frame()
         mv.active = st.melee != phase::idle && !st.struck;
         if( mv.active ) {
             mv.tile = u.pos_abs() + tripoint_rel_ms( st.strike_dx, st.strike_dy, 0 );
+            mv.has_aim = in.cursor_valid && in.cursor_z == u.posz();
+            mv.aim_x = in.cursor_x;
+            mv.aim_y = in.cursor_y;
             mv.phase = static_cast<int>( st.melee );
             mv.progress = std::clamp( static_cast<double>( now - st.melee_started ) /
                                       std::max( 1, st.melee_windup_ms ), 0.0, 1.0 );

@@ -3090,9 +3090,9 @@ inventory_input inventory_selector::get_input()
     // Regional inventory shortcuts.  Tab confirms; in the WASD layout `a` switches to the
     // previous inventory submenu/column (contents, wielded, worn, map).
     if( ch == '\t' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
-        // Mark/toggle the selection without closing the menu.  Enter/Return still confirms and
-        // closes; this keeps Tab harmless in eating/drinking and other item menus.
-        action = "TOGGLE_ENTRY";
+        // Universal local confirm: Tab accepts the current pickup/drop/selection instead of
+        // merely toggling the highlighted item.
+        action = "CONFIRM";
     } else if( ch == 'a' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
         action = "PREV_COLUMN";
     }

@@ -500,6 +500,10 @@ struct melee_view {
     bool active = false;
     // tile that is about to be hit
     tripoint_abs_ms tile;
+    // exact world point the cursor is aiming at (the swing arrow follows this, not just 8 tiles)
+    bool has_aim = false;
+    double aim_x = 0.0;
+    double aim_y = 0.0;
     int phase = 0;
     double progress = 0.0;
 };

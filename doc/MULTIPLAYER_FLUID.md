@@ -46,7 +46,7 @@ Treat everything below as "designed and compile-checked". Expect bugs in the fir
 | LMB, gun wielded | Fire at the tile under the cursor |
 | LMB held, gun with burst/auto mode | Keeps firing |
 | RMB held, gun wielded | Steady the aim (recoil falls over real time) |
-| RMB, no gun | Cancels a wind-up |
+| RMB held, no gun | Swinging mode: keeps swinging toward the cursor |
 | SPACE (`FLUID_CANCEL`) | Cancels a wind-up / drops the aim |
 | `FLUID_PRIMARY`, `FLUID_SECONDARY` | Unbound keyboard alternatives for LMB / RMB (context `FLUID`) |
 
@@ -96,7 +96,8 @@ State machine in `actor_state`: `idle -> windup -> recovery -> idle`.
   `assist_cos = 0.5`, ±60°). So an enemy that sidesteps during the wind-up is still hit if it is
   near the direction. Missing (nothing there or `melee_attack` returned false) shortens the
   recovery to 60 % (`whiff_recovery`).
-* Cancel: `FLUID_CANCEL`, or RMB when no gun. Costs 50 % of the wind-up that was left.
+* Cancel: `FLUID_CANCEL` (SPACE).  RMB is swinging mode, so it no longer cancels.  Cancelling
+  costs 50 % of the wind-up that was left.
 * If the character cannot act any more (stunned, dead, activity), the swing is cancelled.
 * Lunge sprite: back 0.10 tile during the wind-up, forward 0.38 at the strike.
 * The tile about to be hit is highlighted (`melee_view`).
@@ -238,13 +239,17 @@ shows menus. Handled:
 * Direction prompts accept WASD diagonals by reading the held cardinal keys when the direction
   arrives.
 * Walking/running mode switches no longer write "You start walking/running." to the log.
-* Melee wind-up is canceled by SPACE (FLUID_CANCEL) or the right mouse button.  SPACE is swallowed
-  from the classic loop so it cannot turn into a wait action first.
-* During a swing, a gold direction arrow and the red target tile show exactly where the blow is
-  aimed.  Player melee cadence is 20% slower in fluid/multiplayer, balancing the 25% slower
-  monsters.
+* Melee wind-up is canceled by SPACE (FLUID_CANCEL), which is swallowed from the classic loop so
+  it cannot turn into a wait action first.
+* Holding the right mouse button in melee is swinging mode: it repeatedly swings toward the
+  cursor, with a gold direction arrow following the cursor rather than only eight tile
+  directions.  The actual strike still uses the existing 90-degree reach/arc.  Player melee
+  cadence is 20% slower in fluid/multiplayer, balancing the 25% slower monsters.
+* World/calendar time passes 25% slower in fluid/multiplayer, while movement and combat timing
+  stay unchanged; timed activities are compensated so their real-time speed is unchanged.
 * Wounded monsters that have spotted the local player draw a small health bar above them (green,
-  yellow, or red); full-health and unaware monsters show no bar.
+  yellow, or red); full-health and unaware monsters show no bar.  The bar pass culls monsters
+  beyond the nearby screen radius before the expensive visibility checks, avoiding town lag.
 * In fluid/multiplayer, monsters are 25% slower (movement and action rate both use `get_speed`).
 * Monster grab attacks are disabled.  Grab-only specials do nothing; attacks that also bite or
   claw still apply their normal damage.
@@ -262,11 +267,9 @@ shows menus. Handled:
   run with the player's own reality bubble swapped in, and harvest prompts use
   `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player
   rather than an NPC.
-* In inventory/pickup lists, Tab marks/toggles the highlighted selection without closing the
-  menu; Enter/Return still confirms.  This keeps eating/drinking menus open.  `a` switches to the
-  previous submenu/column (contents, wielded, worn, map), and `d` in category-selection mode
-  toggles the whole category.  NPC interaction/dialogue menus still use Tab as their explicit
-  confirm key.
+* Tab confirms the current menu/pickup/drop action universally, and `a` switches to the previous
+  inventory submenu/column (contents, wielded, worn, map).  `d` in category-selection mode toggles
+  the whole category.
 * Vehicle phase 0: the host sends authoritative `in_vehicle` / `controlling_vehicle` / seat and
   vehicle pose state at 20 Hz, and immediately when either flag changes or the vehicle starts,
   stops or reverses.  The client clears stale drive input on ejection/unboarding and no longer

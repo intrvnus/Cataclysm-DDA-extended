@@ -2299,8 +2299,15 @@ void cata_tiles::draw_fluid_overlays()
     {
         const avatar &u = get_avatar();
         map &here = get_map();
+        constexpr int bar_radius = 24;
         SDL_SetRenderDrawBlendMode( r, SDL_BLENDMODE_BLEND );
         for( monster &m : g->all_monsters() ) {
+            // Cull before the expensive visibility checks: a town can have many monsters, and
+            // only the ones near the screen can show a bar anyway.
+            if( std::abs( m.pos_abs().x() - u.pos_abs().x() ) > bar_radius ||
+                std::abs( m.pos_abs().y() - u.pos_abs().y() ) > bar_radius ) {
+                continue;
+            }
             const int hp = m.get_hp();
             const int hp_max = m.get_hp_max();
             if( hp <= 0 || hp >= hp_max || m.is_hallucination() ||
@@ -2452,7 +2459,8 @@ void cata_tiles::draw_fluid_overlays()
         const fluid::offset uo = fluid::sprite_offset( u.pos_abs() );
         const point from = to_screen( u.pos_abs().x() + uo.x, u.pos_abs().y() + uo.y,
                                       u.pos_abs().z() );
-        const point to = to_screen( mv.tile.x() + 0.5, mv.tile.y() + 0.5, mv.tile.z() );
+        const point to = mv.has_aim ? to_screen( mv.aim_x, mv.aim_y, mv.tile.z() ) :
+                         to_screen( mv.tile.x() + 0.5, mv.tile.y() + 0.5, mv.tile.z() );
         const double dx = to.x - from.x;
         const double dy = to.y - from.y;
         const double len = std::hypot( dx, dy );
