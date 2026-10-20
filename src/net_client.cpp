@@ -681,6 +681,41 @@ void send_ui( const std::string &action, const std::function<void()> &run,
     } ) );
 }
 
+// Structured consume: the client only chooses the item and, for a medical tool, the body
+// part.  The host starts the activity; no player_activity object is replayed.
+void send_consume( const item_location &source = {} )
+{
+    item_location loc = source ? game_menus::inv::consume( source ) : game_menus::inv::consume();
+    if( !loc ) {
+        return;
+    }
+    avatar &u = get_avatar();
+    bodypart_str_id body_part;
+    // The local body-part menu is still useful for choosing the limb.  Suppress activity
+    // capture: only the item and body part go to the host.
+    {
+        remote_ui::mute_scope mute;
+        avatar_action::eat_or_use( u, loc );
+        static const activity_id ACT_FIRSTAID( "ACT_FIRSTAID" );
+        if( u.activity.id() == ACT_FIRSTAID && !u.activity.str_values.empty() ) {
+            body_part = bodypart_str_id( u.activity.str_values[0] );
+        }
+    }
+    u.activity = player_activity();
+    u.backlog.clear();
+
+    std::ostringstream os;
+    JsonOut lj( os );
+    loc.serialize( lj );
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", "consume" );
+        jo.member( "cid", u.getID().get_value() );
+        jo.member( "loc", os.str() );
+        jo.member( "bp", body_part.str() );
+    } ) );
+}
+
 // Crafting: the recipe is chosen in the usual window (on the own character, whose
 // inventory the host keeps up to date); the host starts the craft.
 void send_craft( bool is_long )
@@ -1459,14 +1494,7 @@ bool handle_input()
             send_use( "takeoff", game_menus::inv::take_off() );
             break;
         case ACTION_EAT:
-            // Run the normal local consume/use flow, including the body-part menu of healing
-            // items and the use action of cigarettes, then replay the resulting activity.
-            send_ui( "capture", [] {
-                item_location loc = game_menus::inv::consume();
-                if( loc ) {
-                    avatar_action::eat_or_use( get_avatar(), loc );
-                }
-            }, true );
+            send_consume();
             break;
         case ACTION_READ:
             send_use( "read", game_menus::inv::read( get_avatar() ) );
@@ -1813,11 +1841,7 @@ bool client_item_action_impl( int key, const item_location &chosen )
             } );
             return true;
         case 'E':
-            // Both food/drugs and medical tools (bandages, first aid) go through the native
-            // eat-or-use path, so the host runs the same action the client saw.
-            send_ui( "capture", [loc]() mutable {
-                avatar_action::eat_or_use( get_avatar(), game_menus::inv::consume( loc ) );
-            }, true );
+            send_consume( loc );
             return true;
         case 'W':
             send_use( "wear", loc );

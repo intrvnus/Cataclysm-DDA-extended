@@ -52,6 +52,7 @@
 #include "gates.h"
 #include "item.h"
 #include "item_location.h"
+#include "iuse_actor.h"
 #include "iuse.h"
 #include "json.h"
 #include "json_loader.h"
@@ -2063,6 +2064,34 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             done( guy.takeoff( loc ), _( "You take off your %s." ), _( "You can't take off your %s." ) );
             return;
         } else if( what == "consume" ) {
+            const std::string body_part = msg.get_string( "bp", "" );
+            if( !body_part.empty() ) {
+                // Medical tools use the first-aid actor directly with the body part the
+                // client chose.  Nothing is replayed or re-prompted on the host.
+                bodypart_str_id healed( body_part );
+                item *used_tool = loc->get_usable_item( "heal" );
+                const use_function *heal_use = used_tool != nullptr ?
+                                               used_tool->get_use( "heal" ) : nullptr;
+                const heal_actor *actor = heal_use != nullptr ?
+                                          dynamic_cast<const heal_actor *>( heal_use->get_actor_ptr() ) : nullptr;
+                if( actor == nullptr || !healed.is_valid() || !guy.can_use_heal_item( *loc ) ) {
+                    done( false, _( "You use the %s." ), _( "You can't use the %s." ) );
+                    return;
+                }
+                int cost = actor->move_cost;
+                const proficiency_id prof_expert( "prof_wound_care_expert" );
+                const proficiency_id prof_wound( "prof_wound_care" );
+                cost = guy.has_proficiency( prof_expert ) ? cost / 2 : cost;
+                cost = guy.has_proficiency( prof_wound ) ? cost / 2 : cost;
+                guy.assign_activity( firstaid_activity_actor( cost, loc->tname(), guy.getID(),
+                                     loc, healed ) );
+                guy.activity.targets.emplace_back( loc );
+                guy.activity.str_values.emplace_back( body_part );
+                send_text( rp, string_format( _( "You start working on the %s." ), loc->tname() ) );
+                rp.character_sent_at = 0;
+                rp.sent_character = 0;
+                return;
+            }
             done( guy.consume( loc ) != trinary::NONE, _( "You consume the %s." ),
                   _( "You can't consume the %s." ) );
             return;
