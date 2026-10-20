@@ -77,6 +77,12 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   software-rendered frames per second.  A dedicated server skips map rendering entirely and
   only pumps its window events; the client also sleeps to the frame cap when held input makes
   `handle_input()` return immediately.
+* Per-step network work is bounded: the server sends a full bubble on join/map shift, the 3x3
+  around a newly entered submap once, and the current submap about once a second, instead of
+  serializing nine submaps every turn.  Monsters carry a host-assigned `net_id`; the client
+  updates the existing creature by ID instead of clearing and reallocating all monsters on
+  every state message.  A moved client body refreshes only the seen/draw caches; the full
+  map/light cache is rebuilt on terrain or weather changes.
 * Long activities and sleep clear the window (`clock.valid = false`): they run as fast as the
   machine allows, as before.
 * After the player was away (menu), the clock resets instead of running a burst of turns.
