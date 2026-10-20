@@ -2152,7 +2152,6 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
                                      loc, healed ) );
                 guy.activity.targets.emplace_back( loc );
                 guy.activity.str_values.emplace_back( body_part );
-                guy.set_moves( 0 );
                 send_text( rp, string_format( _( "You start working on the %s." ), loc->tname() ) );
                 rp.character_sent_at = 0;
                 rp.sent_character = 0;
