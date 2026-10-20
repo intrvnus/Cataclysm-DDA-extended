@@ -93,6 +93,10 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   `firstaid_activity_actor` stores its healing item and chosen body part itself, because the
   client capture runs inside `assign_activity()` before the base activity targets/str_values
   can be filled; `finish()` also rejects missing values instead of dereferencing empty vectors.
+  When a character restored from an older save has an `ACT_FIRSTAID` with no valid body part,
+  the client clears that stale activity before use; `heal_actor::use_healing_item()` also
+  validates the stored body part before reading it, so the consume menu cannot crash on an
+  empty vector.
 * Client monster state updates move existing bodies in bulk without per-monster `on_move()`
   and rebuild the creature-position index once, so two monsters swapping tiles do not report
   a collision or corrupt the tracker.  The state entries are parsed once into plain values
