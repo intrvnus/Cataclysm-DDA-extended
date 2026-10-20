@@ -150,6 +150,12 @@ struct remote_player {
     fluid::ms_t move_bank_at = 0;
     // hash of the last version of every submap sent to this client
     std::map<tripoint_abs_sm, size_t> sent_submaps;
+    // The submap the player was in when the surroundings were last refreshed.  The server
+    // used to serialize the 3x3 nearby submaps every turn; a town's submaps are large enough
+    // that this showed up as a hitch at every step.
+    tripoint_abs_sm last_submap = tripoint_abs_sm::invalid;
+    tripoint_abs_sm last_map_origin = tripoint_abs_sm::invalid;
+    fluid::ms_t submap_sent_at = 0;
     // A4: last full character sent to the owner (hash) and when
     size_t sent_character = 0;
     fluid::ms_t character_sent_at = 0;
@@ -1368,6 +1374,9 @@ void resync_player( remote_player &rp, const npc &guy )
     for( const tripoint_abs_sm &p : submaps_around( guy.pos_abs(), 1 ) ) {
         rp.sent_submaps.erase( p );
     }
+    rp.last_submap = tripoint_abs_sm::invalid;
+    rp.last_map_origin = tripoint_abs_sm::invalid;
+    rp.submap_sent_at = 0;
     rp.character_sent_at = 0;
     rp.sent_character = 0;
 }
@@ -1431,11 +1440,16 @@ void send_state( remote_player &rp, const npc &guy )
 
         jo.member( "monsters" );
         jo.start_array();
-        for( const monster &critter : g->all_monsters() ) {
+        static int next_net_monster_id = 1;
+        for( monster &critter : g->all_monsters() ) {
             if( critter.is_dead() || !here.inbounds( critter.pos_abs() ) ) {
                 continue;
             }
+            if( critter.net_id == 0 ) {
+                critter.net_id = next_net_monster_id++;
+            }
             jo.start_object();
+            jo.member( "nid", critter.net_id );
             jo.member( "id", critter.type->id.str() );
             jo.member( "hp", critter.get_hp() );
             // tame and friendly monsters: the client opens their menus (pets: key e) on its copy
@@ -3781,19 +3795,35 @@ void host_end_of_turn()
         if( own_bubble == nullptr ) {
             z_levels.insert( get_avatar().posz() );
         }
-        if( rp.sent_submaps.empty() || calendar::once_every( 10_turns ) ) {
+        const fluid::ms_t now = fluid::now_ms();
+        const tripoint_abs_sm current_submap = project_to<coords::sm>( guy->pos_abs() );
+        const tripoint_abs_sm map_origin = get_map().get_abs_sub();
+        if( rp.sent_submaps.empty() || rp.last_submap.is_invalid() ||
+            rp.last_map_origin != map_origin ) {
+            // The first copy has to fill the client's map, and every map shift needs the new
+            // bubble; ordinary per-turn updates are limited to what the player can see.
             send_submaps( rp, bubble_submaps( z_levels ) );
-        } else {
+            rp.last_submap = current_submap;
+            rp.last_map_origin = map_origin;
+            rp.submap_sent_at = now;
+        } else if( current_submap != rp.last_submap ) {
+            // A new submap is entered: send the new 3x3 surroundings once, not every turn.
             std::vector<tripoint_abs_sm> nearby = submaps_around( guy->pos_abs(), 1 );
             if( own_bubble == nullptr ) {
                 const std::vector<tripoint_abs_sm> near_host = submaps_around( get_avatar().pos_abs(), 1 );
                 nearby.insert( nearby.end(), near_host.begin(), near_host.end() );
             }
             send_submaps( rp, nearby );
+            rp.last_submap = current_submap;
+            rp.submap_sent_at = now;
+        } else if( now - rp.submap_sent_at >= 1000 ) {
+            // Refresh the current submap about once a second (doors, items, terrain), instead
+            // of serializing all nine nearby submaps on every world turn.
+            send_submaps( rp, { current_submap } );
+            rp.submap_sent_at = now;
         }
         send_state( rp, *guy );
         // A4: the owner gets the whole character (inventory, skills, needs) every few seconds
-        const fluid::ms_t now = fluid::now_ms();
         if( now - rp.character_sent_at >= 3000 ) {
             rp.character_sent_at = now;
             std::ostringstream os;

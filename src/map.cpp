@@ -9742,6 +9742,20 @@ void map::build_map_cache( const int zlev, bool skip_lightmap )
     }
 }
 
+void map::refresh_seen_cache()
+{
+    Character &player = get_player_character();
+    const tripoint_abs_ms p = player.pos_abs();
+    if( inbounds( p ) ) {
+        build_seen_cache( get_bub( p ), p.z(), player.unimpaired_range() );
+    }
+#if defined(TILES)
+    if( !test_mode ) {
+        tilecontext->set_draw_cache_dirty();
+    }
+#endif
+}
+
 //////////
 ///// coordinate helpers
 

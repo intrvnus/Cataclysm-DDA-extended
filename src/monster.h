@@ -553,6 +553,10 @@ class monster : public Creature
         // DEFINING VALUES
         int friendly = 0;
         int anger = 0;
+        // Multiplayer state identity, assigned by the host when the monster is first sent.
+        // Client-side updates reuse the same monster instead of clearing and recreating all
+        // monsters every world turn.  Not saved.
+        int net_id = 0;
         int morale = 0;
     private:
         int amount_eaten = 0;

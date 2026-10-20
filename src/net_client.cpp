@@ -370,6 +370,11 @@ void apply_submaps( const JsonArray &list )
         }
     }
     get_map().net_reload_columns( columns );
+    // Terrain/transparency changed: refresh what the client can see once here instead of in
+    // every per-turn state message.
+    map &here = get_map();
+    here.invalidate_visibility_cache();
+    here.build_map_cache( get_avatar().posz() );
     g->invalidate_main_ui_adaptor();
 }
 
@@ -400,6 +405,8 @@ void apply_state( const JsonObject &msg )
 {
     map &here = get_map();
     avatar &u = get_avatar();
+    const tripoint_abs_ms old_avatar_pos = u.pos_abs();
+    bool light_changed = false;
 
     calendar::turn = calendar::turn_zero + time_duration::from_turns( msg.get_int( "turn" ) );
     // C14: weather (and with it the light) of the host
@@ -411,12 +418,14 @@ void apply_state( const JsonObject &msg )
             weather.weather_id = host_weather;
             weather.set_nextweather( calendar::turn );
             g->reset_light_level();
+            light_changed = true;
         }
     }
 
     JsonObject you = msg.get_object( "you" );
     you.allow_omitted_members();
     place_avatar( read_pos( you.get_array( "pos" ) ) );
+    const bool avatar_moved = u.pos_abs() != old_avatar_pos;
     JsonObject hp = you.get_object( "hp" );
     hp.allow_omitted_members();
     for( const bodypart_id &bp : u.get_all_body_parts() ) {
@@ -488,29 +497,70 @@ void apply_state( const JsonObject &msg )
         overmap_buffer.remove_npc( id );
     }
 
-    // Monsters: replaced completely with what the host has.
-    g->clear_zombies();
+    // Monsters: update the host's monsters by their stable net id.  Clearing and recreating
+    // every monster here made a state update in a town allocate and free hundreds of
+    // creatures every turn; moving an existing one keeps effects and animations as well.
+    std::map<int, monster *> previous_monsters;
+    for( monster &critter : g->all_monsters() ) {
+        if( critter.net_id != 0 ) {
+            previous_monsters[critter.net_id] = &critter;
+        }
+    }
+    std::set<int> seen_monsters;
+    static const efftype_id effect_pet( "pet" );
     for( JsonObject mon : msg.get_array( "monsters" ) ) {
         mon.allow_omitted_members();
+        const int nid = mon.get_int( "nid", -1 );
         const tripoint_abs_ms p = read_pos( mon.get_array( "pos" ) );
         const mtype_id type( mon.get_string( "id" ) );
         if( !type.is_valid() || !now.inbounds( p ) ) {
             continue;
         }
-        if( monster *critter = g->place_critter_at( type, now.get_bub( p ) ) ) {
-            critter->set_hp( mon.get_int( "hp", critter->get_hp() ) );
-            critter->friendly = mon.get_int( "fr", 0 );
-            if( mon.get_bool( "pet", false ) ) {
-                static const efftype_id effect_pet( "pet" );
-                critter->add_effect( effect_pet, 1_turns, true );
+        monster *critter = nullptr;
+        const auto old = previous_monsters.find( nid );
+        if( old != previous_monsters.end() && old->second->type->id == type ) {
+            critter = old->second;
+            critter->setpos( now, now.get_bub( p ), false );
+        } else {
+            if( old != previous_monsters.end() ) {
+                g->remove_zombie( *old->second );
+                previous_monsters.erase( old );
             }
+            critter = g->place_critter_at( type, now.get_bub( p ) );
+            if( critter == nullptr ) {
+                continue;
+            }
+            critter->net_id = nid;
+        }
+        if( nid > 0 ) {
+            seen_monsters.insert( nid );
+        }
+        critter->set_hp( mon.get_int( "hp", critter->get_hp() ) );
+        critter->friendly = mon.get_int( "fr", 0 );
+        if( mon.get_bool( "pet", false ) ) {
+            critter->add_effect( effect_pet, 1_turns, true );
+        } else {
+            critter->remove_effect( effect_pet );
+        }
+    }
+    for( const std::pair<const int, monster *> &old : previous_monsters ) {
+        if( seen_monsters.count( old.first ) == 0 ) {
+            g->remove_zombie( *old.second );
         }
     }
     ( void )here;
-    // The client does not run do_turn(), so update what the player can see here, otherwise
-    // monsters stay invisible.
-    now.invalidate_visibility_cache();
-    now.build_map_cache( u.posz() );
+    // The client does not run do_turn().  Rebuilding the whole map/light cache on every state
+    // message made each step hitch in a town.  Movement only needs the player's seen cache;
+    // terrain changes refresh in apply_submaps(), and weather changes rebuild the light cache.
+    if( avatar_moved ) {
+        // Moving one tile changes the seen/draw caches, not the transparency or lighting of
+        // the whole reality bubble.  A full build here was the per-step hitch in a town.
+        now.refresh_seen_cache();
+    }
+    if( light_changed ) {
+        now.invalidate_visibility_cache();
+        now.build_map_cache( u.posz() );
+    }
     g->mon_info_update();
     g->invalidate_main_ui_adaptor();
 }

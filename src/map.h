@@ -1700,6 +1700,8 @@ class map
         void do_vehicle_caching( int z );
         // Note: in 3D mode, will actually build caches on ALL z-levels
         void build_map_cache( int zlev, bool skip_lightmap = false );
+        /** Client: player moved within the loaded map; refresh only the seen/draw caches. */
+        void refresh_seen_cache();
         // Unlike the other caches, this populates a supplied cache instead of an internal cache.
         void build_obstacle_cache(
             const tripoint_bub_ms &start, const tripoint_bub_ms &end,
