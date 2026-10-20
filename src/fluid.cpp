@@ -3636,6 +3636,11 @@ void host_frame()
             mv.has_aim = in.cursor_valid && in.cursor_z == u.posz();
             mv.aim_x = in.cursor_x;
             mv.aim_y = in.cursor_y;
+            if( mv.has_aim ) {
+                // Highlight the tile actually under the cursor, not the nearest of eight sectors.
+                mv.tile = tripoint_abs_ms( floor_int( in.cursor_x ), floor_int( in.cursor_y ),
+                                           u.posz() );
+            }
             mv.phase = static_cast<int>( st.melee );
             mv.progress = std::clamp( static_cast<double>( now - st.melee_started ) /
                                       std::max( 1, st.melee_windup_ms ), 0.0, 1.0 );
