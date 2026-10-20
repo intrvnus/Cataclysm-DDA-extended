@@ -82,7 +82,13 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   serializing nine submaps every turn.  Monsters carry a host-assigned `net_id`; the client
   updates the existing creature by ID instead of clearing and reallocating all monsters on
   every state message.  A moved client body refreshes only the seen/draw caches; the full
-  map/light cache is rebuilt on terrain or weather changes.
+  map/light cache is rebuilt on terrain or weather changes.  A remote player gets an extra
+  reality bubble only while outside the main one, so nearby players share the main bubble's
+  per-turn cache/field work.
+* Client consumption uses the same native `avatar_action::eat_or_use` flow as the host:
+  bandages and first aid open their body-part menu locally and replay the `ACT_FIRSTAID`
+  activity, while pills, cigarettes and other medications replay `ACT_CONSUME`.  The old
+  direct `Character::consume` command rejected medical tools ("You can't consume ...").
 * Long activities and sleep clear the window (`clock.valid = false`): they run as fast as the
   machine allows, as before.
 * After the player was away (menu), the clock resets instead of running a burst of turns.
