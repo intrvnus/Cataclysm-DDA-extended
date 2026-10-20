@@ -85,6 +85,12 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   map/light cache is rebuilt on terrain or weather changes.  A remote player gets an extra
   reality bubble only while outside the main one, so nearby players share the main bubble's
   per-turn cache/field work.
+* Remote crafting uses the normal `craft_activity_actor`, not the NPC `ACT_MULTIPLE_CRAFT`
+  path.  A client body keeps the in-progress craft in its inventory (or drops it nearby if it
+  does not fit), so it is not forcibly wielded and the craft can progress and be dropped.
+* The client no longer imports the host's auto-move route.  A stale route made every manual
+  step stop travel and print the message; stopping now clears the route as well, and ordinary
+  movement with no active travel is silent.
 * Client consumption uses the same native `avatar_action::eat_or_use` flow as the host:
   bandages and first aid open their body-part menu locally and replay the `ACT_FIRSTAID`
   activity, while pills, cigarettes and other medications replay `ACT_CONSUME`.  The old
