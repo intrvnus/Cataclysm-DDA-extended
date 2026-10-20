@@ -13537,6 +13537,11 @@ void Character::use( item_location loc, int pre_obtain_moves, std::string const 
     } else if( used.type->can_use( "PETFOOD" ) ) { // NOLINT(bugprone-branch-clone)
         invoke_item( &used, method, loc.pos_bub( here ), pre_obtain_moves );
 
+    } else if( used.is_medical_tool() ) {
+        // Healing comestibles such as antiseptic are medications, but using them is not
+        // eating them: always invoke the heal action (the body-part window).
+        invoke_item( &used, "heal", loc.pos_bub( here ), pre_obtain_moves );
+
     } else if( !used.is_craft() && ( used.is_medication() || ( !used.type->has_use() &&
                                      used.is_food() ) ) ) {
 
