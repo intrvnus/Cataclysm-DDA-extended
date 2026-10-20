@@ -2185,14 +2185,14 @@
     "id": "EXAMINE",
     "category": "INVENTORY",
     "name": "Examine",
-    "bindings": [ { "input_method": "keyboard_any", "key": "x" } ]
+    "bindings": [ { "input_method": "keyboard_any", "key": "e" }, { "input_method": "keyboard_any", "key": "x" } ]
   },
   {
     "type": "keybinding",
     "id": "WIELD",
     "category": "INVENTORY",
     "name": "Wield",
-    "bindings": [ { "input_method": "keyboard_any", "key": "e" } ]
+    "bindings": [ { "input_method": "keyboard_any", "key": "w" } ]
   },
   {
     "type": "keybinding",

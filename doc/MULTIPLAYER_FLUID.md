@@ -84,7 +84,10 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   every state message.  A moved client body refreshes only the seen/draw caches; the full
   map/light cache is rebuilt on terrain or weather changes.  A remote player gets an extra
   reality bubble only while outside the main one, so nearby players share the main bubble's
-  per-turn cache/field work.
+  per-turn cache/field work.  The dedicated server's main bubble still follows the average
+  player position even with extra bubbles enabled; otherwise a player who stayed inside the
+  main bubble had no bubble following it and hit an invisible wall at the edge of the
+  initially loaded map.
 * Characters expose `control()` / `is_player_controlled()`: local avatar, remote player, or
   AI.  Player-sensitive code asks that instead of treating every non-avatar as an NPC.  This
   is the start of the controller separation, without introducing multiple real avatars.
@@ -102,6 +105,19 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   `firstaid_activity_actor` stores its healing item and chosen body part itself.  `finish()`
   rejects missing values instead of dereferencing empty vectors, and a stale `ACT_FIRSTAID`
   restored from an older save is cleared before use.
+* Item actions also send the item's type id.  The host first tries the client's item
+  location and falls back to the first matching item in the body's inventory and container
+  contents when the two inventories list contents in a different order.  This fixes pills
+  and other medication consumed from a bottle, and medical liquids used with `a`.
+* The body-part selection window records and replays its choice as a `bp` answer.  Applying
+  antiseptic or alcohol to a wound therefore uses the limb chosen on the client instead of
+  opening an unanswerable body-part menu on the host.
+* Reading runs the normal local read menu first (`read once`, `until a level`, martial-arts
+  training).  The client sends the item and the selected options, then the host runs the
+  read activity.  An unknown book is identified locally when the first read starts, so the
+  skim description and recipe list are visible; the host body itself remains an NPC.
+* In the inventory, `e` examines the highlighted item (`x` also still works) and `w` wields;
+  this is an `INVENTORY` keybinding, separate from the default-mode examine key.
 * Client monster state updates move existing bodies in bulk without per-monster `on_move()`
   and rebuild the creature-position index once, so two monsters swapping tiles do not report
   a collision or corrupt the tracker.  The state entries are parsed once into plain values

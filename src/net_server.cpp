@@ -52,6 +52,7 @@
 #include "gates.h"
 #include "item.h"
 #include "item_location.h"
+#include "inventory.h"
 #include "iuse_actor.h"
 #include "iuse.h"
 #include "json.h"
@@ -1699,9 +1700,56 @@ void execute( npc &guy, const command &cmd )
 
 // ---- client menus (A6) ----
 
+// Find the body's first item of a type, including contents of containers.  Client and host
+// inventories can list container contents in a different order, so a location sent by the
+// client is not always enough; the type is a stable fallback.
+item_location find_item_by_type( Character &guy, const itype_id &type )
+{
+    if( type.is_null() ) {
+        return item_location();
+    }
+    std::function<item_location( item_location )> search =
+    [&]( item_location loc ) -> item_location {
+        if( !loc ) {
+            return item_location();
+        }
+        if( loc->typeId() == type ) {
+            return loc;
+        }
+        for( item *child : loc->all_items_container_top() ) {
+            item_location found = search( item_location( loc, child ) );
+            if( found ) {
+                return found;
+            }
+        }
+        return item_location();
+    };
+    item_location wielded = guy.get_wielded_item();
+    if( wielded ) {
+        item_location found = search( wielded );
+        if( found ) {
+            return found;
+        }
+    }
+    for( const item_location &loc : guy.top_items_loc() ) {
+        item_location found = search( loc );
+        if( found ) {
+            return found;
+        }
+    }
+    for( int i = 0; i < static_cast<int>( guy.inv->size() ); ++i ) {
+        item_location found = search( item_location( guy, &guy.i_at( i ) ) );
+        if( found ) {
+            return found;
+        }
+    }
+    return item_location();
+}
+
 // An item the client picked in a menu of its own copy of the character.  The client's copy
 // has its own character id; on the host the same item belongs to the player's body.
-item_location client_item( const npc &guy, int client_id, std::string loc_json )
+item_location client_item( npc &guy, int client_id, std::string loc_json,
+                           const itype_id &fallback = itype_id::NULL_ID() )
 {
     const std::string from = "\"character\":" + std::to_string( client_id );
     const std::string to = "\"character\":" + std::to_string( guy.getID().get_value() );
@@ -1716,10 +1764,17 @@ item_location client_item( const npc &guy, int client_id, std::string loc_json )
         jo.allow_omitted_members();
         loc.deserialize( jo );
     } catch( const std::exception & ) {
-        return item_location();
+        loc = item_location();
     }
     if( !loc || loc.get_item() == nullptr ) {
-        return item_location();
+        return find_item_by_type( guy, fallback );
+    }
+    // A container's contents may be in another order on the host.
+    if( !fallback.is_null() && loc->typeId() != fallback ) {
+        item_location by_type = find_item_by_type( guy, fallback );
+        if( by_type ) {
+            return by_type;
+        }
     }
     // only own things, or things right next to the player
     if( loc.carrier() != nullptr ) {
@@ -1806,6 +1861,14 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                                         client_id );
         if( what == "apply" ) {
             item_location loc;
+            if( remote_ui::next_is( "i" ) ) {
+                loc = remote_ui::location_from_string( remote_ui::answer( "i" ).value_or( "" ) );
+            }
+            const std::string type_name = msg.get_string( "item", "" );
+            const itype_id type = type_name.empty() ? itype_id::NULL_ID() : itype_id( type_name );
+            if( !type.is_null() && ( !loc || loc->typeId() != type ) ) {
+                loc = find_item_by_type( guy, type );
+            }
             avatar_action::use_item( guy, loc );
         } else if( what == "apply_menu" ) {
             g->mp_item_action_menu();
@@ -2039,7 +2102,9 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             send_text( rp, string_format( _( "You drop the %s." ), what_dropped ) );
         }
     } else {
-        item_location loc = client_item( guy, client_id, msg.get_string( "loc", "" ) );
+        const std::string type_name = msg.get_string( "item", "" );
+        const itype_id type = type_name.empty() ? itype_id::NULL_ID() : itype_id( type_name );
+        item_location loc = client_item( guy, client_id, msg.get_string( "loc", "" ), type );
         if( !loc ) {
             send_text( rp, _( "That is not there any more." ) );
             return;
@@ -2087,6 +2152,7 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
                                      loc, healed ) );
                 guy.activity.targets.emplace_back( loc );
                 guy.activity.str_values.emplace_back( body_part );
+                guy.set_moves( 0 );
                 send_text( rp, string_format( _( "You start working on the %s." ), loc->tname() ) );
                 rp.character_sent_at = 0;
                 rp.sent_character = 0;
@@ -2106,8 +2172,9 @@ void use_item( remote_player &rp, npc &guy, const JsonObject &msg )
             } else {
                 item_location no_ereader;
                 const time_duration t = guy.time_to_read( *loc, *reader );
-                guy.assign_activity( read_activity_actor( t, loc, no_ereader, false,
-                                     guy.getID().get_value() ) );
+                const bool continuous = msg.get_bool( "continuous", false );
+                const int learner = msg.get_int( "learner", guy.getID().get_value() );
+                guy.assign_activity( read_activity_actor( t, loc, no_ereader, continuous, learner ) );
             }
         }
     }
@@ -3339,9 +3406,11 @@ void dedicated_turn()
             u.set_mutation( t );
         }
     }
-    // stay with the players, so the reality bubble is where they are
+    // Stay with the players, so the reality bubble is where they are.  This must also happen
+    // when extra bubbles are enabled: a player who is still inside the main bubble has no
+    // extra bubble of its own, and a main bubble left at the join point would trap it.
     std::vector<npc *> bodies = remote_player_npcs();
-    if( !bodies.empty() && !bubbles::enabled() ) {
+    if( !bodies.empty() ) {
         int64_t sx = 0;
         int64_t sy = 0;
         for( const npc *guy : bodies ) {
@@ -3351,8 +3420,13 @@ void dedicated_turn()
         const tripoint_abs_ms centre( static_cast<int>( sx / static_cast<int64_t>( bodies.size() ) ),
                                       static_cast<int>( sy / static_cast<int64_t>( bodies.size() ) ),
                                       bodies.front()->pos_abs().z() );
-        if( rl_dist( u.pos_abs(), centre ) > 8 && here.inbounds( centre ) ) {
-            for( const tripoint_bub_ms &p : here.points_in_radius( here.get_bub( centre ), 4 ) ) {
+        if( rl_dist( u.pos_abs(), centre ) > 8 ) {
+            // The centre can be just outside the loaded map.  Aim at the closest loaded tile;
+            // update_map() then shifts the bubble toward the players.
+            tripoint_bub_ms goal = here.get_bub( centre );
+            goal.x() = clamp( goal.x(), 0, MAPSIZE_X - 1 );
+            goal.y() = clamp( goal.y(), 0, MAPSIZE_Y - 1 );
+            for( const tripoint_bub_ms &p : here.points_in_radius( goal, 4 ) ) {
                 if( here.passable( p ) && get_creature_tracker().creature_at( p ) == nullptr ) {
                     if( p.z() != u.posz() ) {
                         g->vertical_shift( p.z() );

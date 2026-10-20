@@ -36,6 +36,7 @@
 #include "output.h"
 #include "overmapbuffer.h"
 #include "pimpl.h"
+#include "remote_ui.h"
 #include "rng.h"
 #include "stomach.h"
 #include "string_formatter.h"
@@ -1118,6 +1119,17 @@ bodypart_id Character::body_window( const std::string &menu_header,
                                     int normal_bonus, int /* head_bonus */, int /* torso_bonus */,
                                     int bleed, float bite, float infect, float bandage_power, float disinfectant_power ) const
 {
+    // Multiplayer: while the host replays a client's healing action, use the limb the client
+    // chose instead of opening a menu on the host.  A "-" answer means the client cancelled.
+    if( remote_ui::next_is( "bp" ) ) {
+        const std::optional<std::string> given = remote_ui::answer( "bp" );
+        if( !given || *given == "-" ) {
+            return bodypart_str_id::NULL_ID().id();
+        }
+        const bodypart_str_id chosen( *given );
+        return chosen.is_valid() ? chosen.id() : bodypart_str_id::NULL_ID().id();
+    }
+
     /* This struct establishes some kind of connection between the hp_part (which can be healed and
      * have HP) and the body_part. Note that there are more body_parts than hp_parts. For example:
      * Damage to bp_head, bp_eyes and bp_mouth is all applied on the HP of hp_head. */
@@ -1349,12 +1361,13 @@ bodypart_id Character::body_window( const std::string &menu_header,
     }
 
     bmenu.query();
-    if( bmenu.ret >= 0 && static_cast<size_t>( bmenu.ret ) < parts.size() &&
-        parts[bmenu.ret].allowed ) {
-        return parts[bmenu.ret].bp;
-    } else {
-        return bodypart_str_id::NULL_ID();
+    const bodypart_id chosen = bmenu.ret >= 0 && static_cast<size_t>( bmenu.ret ) < parts.size() &&
+                               parts[bmenu.ret].allowed ?
+                               parts[bmenu.ret].bp : bodypart_str_id::NULL_ID().id();
+    if( remote_ui::recording() ) {
+        remote_ui::record( "bp", chosen == bodypart_str_id::NULL_ID() ? "-" : chosen.id().str() );
     }
+    return chosen;
 }
 
 float Character::get_heartrate_index() const

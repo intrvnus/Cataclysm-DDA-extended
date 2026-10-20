@@ -645,6 +645,7 @@ void send_use( const std::string &action, const item_location &loc )
         jo.member( "a", action );
         jo.member( "cid", get_avatar().getID().get_value() );
         jo.member( "loc", loc_json );
+        jo.member( "item", loc->typeId().str() );
     } ) );
 }
 
@@ -652,7 +653,7 @@ void send_use( const std::string &action, const item_location &loc )
 // sends them; the host does the same on the real body (see remote_ui.h).  What the action did
 // to the local copy is replaced by the host's version soon after.
 void send_ui( const std::string &action, const std::function<void()> &run,
-              bool capture_activities = false )
+              bool capture_activities = false, const std::string &item_type = "" )
 {
     std::vector<remote_ui::entry> answers;
     std::vector<std::string> activities;
@@ -675,10 +676,28 @@ void send_ui( const std::string &action, const std::function<void()> &run,
         jo.member( "a", action );
         jo.member( "cid", u.getID().get_value() );
         jo.member( "ans", remote_ui::to_json( answers ) );
+        if( !item_type.empty() ) {
+            jo.member( "item", item_type );
+        }
         if( !activities.empty() ) {
             jo.member( "acts", activities );
         }
     } ) );
+}
+
+// Use an item chosen on this client: run its normal action here for its menus (body part,
+// direction ...), then let the host do it on the body.  The item type travels too, because
+// container indices can differ between the two inventories.
+void send_apply( const item_location &loc )
+{
+    if( !loc ) {
+        return;
+    }
+    send_ui( "apply", [loc]() mutable {
+        remote_ui::record( "i", remote_ui::location_to_string( loc ) );
+        item_location use = loc;
+        avatar_action::use_item( get_avatar(), use );
+    }, false, loc->typeId().str() );
 }
 
 // Structured consume: the client only chooses the item and, for a medical tool, the body
@@ -690,6 +709,13 @@ void send_consume( const item_location &source = {} )
         return;
     }
     avatar &u = get_avatar();
+    // Serialize before the local action: obtaining or wielding the item may change its location.
+    std::ostringstream os;
+    JsonOut lj( os );
+    loc.serialize( lj );
+    const std::string loc_json = os.str();
+    const std::string item_type = loc->typeId().str();
+
     bodypart_str_id body_part;
     // The local body-part menu is still useful for choosing the limb.  Suppress activity
     // capture: only the item and body part go to the host.
@@ -704,15 +730,78 @@ void send_consume( const item_location &source = {} )
     u.activity = player_activity();
     u.backlog.clear();
 
+    impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
+        jo.member( "t", "use" );
+        jo.member( "a", "consume" );
+        jo.member( "cid", u.getID().get_value() );
+        jo.member( "loc", loc_json );
+        jo.member( "item", item_type );
+        jo.member( "bp", body_part.str() );
+    } ) );
+}
+
+// Reading: the normal local read menu chooses "read once" or "until a level", and skims an
+// unknown book.  Only those choices go to the host; the read activity itself runs there.
+void send_read( const item_location &loc )
+{
+    if( !loc ) {
+        return;
+    }
+    avatar &u = get_avatar();
+    const bool first_read = !u.has_identified( loc->typeId() );
+    std::vector<std::string> activities;
+    bool started = false;
+    item_location book = loc;
+    {
+        remote_ui::record_scope rec( true );
+        started = u.read( book );
+        activities = rec.activities();
+    }
+    if( !started || activities.empty() ) {
+        u.activity = player_activity();
+        u.backlog.clear();
+        return;
+    }
+    // The host body is an NPC, which does not keep the player's identified-books set.  Show
+    // the skim information here, at the start of the first read, instead of never.
+    if( first_read ) {
+        u.identify( *loc );
+    }
+
+    bool continuous = false;
+    int learner_id = -1;
+    try {
+        JsonObject act = json_loader::from_string( activities.front() ).get_object();
+        act.allow_omitted_members();
+        if( act.has_member( "actor" ) ) {
+            JsonObject actor = act.get_object( "actor" );
+            actor.allow_omitted_members();
+            if( actor.has_member( "actor_data" ) ) {
+                JsonObject data = actor.get_object( "actor_data" );
+                data.allow_omitted_members();
+                continuous = data.get_bool( "continuous", false );
+                learner_id = data.get_int( "learner_id", -1 );
+            }
+        }
+    } catch( const std::exception & ) {
+        u.activity = player_activity();
+        u.backlog.clear();
+        return;
+    }
+    u.activity = player_activity();
+    u.backlog.clear();
+
     std::ostringstream os;
     JsonOut lj( os );
     loc.serialize( lj );
     impl::send_json( impl::state().server_peer, message( [&]( JsonOut & jo ) {
         jo.member( "t", "use" );
-        jo.member( "a", "consume" );
+        jo.member( "a", "read" );
         jo.member( "cid", u.getID().get_value() );
         jo.member( "loc", os.str() );
-        jo.member( "bp", body_part.str() );
+        jo.member( "item", loc->typeId().str() );
+        jo.member( "continuous", continuous );
+        jo.member( "learner", learner_id );
     } ) );
 }
 
@@ -1497,23 +1586,16 @@ bool handle_input()
             send_consume();
             break;
         case ACTION_READ:
-            send_use( "read", game_menus::inv::read( get_avatar() ) );
+            send_read( game_menus::inv::read( get_avatar() ) );
             break;
         case ACTION_DROP:
             send_drop( game_menus::inv::multidrop( get_avatar() ) );
             break;
         case ACTION_USE:
-            send_ui( "apply", [] {
-                avatar_action::use_item( get_avatar() );
-            } );
+            send_apply( game_menus::inv::use() );
             break;
         case ACTION_USE_WIELDED:
-            send_ui( "apply", [] {
-                item_location loc = get_avatar().get_wielded_item();
-                // the host picks the item from the answers, like from the menu
-                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
-                avatar_action::use_item( get_avatar(), loc );
-            } );
+            send_apply( get_avatar().get_wielded_item() );
             break;
         case ACTION_CONSTRUCT:
             if( get_avatar().in_vehicle ) {
@@ -1834,11 +1916,7 @@ bool client_item_action_impl( int key, const item_location &chosen )
     item_location loc = chosen;
     switch( key ) {
         case 'a':
-            send_ui( "apply", [loc]() mutable {
-                // the host picks the item from the answers, like from the menu
-                remote_ui::record( "i", remote_ui::location_to_string( loc ) );
-                avatar_action::use_item( get_avatar(), loc );
-            } );
+            send_apply( loc );
             return true;
         case 'E':
             send_consume( loc );
@@ -1858,7 +1936,7 @@ bool client_item_action_impl( int key, const item_location &chosen )
             send_use( "takeoff", loc );
             return true;
         case 'R':
-            send_use( "read", loc );
+            send_read( loc );
             return true;
         case 'd':
             send_drop( { { loc, loc->count_by_charges() ? loc->charges : 0 } } );

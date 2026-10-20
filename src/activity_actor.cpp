@@ -2025,8 +2025,9 @@ bool read_activity_actor::npc_read( npc &learner )
 
     // NPCs don't need to identify the book or learn recipes yet.
     // NPCs don't read to other NPCs yet.
-    const bool display_messages = learner.get_fac_id() == faction_your_followers &&
-                                  get_player_character().sees( here, learner );
+    const bool display_messages = net::is_remote_player( learner ) ||
+                                  ( learner.get_fac_id() == faction_your_followers &&
+                                    get_player_character().sees( here, learner ) );
 
     const int book_fun = learner.book_fun_for( *book, learner );
     if( book_fun != 0 ) {
