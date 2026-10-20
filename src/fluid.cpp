@@ -421,6 +421,8 @@ struct client_info {
     // the last swing's timing, for the recovery part of the combat bar
     int swing_windup_ms = 0;
     int swing_total_ms = 0;
+    int melee_dx = 0;
+    int melee_dy = 0;
     int last_step_ms = 0;
     ms_t last_send = 0;
     bool aiming = false;
@@ -4203,6 +4205,8 @@ void client_event( const event &ev, ms_t arrival, bool mine )
             ci.melee_until = arrival + ev.dur_ms;
             ci.swing_windup_ms = ev.windup_ms;
             ci.swing_total_ms = ev.dur_ms;
+            ci.melee_dx = ev.dx;
+            ci.melee_dy = ev.dy;
             start_combat_bar( combat_bar_kind::windup, arrival, ev.windup_ms );
             apply_visual_event( ev, arrival );
             break;
@@ -4430,6 +4434,23 @@ void client_frame()
     av.spread_tiles = ci.spread_tiles;
     av.steadiness = ci.steadiness;
     av.can_fire = ci.can_fire;
+
+    melee_view &mv = melee_view_rw();
+    mv = melee_view();
+    const ms_t swing_started = ci.melee_until - ci.swing_total_ms;
+    if( ci.melee_until > now && now < swing_started + ci.swing_windup_ms ) {
+        mv.active = true;
+        mv.tile = u.pos_abs() + tripoint_rel_ms( ci.melee_dx, ci.melee_dy, 0 );
+        mv.has_aim = in.cursor_valid && in.cursor_z == u.posz();
+        mv.aim_x = in.cursor_x;
+        mv.aim_y = in.cursor_y;
+        if( mv.has_aim ) {
+            mv.tile = tripoint_abs_ms( floor_int( in.cursor_x ), floor_int( in.cursor_y ),
+                                       u.posz() );
+        }
+        mv.progress = std::clamp( static_cast<double>( now - swing_started ) /
+                                  std::max( 1, ci.swing_windup_ms ), 0.0, 1.0 );
+    }
 
     prune_animations( now );
     if( animating() ) {
