@@ -111,7 +111,9 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   and other medication consumed from a bottle, and medical liquids used with `a`.
 * The body-part selection window records and replays its choice as a `bp` answer.  Applying
   antiseptic or alcohol to a wound therefore uses the limb chosen on the client instead of
-  opening an unanswerable body-part menu on the host.
+  opening an unanswerable body-part menu on the host.  Medical comestibles are routed to
+  their heal action instead of the ordinary food/consume path, so `a` on a wound-cleaning
+  liquid opens the same body-part window.
 * Reading runs the normal local read menu first (`read once`, `until a level`, martial-arts
   training).  The client sends the item and the selected options, then the host runs the
   read activity.  An unknown book is identified locally when the first read starts, so the
