@@ -89,6 +89,10 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   bandages and first aid open their body-part menu locally and replay the `ACT_FIRSTAID`
   activity, while pills, cigarettes and other medications replay `ACT_CONSUME`.  The old
   direct `Character::consume` command rejected medical tools ("You can't consume ...").
+  Menu bookkeeping activities (`ACT_EAT_MENU` and the consume submenu ids) are not replayed.
+* Client monster state updates move existing bodies in bulk without per-monster `on_move()`
+  and rebuild the creature-position index once, so two monsters swapping tiles do not report
+  a collision or corrupt the tracker.
 * Long activities and sleep clear the window (`clock.valid = false`): they run as fast as the
   machine allows, as before.
 * After the player was away (menu), the clock resets instead of running a burst of turns.
