@@ -1169,8 +1169,10 @@ npc *spawn_remote_npc( remote_player &rp )
     guy->setID( g->assign_npc_id(), true );
     tripoint_abs_ms start_at = here.get_abs( spot );
     map *own_bubble = nullptr;
-    if( ( returning || go_home ) && bubbles::enabled() ) {
-        // back where they left (or home), in a reality bubble of their own, wherever that is
+    if( ( returning || go_home ) && bubbles::enabled() &&
+        !reality_bubble().inbounds( left_at ) ) {
+        // back where they left (or home), in a reality bubble of their own if the main one
+        // does not cover that place
         own_bubble = &bubbles::open_for( left_at, guy->getID().get_value() );
         swap_map swap( *own_bubble );
         tripoint_bub_ms best = own_bubble->get_bub( left_at );
@@ -1221,8 +1223,10 @@ npc *spawn_remote_npc( remote_player &rp )
         g->load_npcs( own_bubble );
     } else {
         g->load_npcs();
-        if( bubbles::enabled() ) {
-            // every player gets a bubble of his own (it overlaps the host's while they are close)
+        if( bubbles::enabled() && !reality_bubble().inbounds( guy->pos_abs() ) ) {
+            // A player outside the main bubble gets one of his own.  While they are close the
+            // main bubble already simulates them; a second overlapping map only duplicated
+            // the per-turn cache and field work.
             map &own = bubbles::open_for( guy->pos_abs(), id.get_value() );
             swap_map swap( own );
             g->load_npcs( &own );
@@ -1745,7 +1749,8 @@ void run_ui_action( remote_player &rp, npc &guy, const JsonObject &msg )
                                                        "ACT_RELOAD", "ACT_UNLOAD", "ACT_DISASSEMBLE",
                                                        "ACT_BUTCHER", "ACT_BUTCHER_FULL", "ACT_FIELD_DRESS",
                                                        "ACT_SKIN", "ACT_QUARTER", "ACT_DISMEMBER", "ACT_DISSECT",
-                                                       "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH", "ACT_CONSUME"
+                                                       "ACT_MEND_ITEM", "ACT_PULP", "ACT_BASH", "ACT_CONSUME",
+                                                       "ACT_FIRSTAID"
                                                      };
         for( JsonValue entry : msg.get_array( "acts" ) ) {
             try {

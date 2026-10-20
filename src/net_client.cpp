@@ -1425,7 +1425,14 @@ bool handle_input()
             send_use( "takeoff", game_menus::inv::take_off() );
             break;
         case ACTION_EAT:
-            send_use( "consume", game_menus::inv::consume() );
+            // Run the normal local consume/use flow, including the body-part menu of healing
+            // items and the use action of cigarettes, then replay the resulting activity.
+            send_ui( "capture", [] {
+                item_location loc = game_menus::inv::consume();
+                if( loc ) {
+                    avatar_action::eat_or_use( get_avatar(), loc );
+                }
+            }, true );
             break;
         case ACTION_READ:
             send_use( "read", game_menus::inv::read( get_avatar() ) );
@@ -1772,13 +1779,11 @@ bool client_item_action_impl( int key, const item_location &chosen )
             } );
             return true;
         case 'E':
-            if( !loc->is_container() ) {
-                send_use( "consume", loc );
-            } else {
-                send_ui( "capture", [loc]() mutable {
-                    avatar_action::eat_or_use( get_avatar(), game_menus::inv::consume( loc ) );
-                }, true );
-            }
+            // Both food/drugs and medical tools (bandages, first aid) go through the native
+            // eat-or-use path, so the host runs the same action the client saw.
+            send_ui( "capture", [loc]() mutable {
+                avatar_action::eat_or_use( get_avatar(), game_menus::inv::consume( loc ) );
+            }, true );
             return true;
         case 'W':
             send_use( "wear", loc );

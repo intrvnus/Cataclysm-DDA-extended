@@ -36,6 +36,8 @@ map &map_for( const Character &who );
 void release( int body_id );
 /** True if the position is inside the main bubble or an extra one. */
 bool in_any( const tripoint_abs_ms &p );
+/** Opens a bubble only for a remote body that has left the main bubble. */
+void ensure_all();
 /** Every body's bubble follows its body (shifts, loads NPCs, spawns monsters); once per turn. */
 void follow_all();
 

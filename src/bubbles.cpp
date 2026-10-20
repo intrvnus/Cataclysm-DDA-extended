@@ -148,9 +148,32 @@ bool in_any( const tripoint_abs_ms &p )
     return reality_bubble().inbounds( p ) || in_extra( p );
 }
 
+void ensure_all()
+{
+    if( !enabled() ) {
+        return;
+    }
+    std::vector<std::pair<int, tripoint_abs_ms>> need;
+    for( npc &guy : g->all_npcs() ) {
+        if( guy.is_dead() || guy.get_value( "mp_remote_player" ).str() != "1" ||
+            bubble_of( guy ) != nullptr || reality_bubble().inbounds( guy.pos_abs() ) ) {
+            continue;
+        }
+        need.emplace_back( guy.getID().get_value(), guy.pos_abs() );
+    }
+    // Opening a bubble loads NPCs and can change active_npc, so do it after the scan.
+    for( const std::pair<int, tripoint_abs_ms> &entry : need ) {
+        // Only a body outside the main bubble needs its own loaded area.  While it is close
+        // (the common case in a town) the main bubble already simulates it and the extra
+        // map/tick/cache work was pure overhead every turn.
+        open_for( entry.second, entry.first );
+    }
+}
+
 void follow_all()
 {
     stopwatch sw;
+    ensure_all();
     // copy: following can open and close bubbles
     const std::map<int, map *> bodies = by_body();
     for( const auto &entry : bodies ) {
