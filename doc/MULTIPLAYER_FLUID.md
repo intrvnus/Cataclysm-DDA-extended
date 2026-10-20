@@ -85,6 +85,9 @@ actor timeline               step(120ms) | step | swing(windup, strike, recovery
   map/light cache is rebuilt on terrain or weather changes.  A remote player gets an extra
   reality bubble only while outside the main one, so nearby players share the main bubble's
   per-turn cache/field work.
+* Characters expose `control()` / `is_player_controlled()`: local avatar, remote player, or
+  AI.  Player-sensitive code asks that instead of treating every non-avatar as an NPC.  This
+  is the start of the controller separation, without introducing multiple real avatars.
 * Remote crafting uses the normal `craft_activity_actor`, not the NPC `ACT_MULTIPLE_CRAFT`
   path.  A client body keeps the in-progress craft in its inventory (or drops it nearby if it
   does not fit), so it is not forcibly wielded and the craft can progress and be dropped.
