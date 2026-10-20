@@ -244,6 +244,8 @@ struct actor_state {
     int soft_dy = 0;
 
     // ---- melee
+    // RMB toggles combat mode; in combat mode the left button swings (RMB itself never swings)
+    bool combat_mode = false;
     phase melee = phase::idle;
     ms_t phase_end = 0;
     ms_t melee_started = 0;

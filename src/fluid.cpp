@@ -2967,6 +2967,8 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     st.seen_shove_presses = in.shove_presses;
     const bool primary_pressed = in.primary_presses != st.seen_primary_presses ||
                                  ( in.primary && !st.prev_primary );
+    const bool secondary_pressed = in.secondary_presses != st.seen_secondary_presses ||
+                                   ( in.secondary && !st.prev_secondary );
     st.seen_primary_presses = in.primary_presses;
     st.seen_secondary_presses = in.secondary_presses;
     st.prev_primary = in.primary;
@@ -2991,6 +2993,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
     const bool have_dir = have_cursor && std::abs( cdx ) + std::abs( cdy ) > 0.25;
     const bool acting = can_act_now( who );
     const bool armed_with_gun = wielded_gun( who ) != nullptr;
+    // RMB is the combat-mode switch for melee.  It must not itself start a swing; a left click
+    // (or holding the left button) does that while the mode is on.
+    if( secondary_pressed && !armed_with_gun ) {
+        st.combat_mode = !st.combat_mode;
+    }
 
     // ---- melee phases
     if( st.melee == phase::windup ) {
@@ -3064,12 +3071,11 @@ void drive( Character &who, actor_state &st, const input_frame &in, ms_t now,
         if( started ) {
             // the throw / the autoattack is the action of this frame
         } else if( !armed_with_gun ) {
-            // Holding the right mouse button is swinging mode: keep starting swings in the
-            // cursor direction until the button is released.
-            const bool melee_hold = in.secondary;
-            const bool want_attack = primary_pressed || melee_hold ||
-                                     ( st.buffered_until > now && st.buffered_is_attack );
-            const bool hold_attack = in.primary && !primary_pressed;
+            // Combat mode is toggled with RMB; the left button only swings while it is on.
+            const bool want_attack = st.combat_mode &&
+                                     ( primary_pressed ||
+                                       ( st.buffered_until > now && st.buffered_is_attack ) );
+            const bool hold_attack = st.combat_mode && in.primary && !primary_pressed;
             if( want_attack || hold_attack ) {
                 std::pair<int, int> dir = have_dir ? snap8( cdx, cdy ) : std::make_pair( st.face_dx, st.face_dy );
                 if( dir.first == 0 && dir.second == 0 ) {
@@ -3632,7 +3638,10 @@ void host_frame()
         av.steadiness = st.steadiness;
         av.can_fire = st.can_fire;
         melee_view &mv = melee_view_rw();
-        mv.active = st.melee != phase::idle && !st.struck;
+        const bool swinging = st.melee != phase::idle && !st.struck;
+        const bool combat_ready = st.combat_mode && st.melee == phase::idle && !st.holds_gun &&
+                                  in.cursor_valid && in.cursor_z == u.posz();
+        mv.active = swinging || combat_ready;
         if( mv.active ) {
             mv.tile = u.pos_abs() + tripoint_rel_ms( st.strike_dx, st.strike_dy, 0 );
             mv.has_aim = in.cursor_valid && in.cursor_z == u.posz();
@@ -3644,8 +3653,8 @@ void host_frame()
                                            u.posz() );
             }
             mv.phase = static_cast<int>( st.melee );
-            mv.progress = std::clamp( static_cast<double>( now - st.melee_started ) /
-                                      std::max( 1, st.melee_windup_ms ), 0.0, 1.0 );
+            mv.progress = swinging ? std::clamp( static_cast<double>( now - st.melee_started ) /
+                                                 std::max( 1, st.melee_windup_ms ), 0.0, 1.0 ) : 0.0;
         }
     }
 

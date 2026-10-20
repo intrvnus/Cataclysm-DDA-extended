@@ -41,12 +41,12 @@ Treat everything below as "designed and compile-checked". Expect bugs in the fir
 |---|---|
 | WASD / arrows / numpad / digits (held) | Walk. Two keys = diagonal. Speed from move cost. |
 | Walking into an enemy | Starts a swing at it |
-| LMB, no gun | Melee swing towards the cursor (snapped to 8 directions, with target assist) |
-| LMB held, no gun | Keeps swinging while something is in range |
+| LMB, no gun, combat mode on | Melee swing towards the cursor (with target assist) |
+| LMB held, no gun, combat mode on | Keeps swinging while something is in range |
 | LMB, gun wielded | Fire at the tile under the cursor |
 | LMB held, gun with burst/auto mode | Keeps firing |
 | RMB held, gun wielded | Steady the aim (recoil falls over real time) |
-| RMB held, no gun | Swinging mode: keeps swinging toward the cursor |
+| RMB, no gun | Toggle combat mode; it does not swing by itself |
 | SPACE (`FLUID_CANCEL`) | Cancels a wind-up / drops the aim |
 | `FLUID_PRIMARY`, `FLUID_SECONDARY` | Unbound keyboard alternatives for LMB / RMB (context `FLUID`) |
 
@@ -96,7 +96,7 @@ State machine in `actor_state`: `idle -> windup -> recovery -> idle`.
   `assist_cos = 0.5`, ±60°). So an enemy that sidesteps during the wind-up is still hit if it is
   near the direction. Missing (nothing there or `melee_attack` returned false) shortens the
   recovery to 60 % (`whiff_recovery`).
-* Cancel: `FLUID_CANCEL` (SPACE).  RMB is swinging mode, so it no longer cancels.  Cancelling
+* Cancel: `FLUID_CANCEL` (SPACE).  RMB toggles combat mode, so it no longer cancels.  Cancelling
   costs 50 % of the wind-up that was left.
 * If the character cannot act any more (stunned, dead, activity), the swing is cancelled.
 * Lunge sprite: back 0.10 tile during the wind-up, forward 0.38 at the strike.
@@ -241,8 +241,9 @@ shows menus. Handled:
 * Walking/running mode switches no longer write "You start walking/running." to the log.
 * Melee wind-up is canceled by SPACE (FLUID_CANCEL), which is swallowed from the classic loop so
   it cannot turn into a wait action first.
-* Holding the right mouse button in melee is swinging mode: it repeatedly swings toward the
-  cursor, with a gold direction arrow following the cursor rather than only eight tile
+* Right-clicking without a gun toggles combat mode; it does not swing by itself.  While combat
+  mode is on, the left button swings toward the cursor (holding it repeats while something is in
+  range), with a gold direction arrow following the cursor rather than only eight tile
   directions.  The actual strike still uses the existing 90-degree reach/arc.  Player melee
   cadence is 20% slower in fluid/multiplayer, balancing the 25% slower monsters.
 * World/calendar time passes 25% slower in fluid/multiplayer, while movement and combat timing
