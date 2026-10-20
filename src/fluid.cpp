@@ -4283,6 +4283,10 @@ void stop_travel( avatar &u, const std::string &why, game_message_type type )
     travel_route().clear();
     travel_omts().clear();
     u.omt_path.clear();
+    // A client also imports the host character's auto-move route.  Clearing only omt_path
+    // left that route alive, so every later movement stopped travel again and printed the
+    // message over and over.
+    u.abort_automove();
     ui::omap::force_quit();
     if( !why.empty() ) {
         u.add_msg_if_player( type, why );
@@ -4309,8 +4313,11 @@ void client_auto_travel( avatar &u, input_frame &in )
     if( trace ) {
         DebugLog( D_INFO, D_MAIN ) << "trace travel route " << route.size() << " omt " << omts.size();
     }
-    if( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) {
-        stop_travel( u, _( "You stop travelling." ), m_info );
+    const bool travelling = !route.empty() || !omts.empty() || u.has_destination();
+    if( ( in.move_x != 0 || in.move_y != 0 || in.primary || in.cancel ) ) {
+        if( travelling ) {
+            stop_travel( u, _( "You stop travelling." ), m_info );
+        }
         return;
     }
     if( alerts::recent_threat( 1000 ) ) {

@@ -57,6 +57,7 @@
 #include "messages.h"
 #include "mp_stations.h"
 #include "mutation.h"
+#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -844,6 +845,9 @@ static item_location place_craft_or_disassembly(
     Character &ch, item &craft, std::optional<tripoint_bub_ms> target )
 {
     item_location craft_in_world;
+    // A remote player's body is an npc, but it must follow the avatar crafting flow: the
+    // NPC path wields the craft and starts ACT_MULTIPLE_CRAFT, which never progresses here.
+    const bool remote_player = net::is_remote_player( ch );
 
     // Check if we are standing next to a workbench. If so, just use that.
     float best_bench_multi = 0.0f;
@@ -872,7 +876,14 @@ static item_location place_craft_or_disassembly(
 
     // Crafting without a workbench
     if( !target ) {
-        if( !ch.has_two_arms_lifting() ) {
+        if( remote_player ) {
+            // Let a client's body keep the craft in its inventory (or on the ground if it does
+            // not fit) instead of wielding it and opening a menu on the host.
+            craft_in_world = set_item_inventory( ch, craft );
+            if( !craft_in_world ) {
+                craft_in_world = set_item_map_or_vehicle( ch, ch.pos_bub(), craft );
+            }
+        } else if( !ch.has_two_arms_lifting() ) {
             craft_in_world = set_item_map_or_vehicle( ch, ch.pos_bub(), craft );
         } else if( !ch.has_wield_conflicts( craft ) || ch.is_npc() ) {
             // NPC always tries wield craft first
@@ -983,7 +994,9 @@ void Character::start_craft( craft_command &command, const std::optional<tripoin
         return;
     }
 
-    if( is_avatar() ) {
+    if( is_avatar() || net::is_remote_player( *this ) ) {
+        // Remote player bodies must use the normal player craft actor, not the NPC
+        // ACT_MULTIPLE_CRAFT path.
         assign_activity( craft_activity_actor( craft_in_world, command.is_long() ) );
     } else {
         // set flag to craft

@@ -1960,6 +1960,10 @@ void apply_full_character( std::string json )
     } catch( const std::exception &err ) {
         DebugLog( D_WARNING, D_GAME ) << "Multiplayer: bad character data: " << err.what();
     }
+    // The host's auto-move route is not the client's travel route.  Importing it made the
+    // client start following a stale destination on the next movement and print travel
+    // messages.  Client travel uses travel_omts()/travel_route() instead.
+    u.abort_automove();
     // Old saves can contain an ACT_FIRSTAID without its body-part value (it was captured
     // before the action was complete).  Do not let that stale state reach use_healing_item().
     static const activity_id ACT_FIRSTAID_CLIENT( "ACT_FIRSTAID" );
