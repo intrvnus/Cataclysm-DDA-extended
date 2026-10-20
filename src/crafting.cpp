@@ -57,7 +57,6 @@
 #include "messages.h"
 #include "mp_stations.h"
 #include "mutation.h"
-#include "net_session.h"
 #include "npc.h"
 #include "options.h"
 #include "output.h"
@@ -847,7 +846,7 @@ static item_location place_craft_or_disassembly(
     item_location craft_in_world;
     // A remote player's body is an npc, but it must follow the avatar crafting flow: the
     // NPC path wields the craft and starts ACT_MULTIPLE_CRAFT, which never progresses here.
-    const bool remote_player = net::is_remote_player( ch );
+    const bool remote_player = ch.control() == Character::control_mode::remote_player;
 
     // Check if we are standing next to a workbench. If so, just use that.
     float best_bench_multi = 0.0f;
@@ -994,7 +993,7 @@ void Character::start_craft( craft_command &command, const std::optional<tripoin
         return;
     }
 
-    if( is_avatar() || net::is_remote_player( *this ) ) {
+    if( is_player_controlled() ) {
         // Remote player bodies must use the normal player craft actor, not the NPC
         // ACT_MULTIPLE_CRAFT path.
         assign_activity( craft_activity_actor( craft_in_world, command.is_long() ) );

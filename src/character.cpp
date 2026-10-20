@@ -651,6 +651,17 @@ Character::~Character() = default;
 Character::Character( Character && ) noexcept( map_is_noexcept ) = default;
 Character &Character::operator=( Character && ) noexcept( list_is_noexcept ) = default;
 
+Character::control_mode Character::control() const
+{
+    if( is_avatar() ) {
+        return control_mode::local_player;
+    }
+    if( net::is_remote_player( *this ) ) {
+        return control_mode::remote_player;
+    }
+    return control_mode::ai;
+}
+
 void Character::setID( character_id i, bool force )
 {
     if( id.is_valid() && !force ) {

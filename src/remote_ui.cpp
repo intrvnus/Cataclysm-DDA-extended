@@ -139,7 +139,7 @@ Character &acting_player()
 
 bool acts_as_player( const Character &who )
 {
-    return who.is_avatar() || ( st().replaying && &who == st().actor );
+    return who.is_player_controlled() || ( st().replaying && &who == st().actor );
 }
 
 bool replay_scope::failed() const

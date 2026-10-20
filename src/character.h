@@ -536,6 +536,17 @@ class Character : public Creature, public visitable
         bool is_npc() const override {
             return false;    // Overloaded for NPCs in npc.h
         }
+        enum class control_mode : int {
+            local_player,
+            remote_player,
+            ai
+        };
+        /** Who drives this body: the local avatar, a connected client, or NPC AI. */
+        control_mode control() const;
+        /** Player semantics (crafting, consuming, item use) apply to local and remote bodies. */
+        bool is_player_controlled() const {
+            return control() != control_mode::ai;
+        }
         // populate variables, inventory items, and misc from json object
         virtual void deserialize( const JsonObject &jsobj ) = 0;
 
