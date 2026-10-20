@@ -4082,8 +4082,17 @@ bodypart_id heal_actor::use_healing_item( Character &healer, Character &patient,
             }
         }
     } else if( remote_ui::acts_as_player( patient ) ) {
-        // Player healing self - let player select
-        if( healer.activity.id() != ACT_FIRSTAID ) {
+        // Player healing self - let player select.  An ACT_FIRSTAID activity is only usable as
+        // the completed current activity when it still carries a valid body part; a stale or
+        // partially captured activity from an older session must not be dereferenced.
+        const bool valid_running_firstaid = healer.activity.id() == ACT_FIRSTAID &&
+                                            !healer.activity.str_values.empty() &&
+                                            bodypart_str_id( healer.activity.str_values[0] ).is_valid();
+        if( !valid_running_firstaid ) {
+            if( healer.activity.id() == ACT_FIRSTAID ) {
+                // Old/broken activity restored with the character: drop it and ask normally.
+                healer.activity.set_to_null();
+            }
             const std::string menu_header = _( "Select a body part for: " ) + it.tname();
             healed = pick_part_to_heal( healer, patient, menu_header, limb_power, head_bonus, torso_bonus,
                                         get_stopbleed_level( healer ), bite, infect, force, get_bandaged_level( healer ),
@@ -4095,7 +4104,7 @@ bodypart_id heal_actor::use_healing_item( Character &healer, Character &patient,
             return healed;
         } else {
             // Completed activity, extract body part from it.
-            healed =  bodypart_id( healer.activity.str_values[0] );
+            healed = bodypart_id( healer.activity.str_values[0] );
         }
     } else {
         // Player healing NPC

@@ -1960,6 +1960,14 @@ void apply_full_character( std::string json )
     } catch( const std::exception &err ) {
         DebugLog( D_WARNING, D_GAME ) << "Multiplayer: bad character data: " << err.what();
     }
+    // Old saves can contain an ACT_FIRSTAID without its body-part value (it was captured
+    // before the action was complete).  Do not let that stale state reach use_healing_item().
+    static const activity_id ACT_FIRSTAID_CLIENT( "ACT_FIRSTAID" );
+    if( u.activity.id() == ACT_FIRSTAID_CLIENT &&
+        ( u.activity.str_values.empty() ||
+          !bodypart_str_id( u.activity.str_values[0] ).is_valid() ) ) {
+        u.activity = player_activity();
+    }
     // the position is the client's business (see place_avatar); keep the local id
     u.setID( own_id, true );
     u.set_pos_abs_only( pos );
