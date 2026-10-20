@@ -1149,7 +1149,7 @@ void start_swing( Character &who, actor_state &st, ms_t t0, int dx, int dy, std:
     } else {
         moves = who.attack_speed( null_item_reference() );
     }
-    const int total = std::max( tn.attack_min_ms, moves_to_ms( who, moves ) );
+    const int total = std::max( tn.attack_min_ms, moves_to_ms( who, moves ) ) * 6 / 5;
     const int windup = std::clamp( static_cast<int>( total * tn.windup_share ),
                                    std::min( tn.windup_min_ms, total / 2 ),
                                    std::min( tn.windup_max_ms, total - 40 ) );

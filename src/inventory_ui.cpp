@@ -3090,7 +3090,9 @@ inventory_input inventory_selector::get_input()
     // Regional inventory shortcuts.  Tab confirms; in the WASD layout `a` switches to the
     // previous inventory submenu/column (contents, wielded, worn, map).
     if( ch == '\t' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
-        action = "CONFIRM";
+        // Mark/toggle the selection without closing the menu.  Enter/Return still confirms and
+        // closes; this keeps Tab harmless in eating/drinking and other item menus.
+        action = "TOGGLE_ENTRY";
     } else if( ch == 'a' && ( action == "ANY_INPUT" || action == "UNKNOWN" ) ) {
         action = "PREV_COLUMN";
     }
@@ -4159,11 +4161,9 @@ void inventory_multiselector::on_input( const inventory_input &input )
     if( net::active() && input.ch == 'd' &&
         ( input.action.empty() || input.action == "RIGHT" || input.action == "ANY_INPUT" ) ) {
         // multiplayer (Noah): d ticks the highlighted entry (all of it) or unticks it; a keeps
-        // switching between the columns
-        inventory_entry &entry = get_active_column().get_highlighted();
-        if( entry.is_selectable() ) {
-            toggle_entry( entry, entry.chosen_count > 0 ? 0 : entry.get_available_count() );
-        }
+        // switching between the columns.  In category-selection mode the highlighted "entry" is
+        // a whole category, so use toggle_entries() rather than toggling one item.
+        toggle_entries( count, toggle_mode::SELECTED );
         return;
     }
     if( input.entry != nullptr ) { // Single Item from mouse

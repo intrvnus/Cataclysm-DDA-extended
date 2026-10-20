@@ -241,7 +241,8 @@ shows menus. Handled:
 * Melee wind-up is canceled by SPACE (FLUID_CANCEL) or the right mouse button.  SPACE is swallowed
   from the classic loop so it cannot turn into a wait action first.
 * During a swing, a gold direction arrow and the red target tile show exactly where the blow is
-  aimed.
+  aimed.  Player melee cadence is 20% slower in fluid/multiplayer, balancing the 25% slower
+  monsters.
 * Wounded monsters that have spotted the local player draw a small health bar above them (green,
   yellow, or red); full-health and unaware monsters show no bar.
 * In fluid/multiplayer, monsters are 25% slower (movement and action rate both use `get_speed`).
@@ -261,9 +262,11 @@ shows menus. Handled:
   run with the player's own reality bubble swapped in, and harvest prompts use
   `remote_ui::acts_as_player` instead of `is_avatar`, so a remote body is treated as the player
   rather than an NPC.
-* In inventory/pickup lists and NPC interaction/dialogue menus, Tab confirms the highlighted
-  entry.  `a` in the inventory/pickup UI switches to the previous submenu/column (contents,
-  wielded, worn, map), matching the WASD layout.
+* In inventory/pickup lists, Tab marks/toggles the highlighted selection without closing the
+  menu; Enter/Return still confirms.  This keeps eating/drinking menus open.  `a` switches to the
+  previous submenu/column (contents, wielded, worn, map), and `d` in category-selection mode
+  toggles the whole category.  NPC interaction/dialogue menus still use Tab as their explicit
+  confirm key.
 * Vehicle phase 0: the host sends authoritative `in_vehicle` / `controlling_vehicle` / seat and
   vehicle pose state at 20 Hz, and immediately when either flag changes or the vehicle starts,
   stops or reverses.  The client clears stale drive input on ejection/unboarding and no longer
